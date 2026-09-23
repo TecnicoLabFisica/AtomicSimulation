@@ -1,0 +1,445 @@
+---
+title: Bragg Reflection Simulation — Project Plan
+aliases:
+  - Bragg simulation
+  - bragg-sim
+  - P6.3.3.1 simulation
+tags:
+  - project/bragg-sim
+  - physics/x-ray
+  - dev/python
+  - dev/typescript
+status: planning
+architecture: hybrid (Python reference model + TypeScript web app)
+hosting: GitHub Pages
+environment: bragg-sim (micromamba)
+created: 2026-09-23
+updated: 2026-09-23
+references:
+  - "LD Instruction sheet 554 800 — X-ray apparatus"
+  - "LD Physics Leaflet P6.3.3.1 — Bragg reflection at a monocrystal"
+---
+
+# Bragg Reflection Simulation — Project Plan
+
+> [!abstract] Goal
+> A browser-based, physics-driven, dynamical and educational simulation of the LD experiment **P6.3.3.1**: Bragg reflection of Mo characteristic X-rays at an NaCl monocrystal, using the **X-ray apparatus 554 800** with goniometer in 2:1 coupled mode. Runs on almost any device via GitHub Pages.
+
+**Contents:** [[#Architecture]] · [[#Repository structure]] · [[#Environment]] · [[#Reference values]] · [[#Build plan]] · [[#Risks and notes]]
+
+---
+
+## Architecture
+
+> [!info] Core idea
+> **Python owns the truth, TypeScript owns the experience.**
+> Python computes the physics and exports JSON *artifacts*; the TypeScript port loads them and must reproduce them in its tests. If both implementations disagree, CI fails.
+
+```mermaid
+flowchart LR
+    subgraph PY["Python — model/"]
+        C["constants"] --> S["source"]
+        S --> X["crystal"]
+        F["filters (xraylib)"] --> SC["scan"]
+        X --> SC
+        I["instrument"] --> SC
+        D["detector"] --> SC
+        SC --> A["analysis"]
+    end
+    PY -->|export_artifacts.py| ART[("artifacts/<br/>tables + fixtures")]
+    subgraph WEB["TypeScript — web/"]
+        P["src/physics<br/>(1:1 port)"]
+        AP["src/apparatus<br/>(554 800 state machine)"]
+        V["src/views<br/>(goniometer, spectrum, Huygens)"]
+        P --> AP --> V
+    end
+    ART -->|tables| P
+    ART -->|golden fixtures| T["Vitest"]
+    T -.checks.-> P
+    WEB -->|vite build| GH["GitHub Pages"]
+```
+
+### Two kinds of artifacts
+
+| Artifact | Produced by | Consumed by | Purpose |
+|---|---|---|---|
+| `artifacts/tables/*.json` | Python (xraylib, NumPy) | Browser at runtime | Lookup data the browser can't compute cheaply (e.g. Zr transmission $T(\lambda)$) |
+| `artifacts/fixtures/*.json` | Python reference model | Vitest | Input parameters + expected outputs for cross-language verification |
+
+> [!important] Design rule — separate *expectation* from *noise*
+> Every scan function returns the **deterministic expected count rate** $\bar R(\beta)$. Poisson sampling is a separate, final step.
+> - Cross-language tests compare only $\bar R(\beta)$ (tight relative tolerance, e.g. $10^{-9}$).
+> - Noise is tested **statistically** on each side (mean and variance over many samples), since NumPy and JS RNGs never match.
+
+---
+
+## Repository structure
+
+```
+bragg-sim/
+├── environment.yml
+├── README.md
+├── LICENSE
+├── .gitignore
+├── .pre-commit-config.yaml
+├── refs/                          # the two LD PDFs — GITIGNORED (LD Didactic copyright)
+├── model/                         # Python reference package
+│   ├── pyproject.toml
+│   ├── src/braggsim/
+│   │   ├── __init__.py
+│   │   ├── constants.py           # d = 282.01 pm, Mo lines, K-edge, hc
+│   │   ├── source.py              # continuum + characteristic lines vs U, I
+│   │   ├── crystal.py             # Bragg geometry, orders, reflectivity
+│   │   ├── filters.py             # Zr transmission (xraylib)
+│   │   ├── detector.py            # GM efficiency, dead time, Poisson sampling
+│   │   ├── instrument.py          # angular broadening from s1, s2
+│   │   ├── scan.py                # 2:1 coupled scan → expected rate R(β)
+│   │   └── analysis.py            # peak centres, λ from θ
+│   ├── tests/
+│   │   ├── test_crystal.py
+│   │   ├── test_source.py
+│   │   ├── test_scan.py
+│   │   └── test_analysis.py
+│   ├── notebooks/
+│   │   ├── 01_bragg_geometry.ipynb
+│   │   ├── 02_source_model.ipynb
+│   │   ├── 03_full_spectrum_vs_fig4.ipynb
+│   │   └── 04_analysis_tables_3_5.ipynb
+│   ├── data/
+│   │   └── fig4_digitized.csv     # digitized Fig. 4 for calibration
+│   └── scripts/
+│       └── export_artifacts.py
+├── artifacts/                     # GENERATED — committed, checked for freshness in CI
+│   ├── tables/
+│   └── fixtures/
+├── web/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts             # base: '/<repo-name>/'
+│   ├── index.html
+│   ├── src/
+│   │   ├── main.ts
+│   │   ├── physics/               # 1:1 port of braggsim (same function names)
+│   │   ├── apparatus/             # control-panel state machine
+│   │   ├── views/                 # goniometer canvas, spectrum plot, Huygens panel
+│   │   ├── pedagogy/              # explore/lab modes, guided tasks
+│   │   └── styles/
+│   └── tests/                     # Vitest against artifacts/fixtures
+└── .github/workflows/
+    ├── test.yml
+    └── deploy.yml
+```
+
+> [!warning] Don't commit the PDFs
+> The instruction sheet and the leaflet are LD Didactic material. Keep them in `refs/` (gitignored) and cite them in the README.
+
+---
+
+## Environment
+
+Managed with micromamba. JS packages (Vite, TypeScript, Vitest, uPlot) live in `web/package.json`, **not** in the yml — micromamba only provides `node` + `npm`.
+
+```yaml
+name: bragg-sim
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - scipy
+  - pandas
+  - xraylib
+  - jupyterlab
+  - ipywidgets
+  - matplotlib
+  - nbstripout
+  - pytest
+  - ruff
+  - pre-commit
+  - nodejs=24
+```
+
+```bash
+micromamba create -f environment.yml
+micromamba activate bragg-sim
+pip install -e ./model          # once model/pyproject.toml exists
+cd web && npm install           # once web/package.json exists
+```
+
+---
+
+## Reference values
+
+> [!note] Extraction gotcha
+> In the PDF text layer of the leaflet, the degree sign often renders as an **8** (`7.248` = 7.24°, `0.18` = 0.1°, `258` = 25°). Always check against the rendered page.
+
+### Crystal and tube
+
+| Quantity | Value | Source |
+|---|---|---|
+| NaCl lattice constant $a_0$ | 564.02 pm | Leaflet |
+| Lattice plane spacing $d = a_0/2$ | 282.01 pm | Leaflet |
+| Mo $K_\alpha$ | 17.443 keV · 71.080 pm | Leaflet, Table 1 |
+| Mo $K_\beta$ | 19.651 keV · 63.095 pm | Leaflet, Table 1 |
+| Mo K-edge (line threshold) | ≈ 20.0 keV | Standard tables (verify via xraylib) |
+| Zr K-edge (filter) | ≈ 18.0 keV — between $K_\alpha$ and $K_\beta$ | Standard tables (verify via xraylib) |
+
+### Expected glancing angles — Leaflet Table 2
+
+| $n$ | $\theta(K_\alpha)$ | $\theta(K_\beta)$ |
+|---|---|---|
+| 1 | 7.24° | 6.42° |
+| 2 | 14.60° | 12.93° |
+| 3 | 22.21° | 19.61° |
+
+### Apparatus limits — Instruction sheet 554 800
+
+| Parameter | Range | Step | Default |
+|---|---|---|---|
+| Tube voltage $U$ | 0.0 – 35.0 kV | 0.1 kV | 5.0 kV |
+| Emission current $I$ | 0.00 – 1.00 mA | 0.01 mA | 0.00 mA |
+| Measuring time per step $\Delta t$ | 1 – 9999 s | 1 s | 1 s |
+| Angular step $\Delta\beta$ | 0.0 – 20.0° (0.0 → exposure-timer mode) | 0.1° | 0.1° |
+| Sensor arm | −10° … +170° | 0.1° | — |
+| Target arm | unlimited (0 – 360°) | 0.1° | — |
+| Rate display | max 9999 /s (internal 65 535 /s) | — | — |
+
+### Leaflet measurement settings
+
+$U = 35.0$ kV, $I = 1.00$ mA, $\Delta t = 10$ s, $\Delta\beta = 0.1°$, COUPLED, target limits 2° → 25°, $s_1 \approx 5$ cm, $s_2 \approx 6$ cm.
+
+---
+
+## Build plan
+
+> [!tip] Rule of thumb
+> Phases 1–4 are pure Python in Jupyter — that's where the real physics decisions happen. **Don't start the UI until Phase 3's spectrum looks like Fig. 4.** Everything after that is porting and presentation.
+
+```mermaid
+flowchart TD
+    P0["0 · Scaffolding"] --> P1["1 · Bragg geometry"]
+    P1 --> P2["2 · Source model"]
+    P2 --> P3["3 · Full spectrum vs Fig. 4"]
+    P3 --> P4["4 · Analysis"]
+    P4 --> P5["5 · Artifact export"]
+    P5 --> P6["6 · Web scaffold + port"]
+    P6 --> P7["7 · Apparatus emulator"]
+    P7 --> P8["8 · Views"]
+    P8 --> P9["9 · Pedagogy layer"]
+    P6 --> P10["10 · CI/CD"]
+    P9 --> P11["11 · Extensions"]
+```
+
+### Phase 0 — Scaffolding
+
+- [ ] Create the GitHub repo structure from [[#Repository structure]]
+- [ ] `micromamba create -f environment.yml`
+- [ ] `.gitignore` (include `refs/`, `node_modules/`, `web/dist/`, `.ipynb_checkpoints/`)
+- [ ] `.pre-commit-config.yaml` with ruff + nbstripout
+- [ ] `model/pyproject.toml` (src layout), `pip install -e ./model`
+- [ ] README: purpose, architecture diagram, references
+- [ ] Choose a license
+
+> [!success] Done when
+> `pip install -e ./model` works and an empty `pytest` run passes.
+
+### Phase 1 — Constants and Bragg geometry
+
+Files: `constants.py`, `crystal.py`
+
+$$
+n\lambda = 2d\sin\theta
+$$
+
+- [ ] Physical constants and Mo line data in `constants.py`
+- [ ] `theta_from_lambda(lam, n, d)` and `lambda_from_theta(theta, n, d)`
+- [ ] Handle the no-reflection case ($n\lambda > 2d$)
+- [ ] Notebook `01_bragg_geometry.ipynb`
+
+> [!success] Done when
+> A test reproduces [[#Expected glancing angles — Leaflet Table 2|Table 2]] to two decimals.
+
+### Phase 2 — Source model
+
+File: `source.py`
+
+**Continuum** (Kramers-type), cut off at the Duane–Hunt limit:
+
+$$
+\lambda_\text{min} = \frac{hc}{eU} \quad\Rightarrow\quad \lambda_\text{min}\,[\text{pm}] \approx \frac{1239.84}{U\,[\text{kV}]}
+$$
+
+$$
+I_\text{cont}(\lambda) \propto I_e\, Z \left(\frac{\lambda}{\lambda_\text{min}} - 1\right)\frac{1}{\lambda^{2}}, \qquad \lambda > \lambda_\text{min}
+$$
+
+At 35 kV: $\lambda_\text{min} \approx 35.4$ pm → first-order $\theta \approx 3.6°$ (the dip near 3° in Fig. 4).
+
+**Characteristic lines** — only for $U > U_K \approx 20.0$ kV:
+
+$$
+I_{K} \propto I_e \left(\frac{U}{U_K} - 1\right)^{m}
+$$
+
+with $m$ an empirical, tunable exponent; $K_\alpha : K_\beta$ ratio as a fit parameter.
+
+- [ ] Continuum function with correct cutoff
+- [ ] Line intensities with threshold behaviour
+- [ ] Line profiles (intrinsic width small vs. instrument width)
+- [ ] Notebook `02_source_model.ipynb`: $I(\lambda)$ vs $U$, $I_e$
+
+> [!success] Done when
+> Plots behave physically: lines vanish below ~20 kV, continuum edge moves with $U$, everything scales linearly with $I_e$.
+
+### Phase 3 — From λ to what the counter sees
+
+Files: `crystal.py`, `instrument.py`, `detector.py`, `scan.py`
+
+Mapping the spectrum onto angle for orders $n = 1, 2, 3$ requires the Jacobian:
+
+$$
+\frac{d\lambda}{d\theta} = \frac{2d}{n}\cos\theta
+$$
+
+GM dead time (non-paralyzable model):
+
+$$
+R_\text{obs} = \frac{R}{1 + R\tau}
+$$
+
+- [ ] Order-dependent reflectivity factor $r_n$ (fit parameter)
+- [ ] Gaussian angular broadening with width $\sigma(s_1, s_2)$
+- [ ] GM efficiency $\varepsilon(\lambda)$ and dead time $\tau$
+- [ ] Direct-beam leak term at small angles (the rise below ~3° in Fig. 4)
+- [ ] `scan.py`: coupled scan returning $\bar R(\beta)$ for given $U, I, \Delta\beta$, limits
+- [ ] Separate `sample_counts(R_bar, dt, rng)` for Poisson noise
+- [ ] Digitize Fig. 4 (e.g. WebPlotDigitizer) → `data/fig4_digitized.csv`
+- [ ] Fit free parameters: overall scale, line/continuum ratio, $r_n$, $m$
+- [ ] Notebook `03_full_spectrum_vs_fig4.ipynb` — linear and log plots
+
+> [!success] Done when
+> The simulated spectrum qualitatively matches Fig. 4 in **both** linear and log scale, including relative peak heights across orders.
+
+### Phase 4 — Analysis
+
+File: `analysis.py`
+
+- [ ] Peak finding on (noisy) spectra
+- [ ] Gaussian fit for peak centres with uncertainties
+- [ ] $\lambda$ from $\theta$ per order; mean over orders
+- [ ] Notebook `04_analysis_tables_3_5.ipynb`
+
+> [!success] Done when
+> Running the analysis on a simulated spectrum reproduces the workflow and values of leaflet Tables 3–5 (mean $\lambda(K_\alpha) \approx 71.07$ pm, $\lambda(K_\beta) \approx 63.08$ pm).
+
+### Phase 5 — Artifact export
+
+File: `scripts/export_artifacts.py`
+
+- [ ] `tables/`: Zr transmission $T(\lambda)$, GM efficiency, any other xraylib-derived data
+- [ ] `fixtures/`: golden cases — default leaflet settings, $U$ below the K-edge, Zr filter on, several $s_2$ values, edge angles
+- [ ] Each fixture stores inputs, expected $\bar R(\beta)$, and a model version string
+- [ ] Deterministic output (sorted keys, fixed float formatting)
+
+> [!success] Done when
+> Running the script twice produces byte-identical files, and a CI check fails if committed artifacts are stale.
+
+### Phase 6 — Web scaffold and physics port
+
+- [ ] `npm create vite@latest` → vanilla TypeScript
+- [ ] Add Vitest and uPlot
+- [ ] Set `base: '/<repo-name>/'` in `vite.config.ts`
+- [ ] Port `braggsim` modules 1:1 into `src/physics/` (same names, same units)
+- [ ] Vitest suite loading every fixture
+
+> [!success] Done when
+> All fixtures pass in Vitest.
+
+### Phase 7 — Apparatus emulator
+
+Folder: `src/apparatus/`
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> ParamEdit: U / I / Δt / Δβ / β LIMITS
+    ParamEdit --> Idle: any key
+    Idle --> SafetyTest: SCAN or HV ON/OFF
+    SafetyTest --> Idle: door open (display blinks)
+    SafetyTest --> Scanning: "SAFE… OK", Δβ > 0
+    SafetyTest --> ExposureTimer: "SAFE… OK", Δβ = 0
+    Scanning --> Replay: scan finished → REPLAY
+    ExposureTimer --> Replay: time elapsed → REPLAY
+    Replay --> Idle: RESET / SCAN
+```
+
+- [ ] Parameter ranges and steps from [[#Apparatus limits — Instruction sheet 554 800]]
+- [ ] Keys: U, I, Δt, Δβ, β LIMITS, SENSOR, TARGET, COUPLED, ZERO, RESET, REPLAY, SCAN, HV ON/OFF, speaker
+- [ ] Door interlock and "SAFE… OK" self-test
+- [ ] Refuse scan if upper limit < lower limit (display flashes)
+- [ ] ADJUST knob with dynamic response (faster turn → bigger increments)
+- [ ] **Time acceleration** control (1×, 10×, 100×, instant)
+
+> [!example] Why time acceleration matters
+> The leaflet scan (2° → 25°, $\Delta\beta = 0.1°$, $\Delta t = 10$ s) has 231 steps → $231 \times 10\ \text{s} \approx 38.5$ min of real time.
+
+> [!success] Done when
+> The full procedure of manual section 11 (a, b, f, h) can be performed step by step in the browser.
+
+### Phase 8 — Views
+
+Folder: `src/views/`
+
+- [ ] **Goniometer canvas**: crystal at $\theta$, counter at $2\theta$, beam path
+- [ ] **Live spectrum** (uPlot), point by point during scan; linear/log toggle
+- [ ] **Huygens / path-difference panel**: highlights when $2d\sin\theta = n\lambda$
+- [ ] **LED-style displays** mimicking the 554 800 panel
+- [ ] Responsive layout; test on a phone
+
+> [!success] Done when
+> The app is usable and smooth on a phone screen.
+
+### Phase 9 — Pedagogy layer
+
+Folder: `src/pedagogy/`
+
+- [ ] **Explore mode**: physics visible, sliders, overlays of expected angles
+- [ ] **Lab mode**: raw data only, CSV export for student analysis
+- [ ] Guided tasks, e.g. *"Find the voltage at which the characteristic lines disappear"*, *"Reduce $s_2$ until $K_\alpha$ and $K_\beta$ merge"*
+- [ ] Optional teacher answer key generated from `analysis` outputs
+
+### Phase 10 — CI/CD
+
+- [ ] `test.yml`: `mamba-org/setup-micromamba` → pytest → artifact freshness check → `npm ci` → Vitest
+- [ ] `deploy.yml`: build `web/` → `actions/upload-pages-artifact` → `actions/deploy-pages`
+- [ ] Enable Pages (source: GitHub Actions) in repo settings
+
+> [!success] Done when
+> A push to `main` runs all tests and publishes the site automatically.
+
+### Phase 11 — Extensions
+
+- [ ] Zr filter toggle (suppresses $K_\beta$)
+- [ ] $K_{\alpha 1}/K_{\alpha 2}$ doublet, resolvable at third order (Δθ ≈ 0.14°)
+- [ ] Other anodes: Cu, Fe, Ag, W
+- [ ] Other crystals: LiF, KBr
+- [ ] Duane–Hunt experiment (Planck's constant from $\lambda_\text{min}$)
+- [ ] Moseley's law experiment
+
+---
+
+## Risks and notes
+
+> [!warning] Model calibration
+> Several parameters ($m$, $r_n$, $\varepsilon(\lambda)$, $\tau$, direct-beam leak) are effectively empirical. Document each one with its fitted value and what it was fitted to, so the model stays honest.
+
+> [!warning] Hardware version mismatch
+> The leaflet was written for the older **554 811** (RS-232, Windows 9x); the instruction sheet is for the **554 800** (USB). Emulate the **554 800** panel — that's the lab hardware.
+
+> [!question] Open decisions
+> - License for code vs. educational content
+> - Language(s) of the UI (Spanish / English)
+> - Whether to validate against real measurements from the EPN apparatus later
+
+%% Keep this note in sync with the repo README once Phase 0 is done. %%

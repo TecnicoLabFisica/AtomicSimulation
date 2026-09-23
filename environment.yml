@@ -1,0 +1,41 @@
+# Bragg reflection at NaCl (LD P6.3.3.1 / X-ray apparatus 554 800) — browser simulation
+# Hybrid architecture: Python = reference model + data/fixture generation,
+#                      TypeScript (Node/Vite) = browser app deployed to GitHub Pages.
+#
+# Create:   micromamba create -f environment.yml
+# Activate: micromamba activate bragg-sim
+# Update:   micromamba update -f environment.yml
+# Then, once model/pyproject.toml exists:  pip install -e ./model
+# And for the web side:                    cd web && npm install
+#
+# Cross-platform: Linux (Ubuntu/Debian) and Windows 11.
+
+name: bragg-sim
+channels:
+  - conda-forge
+dependencies:
+  # --- Core -----------------------------------------------------------------
+  - python=3.12        # no longer tied to Pyodide; chosen for broad package support
+  - pip
+
+  # --- Physics reference model & data generation ----------------------------
+  - numpy
+  - scipy              # peak fitting (curve_fit), convolution, special functions
+  - pandas             # CSV import/export, digitized reference spectra
+  - xraylib            # line energies, K-edges, attenuation (Zr filter, NaCl absorption)
+
+  # --- Prototyping & validation ---------------------------------------------
+  - jupyterlab
+  - ipywidgets
+  - matplotlib
+  - nbstripout         # strips notebook outputs before commit (keeps git diffs clean)
+
+  # --- Code quality & tests --------------------------------------------------
+  - pytest
+  - ruff
+  - pre-commit
+
+  # --- Frontend toolchain (required in the hybrid route) ---------------------
+  # JS dependencies (vite, typescript, vitest, uplot) live in web/package.json,
+  # not here; micromamba only provides node + npm.
+  - nodejs=24          # current LTS line
