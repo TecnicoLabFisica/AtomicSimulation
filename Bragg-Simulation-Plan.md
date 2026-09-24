@@ -14,7 +14,7 @@ architecture: hybrid (Python reference model + TypeScript web app)
 hosting: GitHub Pages
 environment: atom-sim (micromamba)
 created: 2026-09-23
-updated: 2026-09-23
+updated: 2026-09-24
 references:
   - "LD Instruction sheet 554 800 — X-ray apparatus"
   - "LD Physics Leaflet P6.3.3.1 — Bragg reflection at a monocrystal"
@@ -233,13 +233,13 @@ flowchart TD
 
 ### Phase 0 — Scaffolding
 
-- [ ] Create the GitHub repo structure from [[#Repository structure]]
-- [ ] `micromamba create -f environment.yml`
-- [ ] `.gitignore` (include `refs/`, `node_modules/`, `web/dist/`, `.ipynb_checkpoints/`)
-- [ ] `.pre-commit-config.yaml` with ruff + nbstripout
-- [ ] `model/pyproject.toml` (src layout), `pip install -e ./model`
-- [ ] README: purpose, architecture diagram, references
-- [ ] Choose a license
+- [x] Create the GitHub repo structure from [[#Repository structure]]
+- [x] `micromamba create -f environment.yml`
+- [x] `.gitignore` (include `refs/`, `node_modules/`, `web/dist/`, `.ipynb_checkpoints/`)
+- [x] `.pre-commit-config.yaml` with ruff + nbstripout
+- [x] `model/pyproject.toml` (src layout), `pip install -e ./model`
+- [x] README: purpose, architecture diagram, references
+- [x] Choose a license
 
 > [!success] Done when
 > `pip install -e ./model` works and an empty `pytest` run passes.
@@ -438,8 +438,8 @@ Folder: `src/pedagogy/`
 > The leaflet was written for the older **554 811** (RS-232, Windows 9x); the instruction sheet is for the **554 800** (USB). Emulate the **554 800** panel — that's the lab hardware.
 
 > [!question] Open decisions
-> - License for code vs. educational content
-> - Language(s) of the UI (Spanish / English)
+> - ~~License for code vs. educational content~~ → MIT (code) + CC BY 4.0 (content)
+> - ~~Language(s) of the UI~~ → Spanish (default) + English
 > - Whether to validate against real measurements from the EPN apparatus later
 
 %% Keep this note in sync with the repo README once Phase 0 is done. %%

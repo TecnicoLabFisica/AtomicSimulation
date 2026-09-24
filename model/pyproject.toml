@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "braggsim"
+dynamic = ["version"]
+description = "Reference physics model for the LD P6.3.3.1 Bragg reflection simulation (X-ray apparatus 554 800)"
+requires-python = ">=3.12"
+license = "MIT"
+# xraylib is also required but comes from conda-forge (environment.yml); its conda build
+# carries no pip metadata, so listing it here would make pip try to fetch/build it.
+dependencies = ["numpy", "scipy"]
+
+[tool.setuptools.dynamic]
+version = { attr = "braggsim.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# No pep8-naming: unit-carrying names like U_kV and lambda_pm are intentional.
+select = ["E", "F", "W", "I", "UP", "B", "NPY"]

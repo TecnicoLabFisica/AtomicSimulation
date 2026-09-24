@@ -15,8 +15,8 @@ Everything runs in the micromamba env **`atom-sim`** (`environment.yml`). Prefix
 
 ```bash
 micromamba create -f environment.yml                     # first time
-micromamba run -n atom-sim pip install -e ./model        # † Phase 0
-micromamba run -n atom-sim pytest model                  # † Python tests
+micromamba run -n atom-sim pip install -e ./model
+micromamba run -n atom-sim pytest model                  # Python tests
 micromamba run -n atom-sim ruff check . && ruff format . # lint / format
 micromamba run -n atom-sim python model/scripts/export_artifacts.py   # † regenerate artifacts/
 micromamba run -n atom-sim npm --prefix web run dev|test|build        # † web app, Vitest, build
@@ -65,5 +65,5 @@ Agents (`.claude/agents/`, read-only reviewers; call them after meaningful chang
 
 - [x] LD PDFs (once committed under `start/`) purged from history on 2026-09-24. Before publishing,
       re-check: `git log --all --stat -- '*.pdf'` must print nothing.
-- [ ] LICENSE files: MIT (code) + CC BY 4.0 (educational content/docs); README cites LD sources.
+- [x] LICENSE files: MIT (code) + CC BY 4.0 (educational content/docs); README cites LD sources.
 - [ ] No absolute local paths, tokens or `settings.local.json` in history.
