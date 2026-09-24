@@ -10,7 +10,7 @@
 #
 # Cross-platform: Linux (Ubuntu/Debian) and Windows 11.
 
-name: bragg-sim
+name: atom-sim
 channels:
   - conda-forge
 dependencies:
