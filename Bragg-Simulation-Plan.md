@@ -12,7 +12,7 @@ tags:
 status: planning
 architecture: hybrid (Python reference model + TypeScript web app)
 hosting: GitHub Pages
-environment: bragg-sim (micromamba)
+environment: atom-sim (micromamba)
 created: 2026-09-23
 updated: 2026-09-23
 references:
@@ -140,7 +140,7 @@ bragg-sim/
 Managed with micromamba. JS packages (Vite, TypeScript, Vitest, uPlot) live in `web/package.json`, **not** in the yml — micromamba only provides `node` + `npm`.
 
 ```yaml
-name: bragg-sim
+name: atom-sim
 channels:
   - conda-forge
 dependencies:
@@ -162,7 +162,7 @@ dependencies:
 
 ```bash
 micromamba create -f environment.yml
-micromamba activate bragg-sim
+micromamba activate atom-sim
 pip install -e ./model          # once model/pyproject.toml exists
 cd web && npm install           # once web/package.json exists
 ```

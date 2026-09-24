@@ -3,7 +3,7 @@
 #                      TypeScript (Node/Vite) = browser app deployed to GitHub Pages.
 #
 # Create:   micromamba create -f environment.yml
-# Activate: micromamba activate bragg-sim
+# Activate: micromamba activate atom-sim
 # Update:   micromamba update -f environment.yml
 # Then, once model/pyproject.toml exists:  pip install -e ./model
 # And for the web side:                    cd web && npm install

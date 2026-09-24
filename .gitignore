@@ -1,0 +1,26 @@
+# Copyrighted LD Didactic material (instruction sheet, leaflet) — never commit
+refs/
+*.pdf
+
+# Local tooling / editors
+.obsidian/
+.remember/
+.claude/settings.local.json
+.claude/.headroom*
+.vscode/
+.idea/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+
+# Web
+node_modules/
+web/dist/
+coverage/
