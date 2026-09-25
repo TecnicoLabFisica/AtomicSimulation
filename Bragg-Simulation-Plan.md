@@ -334,10 +334,16 @@ Deviations from this plan (details in `model/PARAMETERS.md`):
 
 File: `analysis.py`
 
-- [ ] Peak finding on (noisy) spectra
-- [ ] Gaussian fit for peak centres with uncertainties
-- [ ] $\lambda$ from $\theta$ per order; mean over orders
-- [ ] Notebook `04_analysis_tables_3_5.ipynb`
+- [x] Peak finding on (noisy) spectra
+- [x] ~~Gaussian fit~~ → centroid ("Calculate Peak Center", as in the leaflet) for peak centres with uncertainties
+- [x] $\lambda$ from $\theta$ per order; mean over orders
+- [x] Notebook `04_analysis_tables_3_5.ipynb`
+
+Deviations from this plan:
+- Centroids replace the Gaussian fit. Kβ₂ (13 % of Kβ, 1.15 pm below Kβ₁,₃) separates from 2nd order on, so a
+  Gaussian locks onto Kβ₁,₃ and gives λ(Kβ) ≈ 63.2 pm. The whole-peak centroid gives the blend mean that the leaflet
+  quotes (63.09 pm). The marked half-window of 0.7° is documented in `model/PARAMETERS.md`.
+- The analysis is Python only (notebook, future teacher key). It is not ported and has no fixtures.
 
 > [!success] Done when
 > Running the analysis on a simulated spectrum reproduces the workflow and values of leaflet Tables 3–5 (mean $\lambda(K_\alpha) \approx 71.07$ pm, $\lambda(K_\beta) \approx 63.08$ pm).

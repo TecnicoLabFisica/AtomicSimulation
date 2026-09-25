@@ -41,6 +41,13 @@ plausible, but that is not an independent confirmation.
 | `ModelParams.tau_s` | 1.0e-4 s | Typical end-window GM tube. **Still to verify for the LD 559 01** | The log-RMS of the Fig. 4 fit is flat for τ from 0 to 100 µs, because the other parameters absorb it. The predicted peak heights do depend on τ: at 100 µs the 1st-order Kα tip loses ≈ 25 % |
 | `scan.AIR_PATH_CM` | 18 cm | Geometry estimate: anode → crystal ≈ 12 cm, plus s₂ ≈ 6 cm | Degenerate with the absorber |
 
+## Numerical and analysis choices (not fitted)
+
+| Name | Value | Why |
+|---|---|---|
+| `analysis.PEAK_HALF_WINDOW_DEG` | 0.7° | Half-width of the region marked around each line, the leaflet's "entire width" of a peak, cut halfway to its neighbours. It is set by an a-priori criterion: reach Kβ₂, 0.37° below Kβ₁,₃ in 3rd order, plus ≈ 2.7σ. It does not change R̄. On the noise-free leaflet scan the model's own blend mean is 63.0945 pm (Kβ) and 71.0768 pm (Kα). At 0.7° the single orders give Kβ 63.072 / 63.094 / 63.101 pm for n = 1/2/3. The 1st order sits 0.023 pm low from a straight baseline under the curved continuum, the 3rd 0.007 pm high from the clipped Kβ₂ tail. They partly cancel in the mean (63.089 pm). Each ±0.1° of window moves λ̄(Kβ) by 0.01–0.017 pm (0.6° → 63.106, 0.8° → 63.080), below its 1σ counting error of 0.040 pm at the leaflet settings. Narrower windows miss Kβ₂ (0.4° → 63.18 pm), and from 1.0° on the 1st-order continuum biases Kβ low (63.05 pm). Chosen on 2026-09-24 in notebook 04 |
+| `analysis.MAX_LINE_FWHM_DEG`, `MIN_LINE_WIDTH_STEPS`, `MIN_PROMINENCE_SIGMA` | 0.8°, 1.5 steps, 5 | A peak counts as a line if it is 1.5 Δβ steps to 0.8° wide and stands 5σ of Poisson noise above its surroundings. This excludes the bremsstrahlung hump near 5° and lone noise spikes. At the leaflet settings 0 of 500 noisy scans fail. At Δt = 1 s or U near the K edge some do, and they raise instead of mislabelling (`MAX_ORDER_SPREAD_PM` = 1 pm) |
+
 ## Calibration-only (never used by the model)
 
 | Name | Value | Where | Meaning |
