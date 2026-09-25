@@ -252,10 +252,10 @@ $$
 n\lambda = 2d\sin\theta
 $$
 
-- [ ] Physical constants and Mo line data in `constants.py`
-- [ ] `theta_from_lambda(lam, n, d)` and `lambda_from_theta(theta, n, d)`
-- [ ] Handle the no-reflection case ($n\lambda > 2d$)
-- [ ] Notebook `01_bragg_geometry.ipynb`
+- [x] Physical constants and Mo line data in `constants.py`
+- [x] `theta_from_lambda(lam, n, d)` and `lambda_from_theta(theta, n, d)`
+- [x] Handle the no-reflection case ($n\lambda > 2d$)
+- [x] Notebook `01_bragg_geometry.ipynb`
 
 > [!success] Done when
 > A test reproduces [[#Expected glancing angles — Leaflet Table 2|Table 2]] to two decimals.
