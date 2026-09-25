@@ -308,15 +308,25 @@ $$
 R_\text{obs} = \frac{R}{1 + R\tau}
 $$
 
-- [ ] Order-dependent reflectivity factor $r_n$ (fit parameter)
-- [ ] Gaussian angular broadening with width $\sigma(s_1, s_2)$
-- [ ] GM efficiency $\varepsilon(\lambda)$ and dead time $\tau$
-- [ ] Direct-beam leak term at small angles (the rise below ~3° in Fig. 4)
-- [ ] `scan.py`: coupled scan returning $\bar R(\beta)$ for given $U, I, \Delta\beta$, limits
-- [ ] Separate `sample_counts(R_bar, dt, rng)` for Poisson noise
-- [ ] Digitize Fig. 4 (e.g. WebPlotDigitizer) → `data/fig4_digitized.csv`
-- [ ] Fit free parameters: overall scale, line/continuum ratio, $r_n$, $m$
-- [ ] Notebook `03_full_spectrum_vs_fig4.ipynb` — linear and log plots
+- [x] Order-dependent reflectivity factor $r_n$ (fit parameter)
+- [x] Gaussian angular broadening with width $\sigma(s_1, s_2)$ → single `sigma_deg` at the leaflet
+      slits; $\sigma(s_2)$ deferred until a slit control exists (Phase 8/9)
+- [x] GM efficiency $\varepsilon(\lambda)$ and dead time $\tau$ → $\varepsilon$ constant (degenerate with
+      the absorber); $\tau$ = 100 µs fixed (Fig. 4 is flat in $\tau$)
+- [x] Direct-beam leak term at small angles (the rise below ~3° in Fig. 4)
+- [x] `scan.py`: coupled scan returning $\bar R(\beta)$ for given $U, I, \Delta\beta$, limits
+- [x] Separate `sample_counts(R_bar, dt, rng)` for Poisson noise
+- [x] Digitize Fig. 4 → `data/fig4_digitized.csv` (automatic pixel tracing, `scripts/digitize_fig4.py`)
+- [x] Fit free parameters: overall scale, line/continuum ratio, $r_n$ → $m$ = 1.67 fixed from the
+      literature (Fig. 4 has one voltage only)
+- [x] Notebook `03_full_spectrum_vs_fig4.ipynb` — linear and log plots
+
+Deviations from this plan (details in `model/PARAMETERS.md`):
+- Three extra physics terms were needed for the continuum slope: Lorentz-polarization factor,
+  air absorption (18 cm), and one fitted effective absorber (borosilicate glass, ≈ 1.4 mm).
+- Kβ/Kα and the Kα₁/Kα₂, Kβ₁,₃/Kβ₂ fine structure come from xraylib (doublet moved here from Phase 11).
+- The digitized figure is offset by +0.09° in β; a calibration-only offset, not in the model.
+- No `instrument.py`: broadening lives in `scan.py`. Line tips come out 0.70–1.04 × Fig. 4 (known deviation).
 
 > [!success] Done when
 > The simulated spectrum qualitatively matches Fig. 4 in **both** linear and log scale, including relative peak heights across orders.
@@ -421,7 +431,7 @@ Folder: `src/pedagogy/`
 ### Phase 11 — Extensions
 
 - [ ] Zr filter toggle (suppresses $K_\beta$)
-- [ ] $K_{\alpha 1}/K_{\alpha 2}$ doublet, resolvable at third order (Δθ ≈ 0.14°)
+- [x] $K_{\alpha 1}/K_{\alpha 2}$ doublet, resolvable at third order (Δθ ≈ 0.14°) → in the model since Phase 3
 - [ ] Other anodes: Cu, Fe, Ag, W
 - [ ] Other crystals: LiF, KBr
 - [ ] Duane–Hunt experiment (Planck's constant from $\lambda_\text{min}$)

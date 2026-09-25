@@ -24,3 +24,9 @@ MO_K_EDGE_KEV = 19.9995
 
 # Emitted Kβ/Kα photon ratio of Mo: (KM3+KM2+KN3+KN2)/(KL3+KL2) radiative rates, xraylib.RadRate.
 KB_KA_RATIO = 0.1935
+
+# Fine structure of the Mo K lines as (λ in pm, fraction of the Kα or Kβ intensity), from
+# xraylib LineEnergy and RadRate: Kα1 = KL3, Kα2 = KL2; Kβ1,3 = KM3 + KM2 (merged, 0.06 pm
+# apart), Kβ2 = KN3 + KN2. Their intensity-weighted means reproduce MO_KA_PM and MO_KB_PM.
+MO_KA_COMPONENTS = ((70.932, 0.6560), (71.360, 0.3440))
+MO_KB_COMPONENTS = ((63.253, 0.8692), (62.102, 0.1308))

@@ -37,3 +37,12 @@ def test_jacobian_matches_numerical_derivative(n):
     h = 1e-5
     numeric = (lambda_from_theta(theta + h, n) - lambda_from_theta(theta - h, n)) / (2 * h)
     assert dlambda_dtheta_pm_per_deg(theta, n) == approx(numeric, rel=1e-7)
+
+
+def test_lorentz_polarization_factor_textbook_values():
+    from braggsim.crystal import lorentz_polarization
+
+    # (1 + cos²2θ) / (2 sin 2θ): at θ = 45° the polarization term is 1/2 and sin 2θ = 1.
+    assert lorentz_polarization(45.0) == approx(0.5)
+    # At small θ it approaches 1/sin 2θ (fully unpolarized-beam limit).
+    assert lorentz_polarization(1.0) == approx(1 / np.sin(np.radians(2.0)), rel=1e-3)

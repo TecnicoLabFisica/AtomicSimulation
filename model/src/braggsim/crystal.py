@@ -26,3 +26,14 @@ def lambda_from_theta(theta_deg, n=1, d_pm=D_NACL_PM):
 def dlambda_dtheta_pm_per_deg(theta_deg, n=1, d_pm=D_NACL_PM):
     """Jacobian dλ/dθ = (2 d / n) cos θ, in pm per degree, for mapping spectra onto angle."""
     return 2 * d_pm / n * np.cos(np.radians(theta_deg)) * np.pi / 180
+
+
+def lorentz_polarization(theta_deg):
+    """Lorentz-polarization factor (1 + cos² 2θ) / (2 sin 2θ) for an unpolarized beam.
+
+    Scales the integrated reflectivity of a mosaic crystal with glancing angle; the Lorentz
+    part 1/sin 2θ is the time each crystallite spends in the reflecting position.
+    Warren, *X-ray Diffraction* (1969), ch. 4.
+    """
+    two_theta = np.radians(2 * np.asarray(theta_deg, dtype=float))
+    return (1 + np.cos(two_theta) ** 2) / (2 * np.sin(two_theta))
