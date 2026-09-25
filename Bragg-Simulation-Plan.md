@@ -295,7 +295,7 @@ with $m$ an empirical, tunable exponent; $K_\alpha : K_\beta$ ratio as a fit par
 
 Files: `crystal.py`, `instrument.py`, `detector.py`, `scan.py`
 
-Mapping the spectrum onto angle for orders $n = 1, 2, 3$ requires the Jacobian:
+Mapping the spectrum onto angle for every order $n$ requires the Jacobian:
 
 $$
 \frac{d\lambda}{d\theta} = \frac{2d}{n}\cos\theta
@@ -307,7 +307,8 @@ $$
 R_\text{obs} = \frac{R}{1 + R\tau}
 $$
 
-- [x] Order-dependent reflectivity factor $r_n$ (fit parameter)
+- [x] Order-dependent reflectivity factor $r_n$ → since the Phase 4/5 review: NaCl structure factor ×
+      one effective Debye–Waller $B$ (fitted), all orders up to $n = 15$ instead of free $r_2, r_3$
 - [x] Gaussian angular broadening with width $\sigma(s_1, s_2)$ → single `sigma_deg` at the leaflet
       slits; $\sigma(s_2)$ deferred until a slit control exists (Phase 8/9)
 - [x] GM efficiency $\varepsilon(\lambda)$ and dead time $\tau$ → $\varepsilon$ constant (degenerate with
@@ -325,7 +326,11 @@ Deviations from this plan (details in `model/PARAMETERS.md`):
   air absorption (18 cm), and one fitted effective absorber (borosilicate glass, ≈ 1.4 mm).
 - Kβ/Kα and the Kα₁/Kα₂, Kβ₁,₃/Kβ₂ fine structure come from xraylib (doublet moved here from Phase 11).
 - The digitized figure is offset by +0.09° in β; a calibration-only offset, not in the model.
-- No `instrument.py`: broadening lives in `scan.py`. Line tips come out 0.70–1.04 × Fig. 4 (known deviation).
+- No `instrument.py`: broadening lives in `scan.py`. Line tips come out 0.70–0.94 × Fig. 4 (known deviation).
+- Added after the Phase 4/5 review (model 0.3.0): leak and scatter follow the photon rate leaving the tube,
+  `tube_factor` = I·S(U), not I·(U/35)²; `expected_rate(..., sensor_deg=...)` models uncoupled arms for
+  the SENSOR/TARGET scans of Phase 7 (spectrum follows the sensor, rocking weight of width σ on the target).
+  Validity range in `model/PARAMETERS.md`.
 
 > [!success] Done when
 > The simulated spectrum qualitatively matches Fig. 4 in **both** linear and log scale, including relative peak heights across orders.
@@ -374,6 +379,12 @@ Port constraints found in the Phase 0–3 review (needed for 1e-9 parity):
   An independent scalar port (libm, sequential convolution, half-up rounding) matched every fixture
   to 2e-15.
 - Keep `scatter_per_s > 0` in fixtures: far tails reach ~1e-250 without it.
+- Model 0.3.0: r_n needs `tables/structure_factor.json` (|F_n|²/|F₁|², n = 1…15) times
+  exp(−2B(n² − 1)/(2d)²). `tube_factor` (continuum + Mo K lines through the absorber) integrates the continuum with the trapezoid rule on the `mu_rho.json` λ grid
+  (np.trapezoid: Σ (y_i + y_{i+1})/2 · Δλ_i). With `sensor_deg` the target wraps as (β + 180) mod 360 − 180
+  (JS `%` keeps the sign of the dividend; mirror Python's float `%` exactly with
+  `r = x % 360; if (r < 0) r += 360`). `sensor_deg = 2β` must equal
+  the coupled result bit-for-bit, and `sensor_sweep_*` / `target_sweep_*` fixtures cover the rest.
 - Live single-β steps: cache the smoothed continuum per (U, params).
 - Speed (from the Phase 4/5 review): take the log of the μ/ρ tables once at load, and cache the smoothed
   continuum and the line weights per (U, I, params). Without that, an "instant" 901-step scan recomputes

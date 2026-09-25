@@ -3,7 +3,12 @@ import pytest
 from pytest import approx
 
 from braggsim.constants import D_NACL_PM, MO_KA_PM, MO_KB_PM
-from braggsim.crystal import dlambda_dtheta_pm_per_deg, lambda_from_theta, theta_from_lambda
+from braggsim.crystal import (
+    dlambda_dtheta_pm_per_deg,
+    lambda_from_theta,
+    structure_factor_sq_rel,
+    theta_from_lambda,
+)
 
 # LD P6.3.3.1 Table 2: expected glancing angles at NaCl (d = 282.01 pm), degrees, two decimals.
 TABLE_2 = [
@@ -52,3 +57,10 @@ def test_unphysical_inputs_give_nan_not_a_wrong_angle():
     assert np.isnan(theta_from_lambda(-50.0))
     assert np.isnan(theta_from_lambda(71.08, n=0))
     assert np.isnan(lambda_from_theta(95.0)) and np.isnan(lambda_from_theta(-1.0))
+
+
+def test_structure_factor_ratios_of_the_nacl_h00_orders():
+    # Kinematic |F|² of (400), (600) relative to (200) from xraylib FF_Rayl(Na) + FF_Rayl(Cl);
+    # the ratio falls because the form factors fall with sin θ / λ.
+    r = structure_factor_sq_rel(3)
+    assert r == approx((1.0, 0.481, 0.268), abs=0.001)

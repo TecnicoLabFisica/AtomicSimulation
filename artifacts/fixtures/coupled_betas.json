@@ -549,6 +549,6 @@
  ],
  "description": "Scan angles: step not dividing the range, float noise, negative start",
  "function": "scan.coupled_betas",
- "model_version": "0.2.0",
+ "model_version": "0.3.0",
  "name": "coupled_betas"
 }

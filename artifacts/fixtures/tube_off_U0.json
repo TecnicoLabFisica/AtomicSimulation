@@ -473,18 +473,17 @@
    25.0
   ],
   "params": {
-   "absorber_mg_cm2": 310.0,
-   "leak_amp_per_s": 146000.0,
-   "leak_width_deg": 1.142,
-   "line_to_cont": 0.00672,
-   "r2": 0.47,
-   "r3": 0.253,
-   "scale": 152900.0,
-   "scatter_per_s": 6.8,
-   "sigma_deg": 0.1203,
+   "absorber_mg_cm2": 326.0,
+   "debye_waller_pm2": 6260.0,
+   "leak_amp_per_s": 118000.0,
+   "leak_width_deg": 1.161,
+   "line_to_cont": 0.00743,
+   "scale": 167600.0,
+   "scatter_per_s": 5.54,
+   "sigma_deg": 0.1228,
    "tau_s": 0.0001
   }
  },
- "model_version": "0.2.0",
+ "model_version": "0.3.0",
  "name": "tube_off_U0"
 }

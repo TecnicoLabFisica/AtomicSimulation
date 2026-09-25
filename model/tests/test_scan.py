@@ -7,7 +7,7 @@ from pytest import approx
 
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
-from braggsim.scan import DEFAULT, coupled_betas, expected_rate
+from braggsim.scan import DEFAULT, coupled_betas, expected_rate, tube_factor
 from braggsim.source import lambda_min_pm
 
 LEAFLET_BETAS = coupled_betas(2.0, 25.0, 0.1)
@@ -75,10 +75,13 @@ def test_line_centroids_sit_at_leaflet_table_2_angles(n, lam):
 
 def test_no_characteristic_lines_below_mo_k_edge():
     beta = np.arange(2.0, 25.0, 0.05)
-    no_lines = DEFAULT.replace(line_to_cont=0.0)
+    bragg = DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0)  # S(U) counts the lines too
+    no_lines = bragg.replace(line_to_cont=0.0)
     for U in (19.0, MO_K_EDGE_KEV):  # lines switch on only above the edge itself
-        assert expected_rate(beta, U, 1.0) == approx(expected_rate(beta, U, 1.0, no_lines))
-    assert not np.allclose(expected_rate(beta, 35.0, 1.0), expected_rate(beta, 35.0, 1.0, no_lines))
+        assert expected_rate(beta, U, 1.0, bragg) == approx(expected_rate(beta, U, 1.0, no_lines))
+    assert not np.allclose(
+        expected_rate(beta, 35.0, 1.0, bragg), expected_rate(beta, 35.0, 1.0, no_lines)
+    )
 
 
 def test_continuum_onset_moves_with_voltage():
@@ -144,6 +147,91 @@ def test_angles_outside_sensor_arm_range_are_rejected():
             expected_rate(np.array([beta]), 35.0, 1.0)
 
 
+def test_higher_orders_weaken_with_the_debye_waller_factor():
+    r = list(DEFAULT.order_reflectivity.values())
+    assert r[0] == 1.0 and np.all(np.diff(r) < 0)
+    no_thermal = DEFAULT.replace(debye_waller_pm2=0.0).order_reflectivity
+    assert all(r_n < no_thermal[n] for n, r_n in DEFAULT.order_reflectivity.items() if n > 1)
+
+
+def test_fourth_order_ka_appears_beyond_the_leaflet_range():
+    # 4 λ(Kα) = 2d sin θ → θ = 30.27°, outside the leaflet's 2°–25° scan but inside the arm range.
+    theta = float(theta_from_lambda(MO_KA_PM, 4))
+    assert theta == approx(30.27, abs=0.01)
+    beta = np.arange(theta - 1.0, theta + 1.0, 0.01)
+    rate = expected_rate(beta, 35.0, 1.0)
+    assert beta[np.argmax(rate)] == approx(theta, abs=0.05)  # Kα₁/Kα₂ 0.20° apart at n = 4
+    assert rate.max() > 3 * rate[0]
+
+
+def test_leak_and_scatter_follow_the_photon_rate_leaving_the_tube():
+    assert tube_factor(35.0, 1.0) == 1.0 and tube_factor(35.0, 0.5) == 0.5
+    assert tube_factor(0.0, 1.0) == 0.0 and tube_factor(35.0, 0.0) == 0.0
+    s = [tube_factor(U, 1.0) for U in np.arange(5.0, 35.01, 1.0)]
+    assert np.all(np.diff(s) > 0)
+    no_bragg = DEFAULT.replace(scale=0.0, tau_s=0.0)
+    beta = np.array([1.0, 2.0, 3.0])
+    assert expected_rate(beta, 20.0, 1.0, no_bragg) == approx(
+        tube_factor(20.0, 1.0) * expected_rate(beta, 35.0, 1.0, no_bragg), rel=1e-12
+    )
+
+
+@pytest.mark.parametrize("beta", [2.0, 4.0, 6.43, 7.24, 12.0, 20.0, 30.0])
+def test_rate_rises_with_voltage(beta):
+    rate = [expected_rate(np.array([beta]), U, 1.0)[0] for U in np.arange(5.0, 35.01, 0.5)]
+    assert np.all(np.diff(rate) >= 0)
+
+
+def test_rate_is_continuous_across_the_k_edge():
+    # The lines switch on as (U/U_K − 1)^1.67, so there is no jump at U_K.
+    for U in (MO_K_EDGE_KEV, MO_K_EDGE_KEV + 1e-6):
+        assert expected_rate(LEAFLET_BETAS, U, 1.0) == approx(
+            expected_rate(LEAFLET_BETAS, MO_K_EDGE_KEV - 1e-6, 1.0), rel=1e-5
+        )
+
+
+def test_coupled_scan_is_the_sensor_at_twice_the_target():
+    beta = coupled_betas(-5.0, 30.0, 0.1)
+    coupled = expected_rate(beta, 35.0, 1.0)
+    assert np.array_equal(expected_rate(beta, 35.0, 1.0, sensor_deg=2 * beta), coupled)
+
+
+def test_sensor_sweep_at_fixed_target_peaks_at_twice_the_bragg_angle():
+    theta = float(theta_from_lambda(MO_KA_PM))
+    sensor = np.arange(2 * theta - 1.0, 2 * theta + 1.0, 0.01)
+    rate = expected_rate(np.full_like(sensor, theta), 35.0, 1.0, sensor_deg=sensor)
+    assert sensor[np.argmax(rate)] == approx(2 * theta, abs=0.03)
+
+
+def test_target_off_half_the_sensor_angle_follows_the_rocking_curve():
+    # Same sensor angle, so the same reflected spectrum; the target 3σ off weakens it by e^−4.5.
+    params = DEFAULT.replace(tau_s=0.0, leak_amp_per_s=0.0, scatter_per_s=0.0)
+    sensor = np.array([10.0, 14.48, 30.0])
+    on = expected_rate(sensor / 2, 35.0, 1.0, params, sensor_deg=sensor)
+    off = expected_rate(sensor / 2 + 3 * params.sigma_deg, 35.0, 1.0, params, sensor_deg=sensor)
+    assert off == approx(np.exp(-4.5) * on, rel=1e-12)
+
+
+def test_leak_depends_on_the_sensor_angle_only():
+    no_bragg = DEFAULT.replace(scale=0.0)
+    sensor = np.full(4, 2.0)
+    rate = expected_rate(np.array([1.0, 20.0, -90.0, 181.0]), 35.0, 1.0, no_bragg, sensor)
+    assert np.all(rate == rate[0]) and rate[0] > 100
+
+
+def test_target_arm_turns_without_limit():
+    sensor = np.array([14.48])
+    assert expected_rate(np.array([367.24]), 35.0, 1.0, sensor_deg=sensor) == approx(
+        expected_rate(np.array([7.24]), 35.0, 1.0, sensor_deg=sensor), rel=1e-12
+    )
+
+
+@pytest.mark.parametrize("sensor", [[-10.5], [170.5], [np.nan], [10.0, 12.0]])
+def test_sensor_outside_its_arm_range_or_mismatched_shape_is_rejected(sensor):
+    with pytest.raises(ValueError):
+        expected_rate(np.array([5.0]), 35.0, 1.0, sensor_deg=np.array(sensor))
+
+
 # Fig. 4 regression. The digitized peaks sit a constant +0.090° above the Bragg angles, which
 # the leaflet's own Table 3 does not show, so it is a figure offset: calibration-only, fitted in
 # notebook 03, and never part of expected_rate (model/PARAMETERS.md).
@@ -160,7 +248,7 @@ def _fig4_log_panel():
 
 
 def test_default_model_reproduces_fig4_log_panel():
-    # Fit gives 0.051 dex; the two digitized panels agree to 0.012 dex, the digitization floor.
+    # Fit gives 0.054 dex; the two digitized panels agree to 0.012 dex, the digitization floor.
     b, data, model = _fig4_log_panel()
     assert np.sqrt(np.mean(np.log10(model / data) ** 2)) < 0.06
 
@@ -168,7 +256,7 @@ def test_default_model_reproduces_fig4_log_panel():
 @pytest.mark.parametrize("n", [1, 2, 3])
 @pytest.mark.parametrize("lam", [MO_KA_PM, MO_KB_PM])
 def test_fig4_peak_heights_within_known_line_tip_deficit(n, lam):
-    # Gaussian line tips come out 0.70–1.04 × Fig. 4 (PARAMETERS.md, Known deviations).
+    # Gaussian line tips come out 0.70–0.94 × Fig. 4 (PARAMETERS.md, Known deviations).
     b, data, model = _fig4_log_panel()
     near = np.abs(b - FIG4_BETA_OFFSET_DEG - theta_from_lambda(lam, n)) < 0.2
     assert 0.65 < model[near].max() / data[near].max() < 1.15

@@ -3,7 +3,10 @@
 θ is the glancing angle, measured from the lattice planes, in degrees.
 """
 
+import functools
+
 import numpy as np
+import xraylib
 
 from braggsim.constants import D_NACL_PM
 
@@ -41,3 +44,19 @@ def lorentz_polarization(theta_deg):
     """
     two_theta = np.radians(2 * np.asarray(theta_deg, dtype=float))
     return (1 + np.cos(two_theta) ** 2) / (2 * np.sin(two_theta))
+
+
+@functools.cache
+def structure_factor_sq_rel(n_max):
+    """|F|² of the NaCl (2n 0 0) reflections relative to (200), for orders n = 1 … n_max (tuple).
+
+    Rock salt with h even: F = 4 (f_Na + f_Cl), atoms at rest (thermal motion is the separate
+    Debye–Waller factor in scan.ModelParams). Form factors are xraylib ``FF_Rayl`` at
+    q = sin θ / λ = n / (2d), in Å⁻¹ inside this function. Warren, *X-ray Diffraction* (1969),
+    ch. 4; Schoonjans et al., Spectrochim. Acta B 66, 776 (2011).
+    """
+    f_sq = [
+        (xraylib.FF_Rayl(11, q) + xraylib.FF_Rayl(17, q)) ** 2
+        for q in (n / (2 * D_NACL_PM / 100) for n in range(1, n_max + 1))
+    ]
+    return tuple(f / f_sq[0] for f in f_sq)

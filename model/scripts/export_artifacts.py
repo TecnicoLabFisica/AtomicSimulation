@@ -20,8 +20,8 @@ import xraylib
 
 import braggsim
 from braggsim import scan
-from braggsim.constants import MO_K_EDGE_KEV
-from braggsim.crystal import theta_from_lambda
+from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM
+from braggsim.crystal import structure_factor_sq_rel, theta_from_lambda
 from braggsim.filters import MU_RHO_GRID_PM, mu_rho_table, transmission
 from braggsim.source import lambda_min_pm
 
@@ -38,18 +38,20 @@ def _dump(obj):
     return json.dumps(obj, sort_keys=True, indent=1, ensure_ascii=False, allow_nan=False) + "\n"
 
 
-def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT):
+def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT, sensor_deg=None):
     beta = np.asarray(beta_deg, dtype=float)
+    inputs = {"beta_deg": _floats(beta), "U_kV": U_kV, "I_mA": I_mA,
+              "params": dataclasses.asdict(params)}  # fmt: skip
+    if sensor_deg is not None:
+        sensor_deg = np.asarray(sensor_deg, dtype=float)
+        inputs["sensor_deg"] = _floats(sensor_deg)
     return {
         "function": "scan.expected_rate",
         "description": description,
-        "inputs": {
-            "beta_deg": _floats(beta),
-            "U_kV": U_kV,
-            "I_mA": I_mA,
-            "params": dataclasses.asdict(params),
+        "inputs": inputs,
+        "expected": {
+            "rate_per_s": _floats(scan.expected_rate(beta, U_kV, I_mA, params, sensor_deg))
         },
-        "expected": {"rate_per_s": _floats(scan.expected_rate(beta, U_kV, I_mA, params))},
     }
 
 
@@ -71,6 +73,9 @@ def _transmission_case():
 
 def _fixtures():
     duane_hunt_deg = float(theta_from_lambda(lambda_min_pm(35.0)))
+    ka_deg = float(theta_from_lambda(MO_KA_PM))
+    sweep = scan.coupled_betas(2 * ka_deg - 1.0, 2 * ka_deg + 1.0, 0.02)
+    rocking = np.r_[ka_deg + np.arange(-0.6, 0.61, 0.02), ka_deg + 360.0, -ka_deg]
     return {
         "leaflet_35kV_1mA": _rate_case(
             "Leaflet Fig. 4 settings: 2°→25°, Δβ = 0.1°, 35 kV, 1 mA", LEAFLET_BETAS, 35.0, 1.0
@@ -115,6 +120,34 @@ def _fixtures():
             10.0,
             1.0,
         ),  # fmt: skip
+        "higher_orders_20_to_45deg": _rate_case(
+            "Beyond the leaflet range: 3rd to 6th order (4th-order Kα at 30.27°)",
+            scan.coupled_betas(20.0, 45.0, 0.1),
+            35.0,
+            1.0,
+        ),  # fmt: skip
+        "voltage_series": {
+            "function": "scan.expected_rate",
+            "description": "20, 25, 30 kV: leak and scatter scale with the tube factor S(U)",
+            "cases": [
+                _rate_case(f"{U:g} kV", scan.coupled_betas(0.0, 25.0, 0.25), U, 1.0)
+                for U in (20.0, 25.0, 30.0)
+            ],
+        },
+        "sensor_sweep_fixed_target": _rate_case(
+            "Target fixed at 1st-order Kα, sensor swept across 2θ (sensor_deg given)",
+            np.full_like(sweep, ka_deg),
+            35.0,
+            1.0,
+            sensor_deg=sweep,
+        ),
+        "target_sweep_fixed_sensor": _rate_case(
+            "Sensor fixed at 2θ(Kα), target swept through the rocking curve and wrapped past 360°",
+            rocking,
+            35.0,
+            1.0,
+            sensor_deg=np.full_like(rocking, 2 * ka_deg),
+        ),
         "transmission": _transmission_case(),
         "tube_off_I0": _rate_case("Emission current 0: exactly zero", LEAFLET_BETAS, 35.0, 0.0),
         "tube_off_U0": _rate_case("Tube voltage 0: exactly zero", LEAFLET_BETAS, 0.0, 1.0),
@@ -163,6 +196,14 @@ def build():
                 "source": f"xraylib {xraylib.__version__} CS_Total_CP",
                 "lambda_pm": _floats(MU_RHO_GRID_PM),
                 "mu_rho_cm2_g": {m: _floats(mu_rho_table(m)) for m in (scan.AIR, scan.ABSORBER)},
+            }
+        ),
+        "tables/structure_factor.json": _dump(
+            {
+                "description": "|F_n|²/|F_1|² of NaCl (2n 0 0), n = 1 … MAX_ORDER, atoms at rest; "
+                "r_n multiplies it by exp(−2B (s_n² − s_1²)) (scan.ModelParams.order_reflectivity)",
+                "source": f"xraylib {xraylib.__version__} FF_Rayl",
+                "f_sq_rel": list(structure_factor_sq_rel(scan.MAX_ORDER)),
             }
         ),
         "tables/model_params.json": _dump(

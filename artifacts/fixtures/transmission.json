@@ -139,6 +139,6 @@
  ],
  "description": "T(λ) through 10 mg/cm²: log–log interpolation of the μ/ρ table",
  "function": "filters.transmission",
- "model_version": "0.2.0",
+ "model_version": "0.3.0",
  "name": "transmission"
 }
