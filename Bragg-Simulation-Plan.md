@@ -284,10 +284,10 @@ $$
 
 with $m$ an empirical, tunable exponent; $K_\alpha : K_\beta$ ratio as a fit parameter.
 
-- [ ] Continuum function with correct cutoff
-- [ ] Line intensities with threshold behaviour
-- [ ] Line profiles (intrinsic width small vs. instrument width)
-- [ ] Notebook `02_source_model.ipynb`: $I(\lambda)$ vs $U$, $I_e$
+- [x] Continuum function with correct cutoff
+- [x] Line intensities with threshold behaviour
+- [x] Line profiles (intrinsic width small vs. instrument width) → δ-lines in λ; all width comes from the instrument (Phase 3)
+- [x] Notebook `02_source_model.ipynb`: $I(\lambda)$ vs $U$, $I_e$
 
 > [!success] Done when
 > Plots behave physically: lines vanish below ~20 kV, continuum edge moves with $U$, everything scales linearly with $I_e$.
