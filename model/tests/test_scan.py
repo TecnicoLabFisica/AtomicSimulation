@@ -19,6 +19,22 @@ def test_leaflet_scan_has_231_steps():
     assert LEAFLET_BETAS[0] == 2.0 and LEAFLET_BETAS[-1] == 25.0
 
 
+def test_scan_never_steps_past_the_upper_limit():
+    # A Δβ that does not divide the range stops at the last step ≤ the upper limit, so a scan
+    # to the arm limit (β = 85°) stays inside it.
+    assert coupled_betas(2.0, 25.0, 0.3)[-1] == approx(24.8)
+    assert coupled_betas(80.0, 85.0, 0.3)[-1] == approx(84.8)
+    assert coupled_betas(0.0, 0.5, 0.25).tolist() == [0.0, 0.25, 0.5]
+
+
+def test_scan_needs_a_positive_step_and_ordered_limits():
+    # LD 554 800: Δβ = 0 is exposure-timer mode, not a scan; upper < lower refuses to scan.
+    with pytest.raises(ValueError):
+        coupled_betas(2.0, 25.0, 0.0)
+    with pytest.raises(ValueError):
+        coupled_betas(25.0, 2.0, 0.1)
+
+
 def test_expected_rate_is_deterministic_and_non_negative():
     a = expected_rate(LEAFLET_BETAS, 35.0, 1.0)
     assert np.array_equal(a, expected_rate(LEAFLET_BETAS, 35.0, 1.0))
@@ -94,11 +110,12 @@ def test_small_angles_and_single_points_match_a_full_scan():
     assert one_by_one == approx(expected_rate(beta, 35.0, 1.0), rel=1e-12)
 
 
-def test_negative_voltage_or_current_is_rejected():
-    with pytest.raises(ValueError):
-        expected_rate(LEAFLET_BETAS, -1.0, 1.0)
-    with pytest.raises(ValueError):
-        expected_rate(LEAFLET_BETAS, 35.0, -1.0)
+def test_voltage_and_current_outside_the_tube_range_are_rejected():
+    # LD 554 800: U 0 … 35 kV, I 0 … 1 mA. Above 35 kV the model would extrapolate (and λ_min
+    # would leave the μ/ρ table below 41 kV).
+    for U_kV, I_mA in ((-1.0, 1.0), (35.0, -1.0), (35.1, 1.0), (35.0, 1.01)):
+        with pytest.raises(ValueError):
+            expected_rate(LEAFLET_BETAS, U_kV, I_mA)
 
 
 def test_angles_outside_sensor_arm_range_are_rejected():

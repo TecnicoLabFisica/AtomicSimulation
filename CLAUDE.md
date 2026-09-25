@@ -18,7 +18,7 @@ micromamba create -f environment.yml                     # first time
 micromamba run -n atom-sim pip install -e ./model
 micromamba run -n atom-sim pytest model                  # Python tests
 micromamba run -n atom-sim ruff check . && ruff format . # lint / format
-micromamba run -n atom-sim python model/scripts/export_artifacts.py   # † regenerate artifacts/
+micromamba run -n atom-sim python model/scripts/export_artifacts.py   # regenerate artifacts/ (pytest fails if stale)
 micromamba run -n atom-sim npm --prefix web run dev|test|build        # † web app, Vitest, build
 ```
 

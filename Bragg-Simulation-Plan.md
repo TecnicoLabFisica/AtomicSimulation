@@ -352,17 +352,27 @@ Deviations from this plan:
 
 File: `scripts/export_artifacts.py`
 
-- [ ] `tables/`: Zr transmission $T(\lambda)$, GM efficiency, any other xraylib-derived data
-- [ ] `fixtures/`: golden cases — default leaflet settings, $U$ below the K-edge, Zr filter on, several $s_2$ values, edge angles
-- [ ] Each fixture stores inputs, expected $\bar R(\beta)$, and a model version string
-- [ ] Deterministic output (sorted keys, fixed float formatting)
+- [x] `tables/`: μ/ρ of the materials the model uses (`mu_rho.json`) and the fitted `scan.DEFAULT`
+      (`model_params.json`). There is no GM-efficiency table (ε is constant), and Zr is added with the Phase 11 filter
+- [x] `fixtures/`: golden cases: default leaflet settings, $U$ below/at/above the K-edge, 10 kV, edge angles, full
+      range, tube off, σ narrow/wide, `coupled_betas`, and `filters.transmission` directly (the table above ~150 pm
+      barely shows in R̄). The Zr and $s_2$ cases wait for those features (Phases 11, 8/9)
+- [x] Each fixture stores inputs, expected $\bar R(\beta)$, and a model version string
+- [x] Deterministic output (sorted keys, shortest round-trip floats, LF). `tests/test_artifacts.py` fails when stale.
+      It compares floats at 1e-12, not bytes, because numpy's SIMD exp/log/sin differ by one ulp between CPUs
 
 Port constraints found in the Phase 0–3 review (needed for 1e-9 parity):
-- `scan._transmission` calls xraylib per point. Export μ/ρ (not T: the absorber thickness is a
-  parameter) for air, the glass absorber and Zr, on the fixed grid θ_i = 0.01°·i for n = 1–3 plus the
-  line wavelengths, and make Python read the **same** table.
-- Mirror numpy semantics exactly: `np.interp` holds end values; `round`/`np.round` break ties to
-  even (JS `Math.round` does not); `np.convolve(mode="same")` centring.
+- ~~`scan._transmission` calls xraylib per point~~ → done: `filters.transmission` interpolates μ/ρ log–log
+  on a fixed 1000-point λ grid (30–600 pm), and Python reads the **same** table it exports (68 KB instead of
+  ≈ 0.6 MB for the θ grid first planned).
+- Mirror numpy semantics exactly: `np.interp` holds end values; `np.round` in `coupled_betas` breaks
+  ties to even (JS `Math.round` does not); `np.convolve(mode="same")` centring. The kernel half-width
+  now uses `math.ceil`, which has no tie rule to get wrong.
+- Vitest harness (from the Phase 5 review): relative 1e-9 with a tiny absolute floor (1e-12/s). The
+  `tube_off_*` cases must come out exactly 0, and the smallest nonzero fixture value is ≈ 0.5/s.
+  Also evaluate some βs one at a time against the batch values, which covers the live single-step path.
+  An independent scalar port (libm, sequential convolution, half-up rounding) matched every fixture
+  to 2e-15.
 - Keep `scatter_per_s > 0` in fixtures: far tails reach ~1e-250 without it.
 - Live single-β steps: cache the smoothed continuum per (U, params).
 
@@ -444,7 +454,8 @@ Folder: `src/pedagogy/`
 
 ### Phase 11 — Extensions
 
-- [ ] Zr filter toggle (suppresses $K_\beta$)
+- [ ] Zr filter toggle (suppresses $K_\beta$). Add Zr to `mu_rho.json`. The μ/ρ grid smears its K edge
+      (68.89 pm) over one 0.3 % step (≈ 0.02° in 1st order, far below σ), so note that in PARAMETERS.md
 - [x] $K_{\alpha 1}/K_{\alpha 2}$ doublet, resolvable at third order (Δθ ≈ 0.14°) → in the model since Phase 3
 - [ ] Other anodes: Cu, Fe, Ag, W
 - [ ] Other crystals: LiF, KBr

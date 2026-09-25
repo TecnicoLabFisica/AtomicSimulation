@@ -13,6 +13,7 @@ Every fitted value in ``DEFAULT`` is documented in model/PARAMETERS.md.
 """
 
 import dataclasses
+import math
 
 import numpy as np
 
@@ -40,6 +41,7 @@ U_REF_KV = 35.0  # voltage at which leak_amp_per_s and scatter_per_s are quoted
 
 # Sensor arm range −10° … +170° (LD 554 800) → coupled target angle β = θ in −5° … +85°.
 BETA_MIN_DEG, BETA_MAX_DEG = -5.0, 85.0
+U_MAX_KV, I_MAX_MA = 35.0, 1.0  # LD 554 800 tube limits
 THETA_STEP_DEG = 0.01  # internal grid for the continuum convolution
 KERNEL_HALF_WIDTH_SIGMA = 6
 
@@ -81,8 +83,11 @@ DEFAULT = ModelParams(
 
 
 def coupled_betas(lo_deg, hi_deg, step_deg):
-    """Target angles β of a coupled scan from ``lo_deg`` to ``hi_deg`` inclusive (degrees)."""
-    n = round((hi_deg - lo_deg) / step_deg) + 1
+    """Target angles β of a coupled scan from ``lo_deg`` in steps of ``step_deg`` up to at most
+    ``hi_deg`` (degrees). ``np.round`` trims float noise; it rounds ties to even."""
+    if step_deg <= 0 or hi_deg < lo_deg:
+        raise ValueError("a scan needs Δβ > 0 and upper limit ≥ lower limit (LD 554 800)")
+    n = int(np.floor((hi_deg - lo_deg) / step_deg + 1e-9)) + 1  # 1e-9: 0.3/0.1 = 2.9999…
     return np.round(lo_deg + step_deg * np.arange(n), 10)
 
 
@@ -100,7 +105,8 @@ def _continuum_density(beta_deg, U_kV, I_mA, params):
     """Σ_n r_n × continuum per degree of θ, convolved with the instrument Gaussian, at β."""
     # Grid on the fixed lattice θ = i·step, so R̄(β) does not depend on which βs are queried
     # together; at least one kernel long, because "same" mode assumes that.
-    half = round(KERNEL_HALF_WIDTH_SIGMA * params.sigma_deg / THETA_STEP_DEG)
+    # ceil, not round: no tie-breaking rule (half-even vs half-up) for a port to get wrong.
+    half = math.ceil(KERNEL_HALF_WIDTH_SIGMA * params.sigma_deg / THETA_STEP_DEG)
     i_lo = max(int(np.floor(beta_deg.min() / THETA_STEP_DEG)) - half, 1)
     i_hi = max(int(np.ceil(beta_deg.max() / THETA_STEP_DEG)) + half, i_lo + 2 * half)
     theta = THETA_STEP_DEG * np.arange(i_lo, i_hi + 1)
@@ -146,8 +152,8 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT):
     beta = np.asarray(beta_deg, dtype=float)
     if np.any((beta < BETA_MIN_DEG) | (beta > BETA_MAX_DEG)):
         raise ValueError(f"β outside the coupled range {BETA_MIN_DEG}° … {BETA_MAX_DEG}°")
-    if U_kV < 0 or I_mA < 0:
-        raise ValueError("U_kV and I_mA must be ≥ 0")
+    if not (0 <= U_kV <= U_MAX_KV and 0 <= I_mA <= I_MAX_MA):
+        raise ValueError(f"U_kV must be in 0 … {U_MAX_KV}, I_mA in 0 … {I_MAX_MA} (LD 554 800)")
     if beta.size == 0:
         return beta
     theta = np.abs(beta)

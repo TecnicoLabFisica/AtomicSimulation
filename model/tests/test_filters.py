@@ -1,7 +1,8 @@
 import numpy as np
+import xraylib
 from pytest import approx
 
-from braggsim.constants import MO_KA_PM, MO_KB_PM
+from braggsim.constants import HC_KEV_PM, MO_KA_PM, MO_KB_PM
 from braggsim.filters import transmission
 
 LAM = np.array([40.0, MO_KB_PM, MO_KA_PM, 150.0])
@@ -27,3 +28,13 @@ def test_zr_attenuation_jumps_about_sixfold_at_its_k_edge():
     below, above = transmission(np.array([hc / 17.9, hc / 18.1]), "Zr", rho_x)
     jump = np.log(above) / np.log(below)
     assert 5 < jump < 7
+
+
+def test_tabulated_attenuation_matches_xraylib_between_grid_points():
+    # transmission() interpolates μ/ρ log–log on MU_RHO_GRID_PM (the table the web app loads).
+    # Air and Pyrex have no absorption edge between 35 and 300 pm; there the grid (1000 points,
+    # 0.3 % apart) must agree with direct xraylib to 1e-5, far below xraylib's own accuracy.
+    lam = np.linspace(35.0, 300.0, 997)
+    for material in ("Air, Dry (near sea level)", "Glass, Pyrex"):
+        exact = np.array([xraylib.CS_Total_CP(material, HC_KEV_PM / x) for x in lam])
+        assert -np.log(transmission(lam, material, 1000.0)) == approx(exact, rel=1e-5)

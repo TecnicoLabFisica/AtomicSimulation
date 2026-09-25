@@ -22,7 +22,7 @@ dependencies:
   - numpy
   - scipy              # peak fitting (curve_fit), convolution, special functions
   - pandas             # CSV import/export, digitized reference spectra
-  - xraylib            # line energies, K-edges, attenuation (Zr filter, NaCl absorption)
+  - xraylib=4.2.1      # attenuation, line energies, K-edges; pinned: artifacts/ embed its μ/ρ
 
   # --- Prototyping & validation ---------------------------------------------
   - jupyterlab

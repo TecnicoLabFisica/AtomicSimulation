@@ -1,0 +1,16 @@
+{
+ "description": "scan.DEFAULT, fitted to leaflet Fig. 4 (model/PARAMETERS.md)",
+ "model_version": "0.2.0",
+ "params": {
+  "absorber_mg_cm2": 310.0,
+  "leak_amp_per_s": 146000.0,
+  "leak_width_deg": 1.142,
+  "line_to_cont": 0.00672,
+  "r2": 0.47,
+  "r3": 0.253,
+  "scale": 152900.0,
+  "scatter_per_s": 6.8,
+  "sigma_deg": 0.1203,
+  "tau_s": 0.0001
+ }
+}
