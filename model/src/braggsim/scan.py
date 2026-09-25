@@ -47,12 +47,12 @@ KERNEL_HALF_WIDTH_SIGMA = 6
 @dataclasses.dataclass(frozen=True)
 class ModelParams:
     scale: float  # counts/s per relative source unit
-    line_to_cont: float  # Kα line strength relative to the continuum (pm)
+    line_to_cont: float  # Kα line strength relative to the continuum (1/pm)
     r2: float  # order reflectivity relative to n = 1
     r3: float
     sigma_deg: float  # Gaussian angular resolution at s1 ≈ 5 cm, s2 ≈ 6 cm
     tau_s: float  # GM dead time
-    leak_amp_per_s: float  # direct-beam halo at 2θ = 0, at 35 kV and 1 mA
+    leak_amp_per_s: float  # direct-beam halo at 2θ = 0, at 35 kV and 1 mA (extrapolated)
     leak_width_deg: float  # its Gaussian width in 2θ
     absorber_mg_cm2: float  # effective absorber areal density
     scatter_per_s: float = 0.0  # flat scattered radiation at 35 kV and 1 mA

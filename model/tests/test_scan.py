@@ -5,9 +5,10 @@ import numpy as np
 import pytest
 from pytest import approx
 
-from braggsim.constants import MO_KA_PM, MO_KB_PM
+from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
 from braggsim.scan import DEFAULT, coupled_betas, expected_rate
+from braggsim.source import lambda_min_pm
 
 LEAFLET_BETAS = coupled_betas(2.0, 25.0, 0.1)
 
@@ -40,7 +41,8 @@ def test_line_centroids_sit_at_leaflet_table_2_angles(n, lam):
 def test_no_characteristic_lines_below_mo_k_edge():
     beta = np.arange(2.0, 25.0, 0.05)
     no_lines = DEFAULT.replace(line_to_cont=0.0)
-    assert expected_rate(beta, 19.0, 1.0) == approx(expected_rate(beta, 19.0, 1.0, no_lines))
+    for U in (19.0, MO_K_EDGE_KEV):  # lines switch on only above the edge itself
+        assert expected_rate(beta, U, 1.0) == approx(expected_rate(beta, U, 1.0, no_lines))
     assert not np.allclose(expected_rate(beta, 35.0, 1.0), expected_rate(beta, 35.0, 1.0, no_lines))
 
 
@@ -54,8 +56,26 @@ def test_continuum_onset_moves_with_voltage():
     assert onsets == sorted(onsets, reverse=True)
 
 
+def test_continuum_starts_at_duane_hunt_angle():
+    # λ_min(35 kV) = 35.42 pm → θ_min = arcsin(λ_min / 2d) = 3.60° (LD P6.3.3.1). With σ = 0 no
+    # continuum below θ_min, and some right above it.
+    theta_min = float(theta_from_lambda(lambda_min_pm(35.0)))
+    assert theta_min == approx(3.60, abs=0.005)
+    params = DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0, sigma_deg=1e-3)
+    below, above = expected_rate(np.array([theta_min - 0.02, theta_min + 0.05]), 35.0, 1.0, params)
+    assert below == approx(0, abs=1e-6) and above > 1
+
+
+def test_dead_time_acts_on_the_total_rate_at_the_ka_peak():
+    # Non-paralyzable R/(1+Rτ) on everything the counter sees (lines, continuum, leak, scatter).
+    beta = np.array([float(theta_from_lambda(MO_KA_PM))])
+    true = expected_rate(beta, 35.0, 1.0, DEFAULT.replace(tau_s=0.0))
+    assert expected_rate(beta, 35.0, 1.0) == approx(true / (1 + true * DEFAULT.tau_s), rel=1e-12)
+    assert true[0] > 2000  # the tip is where dead time matters (≈ 24 % loss)
+
+
 def test_rate_is_linear_in_current_without_dead_time():
-    params = DEFAULT.replace(tau_s=0.0, scatter_per_s=0.0)
+    params = DEFAULT.replace(tau_s=0.0)
     r1 = expected_rate(LEAFLET_BETAS, 35.0, 0.5, params)
     r2 = expected_rate(LEAFLET_BETAS, 35.0, 1.0, params)
     assert r2 == approx(2 * r1, rel=1e-12)
@@ -103,7 +123,7 @@ def _fig4_log_panel():
 
 
 def test_default_model_reproduces_fig4_log_panel():
-    # Fit gives 0.051 dex; digitization alone is ≈ 0.01 dex.
+    # Fit gives 0.051 dex; the two digitized panels agree to 0.012 dex, the digitization floor.
     b, data, model = _fig4_log_panel()
     assert np.sqrt(np.mean(np.log10(model / data) ** 2)) < 0.06
 

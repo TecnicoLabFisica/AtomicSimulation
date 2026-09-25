@@ -46,3 +46,9 @@ def test_lorentz_polarization_factor_textbook_values():
     assert lorentz_polarization(45.0) == approx(0.5)
     # At small θ it approaches 1/sin 2θ (fully unpolarized-beam limit).
     assert lorentz_polarization(1.0) == approx(1 / np.sin(np.radians(2.0)), rel=1e-3)
+
+
+def test_unphysical_inputs_give_nan_not_a_wrong_angle():
+    assert np.isnan(theta_from_lambda(-50.0))
+    assert np.isnan(theta_from_lambda(71.08, n=0))
+    assert np.isnan(lambda_from_theta(95.0)) and np.isnan(lambda_from_theta(-1.0))

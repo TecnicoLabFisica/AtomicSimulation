@@ -1,4 +1,17 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: no-ld-material
+        name: no PDFs or page images (LD material stays in refs/)
+        language: fail
+        entry: PDFs and raster images are not committed; see .claude/rules/open-source.md
+        files: '\.(pdf|png|jpe?g)$'
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.9
     hooks:

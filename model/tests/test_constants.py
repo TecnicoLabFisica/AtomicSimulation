@@ -29,6 +29,14 @@ def test_line_components_match_xraylib():
     assert [lam for lam, _ in c.MO_KA_COMPONENTS] == approx([ka1, ka2], abs=1e-3)
     ratio = xraylib.RadRate(42, xraylib.KL2_LINE) / xraylib.RadRate(42, xraylib.KL3_LINE)
     assert c.MO_KA_COMPONENTS[1][1] / c.MO_KA_COMPONENTS[0][1] == approx(ratio, abs=1e-3)
+    # Kβ1,3 = KM3 + KM2 merged at their intensity-weighted λ; Kβ2 = KN3 + KN2.
+    groups = [(xraylib.KM3_LINE, xraylib.KM2_LINE), (xraylib.KN3_LINE, xraylib.KN2_LINE)]
+    rates = [[xraylib.RadRate(42, line) for line in g] for g in groups]
+    lams = [sum(r * hc / xraylib.LineEnergy(42, line) for r, line in zip(rs, g, strict=True))
+            / sum(rs) for rs, g in zip(rates, groups, strict=True)]  # fmt: skip
+    assert [lam for lam, _ in c.MO_KB_COMPONENTS] == approx(lams, abs=1e-3)
+    frac = sum(rates[0]) / (sum(rates[0]) + sum(rates[1]))
+    assert c.MO_KB_COMPONENTS[0][1] == approx(frac, abs=1e-3)
 
 
 def test_line_components_average_to_leaflet_wavelengths():

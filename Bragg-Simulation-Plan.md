@@ -90,10 +90,9 @@ bragg-sim/
 │   │   ├── constants.py           # d = 282.01 pm, Mo lines, K-edge, hc
 │   │   ├── source.py              # continuum + characteristic lines vs U, I
 │   │   ├── crystal.py             # Bragg geometry, orders, reflectivity
-│   │   ├── filters.py             # Zr transmission (xraylib)
+│   │   ├── filters.py             # transmission: air, absorber, Zr (xraylib)
 │   │   ├── detector.py            # GM efficiency, dead time, Poisson sampling
-│   │   ├── instrument.py          # angular broadening from s1, s2
-│   │   ├── scan.py                # 2:1 coupled scan → expected rate R(β)
+│   │   ├── scan.py                # 2:1 coupled scan → expected rate R(β), incl. broadening
 │   │   └── analysis.py            # peak centres, λ from θ
 │   ├── tests/
 │   │   ├── test_crystal.py
@@ -351,6 +350,15 @@ File: `scripts/export_artifacts.py`
 - [ ] `fixtures/`: golden cases — default leaflet settings, $U$ below the K-edge, Zr filter on, several $s_2$ values, edge angles
 - [ ] Each fixture stores inputs, expected $\bar R(\beta)$, and a model version string
 - [ ] Deterministic output (sorted keys, fixed float formatting)
+
+Port constraints found in the Phase 0–3 review (needed for 1e-9 parity):
+- `scan._transmission` calls xraylib per point. Export μ/ρ (not T: the absorber thickness is a
+  parameter) for air, the glass absorber and Zr, on the fixed grid θ_i = 0.01°·i for n = 1–3 plus the
+  line wavelengths, and make Python read the **same** table.
+- Mirror numpy semantics exactly: `np.interp` holds end values; `round`/`np.round` break ties to
+  even (JS `Math.round` does not); `np.convolve(mode="same")` centring.
+- Keep `scatter_per_s > 0` in fixtures: far tails reach ~1e-250 without it.
+- Live single-β steps: cache the smoothed continuum per (U, params).
 
 > [!success] Done when
 > Running the script twice produces byte-identical files, and a CI check fails if committed artifacts are stale.

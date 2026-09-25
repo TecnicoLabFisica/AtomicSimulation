@@ -19,6 +19,8 @@ __pycache__/
 .ruff_cache/
 .ipynb_checkpoints/
 .venv/
+build/
+dist/
 
 # Web
 node_modules/

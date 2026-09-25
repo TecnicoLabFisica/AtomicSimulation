@@ -23,15 +23,18 @@ def lambda_min_pm(U_kV):
 def continuum(lambda_pm, U_kV, I_mA):
     """Bremsstrahlung photon rate per unit wavelength (relative units per pm).
 
-    Kramers' thick-target law I(E) ∝ Z I (E0 − E), converted to photons per pm:
+    Kramers' thick-target law gives the energy spectrum I(E) ∝ Z I (E0 − E); dividing by E
+    counts photons, and |dE/dλ| = hc/λ² converts to per pm:
     N(λ) ∝ I (λ/λ_min − 1) / λ², zero for λ ≤ λ_min. Kramers, Phil. Mag. 46, 836 (1923).
     """
     lam = np.asarray(lambda_pm, dtype=float)
-    return I_mA * np.clip(lam / lambda_min_pm(U_kV) - 1, 0, None) / lam**2
+    lam_min = lambda_min_pm(U_kV)
+    safe = np.where(lam > lam_min, lam, 1.0)  # no 0/0 at λ = 0
+    return np.where(lam > lam_min, I_mA * (safe / lam_min - 1) / safe**2, 0.0)
 
 
 def line_rates(U_kV, I_mA, line_to_cont):
-    """Photon rates (Kα, Kβ) of the Mo K lines, in the continuum's units × pm.
+    """Photon rates (Kα, Kβ) of the Mo K lines, in the continuum's units × pm (scalar U, I).
 
     I_K = line_to_cont · I · (U/U_K − 1)^m above the Mo K edge U_K, else zero. The emitted
     Kβ/Kα ratio is the xraylib radiative-rate ratio. The lines are δ-functions in λ: their
