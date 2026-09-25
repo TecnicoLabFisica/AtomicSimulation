@@ -42,6 +42,8 @@ U_REF_KV = 35.0  # voltage at which leak_amp_per_s and scatter_per_s are quoted
 # Sensor arm range −10° … +170° (LD 554 800) → coupled target angle β = θ in −5° … +85°.
 BETA_MIN_DEG, BETA_MAX_DEG = -5.0, 85.0
 U_MAX_KV, I_MAX_MA = 35.0, 1.0  # LD 554 800 tube limits
+# The 554 800 tops out at 3600 steps (0.1° over 360°); far above that is a units mistake.
+MAX_SCAN_STEPS = 100_000
 THETA_STEP_DEG = 0.01  # internal grid for the continuum convolution
 KERNEL_HALF_WIDTH_SIGMA = 6
 
@@ -58,6 +60,13 @@ class ModelParams:
     leak_width_deg: float  # its Gaussian width in 2θ
     absorber_mg_cm2: float  # effective absorber areal density
     scatter_per_s: float = 0.0  # flat scattered radiation at 35 kV and 1 mA
+
+    def __post_init__(self):
+        values = dataclasses.asdict(self)
+        if not all(math.isfinite(v) and v >= 0 for v in values.values()):
+            raise ValueError(f"model parameters must be finite and ≥ 0: {values}")
+        if self.sigma_deg == 0 or self.leak_width_deg == 0:
+            raise ValueError("sigma_deg and leak_width_deg must be > 0")
 
     def replace(self, **changes):
         return dataclasses.replace(self, **changes)
@@ -85,10 +94,13 @@ DEFAULT = ModelParams(
 def coupled_betas(lo_deg, hi_deg, step_deg):
     """Target angles β of a coupled scan from ``lo_deg`` in steps of ``step_deg`` up to at most
     ``hi_deg`` (degrees). ``np.round`` trims float noise; it rounds ties to even."""
-    if step_deg <= 0 or hi_deg < lo_deg:
+    if not (math.isfinite(lo_deg) and math.isfinite(hi_deg) and step_deg > 0 and hi_deg >= lo_deg):
         raise ValueError("a scan needs Δβ > 0 and upper limit ≥ lower limit (LD 554 800)")
     n = int(np.floor((hi_deg - lo_deg) / step_deg + 1e-9)) + 1  # 1e-9: 0.3/0.1 = 2.9999…
-    return np.round(lo_deg + step_deg * np.arange(n), 10)
+    if n > MAX_SCAN_STEPS:
+        raise ValueError(f"{n} steps: a scan has at most {MAX_SCAN_STEPS}")
+    # np.minimum: the 1e-9 slack must never put the last β past the limit.
+    return np.minimum(np.round(lo_deg + step_deg * np.arange(n), 10), hi_deg)
 
 
 def _transmission(lambda_pm, params):
@@ -150,9 +162,9 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT):
     emission current. Negative β reflects off the other crystal face, so |β| is used.
     """
     beta = np.asarray(beta_deg, dtype=float)
-    if np.any((beta < BETA_MIN_DEG) | (beta > BETA_MAX_DEG)):
+    if not np.all((beta >= BETA_MIN_DEG) & (beta <= BETA_MAX_DEG)):  # NaN fails too
         raise ValueError(f"β outside the coupled range {BETA_MIN_DEG}° … {BETA_MAX_DEG}°")
-    if not (0 <= U_kV <= U_MAX_KV and 0 <= I_mA <= I_MAX_MA):
+    if not (0 <= U_kV <= U_MAX_KV and 0 <= I_mA <= I_MAX_MA):  # NaN fails too
         raise ValueError(f"U_kV must be in 0 … {U_MAX_KV}, I_mA in 0 … {I_MAX_MA} (LD 554 800)")
     if beta.size == 0:
         return beta

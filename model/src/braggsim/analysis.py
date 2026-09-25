@@ -13,7 +13,8 @@ import dataclasses
 import numpy as np
 from scipy.signal import find_peaks
 
-from braggsim.crystal import dlambda_dtheta_pm_per_deg, lambda_from_theta
+from braggsim.constants import MO_KA_PM, MO_KB_COMPONENTS, MO_KB_PM
+from braggsim.crystal import dlambda_dtheta_pm_per_deg, lambda_from_theta, theta_from_lambda
 
 # A characteristic line is at most this wide (FWHM ≈ 0.3° at the leaflet's slits); the
 # bremsstrahlung hump near 5° is several degrees wide and must not count as a line.
@@ -22,10 +23,20 @@ MAX_LINE_FWHM_DEG = 0.8
 # ≈ 2.5σ to spare; much wider windows pick up the curvature of the continuum hump in 1st order.
 PEAK_HALF_WINDOW_DEG = 0.7
 MIN_PROMINENCE_SIGMA = 5  # in units of the Poisson noise of the rate
-MIN_LINE_WIDTH_STEPS = 1.5  # a lone one-step spike is noise; lines span several Δβ steps
-# One line's λ must agree across orders to this (pm); a larger spread means the peaks were paired
-# into the wrong orders (the scan missed one).
-MAX_ORDER_SPREAD_PM = 1.0
+MIN_LINE_WIDTH_STEPS = 1.2  # a lone one-step spike is noise; lines span several Δβ steps
+# A line (FWHM ≥ 0.28° at the leaflet's slits) needs ≥ 1.2 steps across its FWHM.
+MAX_STEP_DEG = 0.23
+# Closer peaks are one line's fine structure (Kβ₁,₃–Kβ₂: 0.37° in 3rd order, resolved at small σ);
+# the closest distinct lines, Kβ and Kα in 1st order, are 0.81° apart.
+MIN_PEAK_SEPARATION_DEG = 0.5
+# No Mo K line reflects below 1st-order Kβ₂ (6.32°); a peak further down, with ≈ 2.5σ margin, is
+# the bremsstrahlung hump (near 5.4° at 30 kV it is narrow enough to pass the width test).
+FIRST_LINE_DEG = float(theta_from_lambda(min(lam for lam, _ in MO_KB_COMPONENTS))) - 0.3
+# Pairing checks. A peak paired into the wrong order or line is off by ≥ 30 pm in λ or ≥ 40 % in
+# λ(Kβ)/λ(Kα) (0.888, Table 1); these limits stay far below that, but above the honest bias of
+# 1st-order Kβ near the K edge (≈ −0.6 pm at 25 kV, PARAMETERS.md).
+MAX_ORDER_SPREAD_PM = 3.0
+MAX_KB_KA_RATIO_DEV = 0.03
 
 
 @dataclasses.dataclass(frozen=True)
@@ -41,17 +52,38 @@ def _rate_var(rate_per_s, dt_s):
 
 
 def find_line_peaks(beta_deg, rate_per_s, dt_s):
-    """Target angles β (degrees, ascending) of the narrow line peaks in a scan with step Δt_s."""
+    """Target angles β (degrees, ascending) of the Mo K line peaks in a scan with step Δt_s.
+
+    A line is a peak 1.2 steps to 0.8° wide, 5σ of counting noise above its surroundings and
+    above 6.0°. Of peaks closer than 0.5° only the most prominent is kept (fine structure).
+    """
     beta = np.asarray(beta_deg, dtype=float)
+    rate = np.asarray(rate_per_s, dtype=float)
+    if beta.ndim != 1 or beta.shape != rate.shape:
+        raise ValueError("β and the rate must be 1-D arrays of the same length")
     if beta.size < 3:
         raise ValueError("a scan needs at least 3 points to show a peak")
+    if not (np.all(np.isfinite(beta)) and np.all(np.isfinite(rate)) and dt_s > 0):
+        raise ValueError("β and the rate must be finite numbers and Δt > 0")
     step = beta[1] - beta[0]
-    idx, _ = find_peaks(
-        rate_per_s,
-        prominence=MIN_PROMINENCE_SIGMA * np.sqrt(_rate_var(rate_per_s, dt_s)),
+    if not (step > 0 and np.allclose(np.diff(beta), step, rtol=1e-6, atol=0)):
+        raise ValueError("β must rise in equal steps Δβ, as in an auto-scan")
+    if step > MAX_STEP_DEG:
+        raise ValueError(
+            f"Δβ = {step:g}° is too coarse to resolve the lines: use Δβ ≤ {MAX_STEP_DEG}°"
+        )
+    idx, props = find_peaks(
+        rate,
+        prominence=MIN_PROMINENCE_SIGMA * np.sqrt(_rate_var(rate, dt_s)),
         width=(MIN_LINE_WIDTH_STEPS, MAX_LINE_FWHM_DEG / step),
     )
-    return beta[idx]
+    keep = []
+    for i in idx[np.argsort(-props["prominences"], kind="stable")]:
+        if beta[i] >= FIRST_LINE_DEG and all(
+            abs(beta[i] - beta[j]) >= MIN_PEAK_SEPARATION_DEG for j in keep
+        ):
+            keep.append(i)
+    return beta[np.sort(np.array(keep, dtype=int))]
 
 
 def peak_center(beta_deg, rate_per_s, dt_s, lo_deg, hi_deg):
@@ -84,14 +116,25 @@ def wavelength_table(beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDO
     """Rows of LD P6.3.3.1 Tables 3 and 4: one dict per line and order.
 
     Peaks are paired in ascending angle as (Kβ, Kα) of orders 1, 2, 3, as students count them,
-    so the scan must start below the 1st-order Kβ (6.4°). Each peak is marked ±half_window_deg,
-    cut at the midpoint to its neighbours. Uncertainties are counting statistics only (no
-    goniometer zero error, no uncertainty in d). Raises ValueError if the peaks do not form Kβ/Kα
-    pairs of consecutive orders from n = 1.
+    so the scan must start half_window_deg below the 1st-order Kβ (6.4°) and hold at least two
+    orders. Each peak is marked ±half_window_deg, cut at the midpoint to its neighbours.
+    Uncertainties are counting statistics only (no goniometer zero error, no uncertainty in d).
+    Raises ValueError, with what to change, if the peaks do not form Kβ/Kα pairs (λ ratio 0.888)
+    of consecutive orders from n = 1.
     """
-    peaks = find_line_peaks(beta_deg, rate_per_s, dt_s)
-    if peaks.size == 0 or peaks.size % 2:
-        raise ValueError(f"expected Kβ/Kα pairs, found {peaks.size} line peaks")
+    beta = np.asarray(beta_deg, dtype=float)
+    peaks = find_line_peaks(beta, rate_per_s, dt_s)
+    first_kb_deg = float(theta_from_lambda(MO_KB_PM)) - half_window_deg
+    if beta[0] > first_kb_deg:
+        raise ValueError(
+            f"the scan starts at {beta[0]:g}°: start it below {first_kb_deg:.1f}° so the "
+            "1st-order Kβ line is whole"
+        )
+    if peaks.size < 4 or peaks.size % 2:
+        raise ValueError(
+            f"found {peaks.size} line peaks, need Kβ/Kα pairs in at least two orders: "
+            "raise U well above 20 kV, lengthen Δt, or extend the scan to ≈ 25°"
+        )
     mids = (peaks[1:] + peaks[:-1]) / 2
     lo = np.maximum(peaks - half_window_deg, np.r_[-np.inf, mids])
     hi = np.minimum(peaks + half_window_deg, np.r_[mids, np.inf])
@@ -114,10 +157,17 @@ def wavelength_table(beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDO
         )
     for line in ("Ka", "Kb"):
         lam = [r["lambda_pm"] for r in rows if r["line"] == line]
-        if np.ptp(lam) > MAX_ORDER_SPREAD_PM:
+        if not np.ptp(lam) <= MAX_ORDER_SPREAD_PM:
             raise ValueError(
-                f"λ({line}) spreads {np.ptp(lam):.1f} pm over the orders: the scan must start "
-                "below the 1st-order Kβ and contain whole Kβ/Kα pairs"
+                f"λ({line}) spreads {np.ptp(lam):.1f} pm over the orders, so the peaks are not "
+                "Kβ/Kα pairs of consecutive orders: check for missing or extra peaks"
+            )
+    for kb, ka in zip(rows[::2], rows[1::2], strict=True):
+        ratio = kb["lambda_pm"] / ka["lambda_pm"]
+        if not abs(ratio / (MO_KB_PM / MO_KA_PM) - 1) <= MAX_KB_KA_RATIO_DEV:
+            raise ValueError(
+                f"order {kb['n']}: λ ratio {ratio:.3f} of the peak pair is not Kβ/Kα "
+                f"({MO_KB_PM / MO_KA_PM:.3f})"
             )
     return rows
 

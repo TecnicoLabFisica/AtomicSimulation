@@ -375,6 +375,11 @@ Port constraints found in the Phase 0–3 review (needed for 1e-9 parity):
   to 2e-15.
 - Keep `scatter_per_s > 0` in fixtures: far tails reach ~1e-250 without it.
 - Live single-β steps: cache the smoothed continuum per (U, params).
+- Speed (from the Phase 4/5 review): take the log of the μ/ρ tables once at load, and cache the smoothed
+  continuum and the line weights per (U, I, params). Without that, an "instant" 901-step scan recomputes
+  everything per step and takes ≈ 1 s on a phone.
+- Test with arrays: the Python functions return `np.float64` for scalar input, so fixtures always hold
+  lists, and the TS API takes and returns arrays too.
 
 > [!success] Done when
 > Running the script twice produces byte-identical files, and a CI check fails if committed artifacts are stale.
@@ -414,6 +419,8 @@ stateDiagram-v2
 - [ ] Refuse scan if upper limit < lower limit (display flashes)
 - [ ] ADJUST knob with dynamic response (faster turn → bigger increments)
 - [ ] **Time acceleration** control (1×, 10×, 100×, instant)
+- [ ] Hold U and I as integers (U in 0.1 kV, I in 0.01 mA) and convert only when calling the model. Summing
+      0.01 mA a hundred times in floats gives 1.0000000000000007 mA, which the model rejects as > 1 mA
 
 > [!example] Why time acceleration matters
 > The leaflet scan (2° → 25°, $\Delta\beta = 0.1°$, $\Delta t = 10$ s) has 231 steps → $231 \times 10\ \text{s} \approx 38.5$ min of real time.
@@ -442,6 +449,8 @@ Folder: `src/pedagogy/`
 - [ ] **Lab mode**: raw data only, CSV export for student analysis
 - [ ] Guided tasks, e.g. *"Find the voltage at which the characteristic lines disappear"*, *"Reduce $s_2$ until $K_\alpha$ and $K_\beta$ merge"*
 - [ ] Optional teacher answer key generated from `analysis` outputs
+- [ ] Line-threshold answer key: extrapolate the line area vs U to zero (≈ U_K = 20.0 kV), not "the first U
+      where a peak is visible". The lines rise as (U/U_K − 1)^1.67, so a visible peak appears only well above U_K
 
 ### Phase 10 — CI/CD
 

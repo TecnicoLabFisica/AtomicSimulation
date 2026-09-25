@@ -35,6 +35,25 @@ def test_scan_needs_a_positive_step_and_ordered_limits():
         coupled_betas(25.0, 2.0, 0.1)
 
 
+@pytest.mark.parametrize(
+    "lo, hi, step",
+    [(np.nan, 25.0, 0.1), (2.0, np.inf, 0.1), (2.0, 25.0, np.nan), (0.0, 85.0, 1e-4)],
+)
+def test_scan_rejects_non_finite_limits_and_absurd_step_counts(lo, hi, step):
+    with pytest.raises(ValueError):
+        coupled_betas(lo, hi, step)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"sigma_deg": 0.0}, {"leak_width_deg": 0.0}, {"tau_s": -1e-4}, {"scale": np.nan},
+     {"absorber_mg_cm2": np.inf}],
+)  # fmt: skip
+def test_unphysical_model_parameters_are_rejected(change):
+    with pytest.raises(ValueError):
+        DEFAULT.replace(**change)
+
+
 def test_expected_rate_is_deterministic_and_non_negative():
     a = expected_rate(LEAFLET_BETAS, 35.0, 1.0)
     assert np.array_equal(a, expected_rate(LEAFLET_BETAS, 35.0, 1.0))
@@ -113,15 +132,16 @@ def test_small_angles_and_single_points_match_a_full_scan():
 def test_voltage_and_current_outside_the_tube_range_are_rejected():
     # LD 554 800: U 0 … 35 kV, I 0 … 1 mA. Above 35 kV the model would extrapolate (and λ_min
     # would leave the μ/ρ table below 41 kV).
-    for U_kV, I_mA in ((-1.0, 1.0), (35.0, -1.0), (35.1, 1.0), (35.0, 1.01)):
+    for U_kV, I_mA in ((-1.0, 1.0), (35.0, -1.0), (35.1, 1.0), (35.0, 1.01), (np.nan, 1.0)):
         with pytest.raises(ValueError):
             expected_rate(LEAFLET_BETAS, U_kV, I_mA)
 
 
 def test_angles_outside_sensor_arm_range_are_rejected():
     # LD 554 800: sensor arm −10° … +170°, so β = θ is limited to −5° … +85° when coupled.
-    with pytest.raises(ValueError):
-        expected_rate(np.array([86.0]), 35.0, 1.0)
+    for beta in (86.0, -5.1, np.nan):
+        with pytest.raises(ValueError):
+            expected_rate(np.array([beta]), 35.0, 1.0)
 
 
 # Fig. 4 regression. The digitized peaks sit a constant +0.090° above the Bragg angles, which

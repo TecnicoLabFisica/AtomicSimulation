@@ -6,7 +6,7 @@ from braggsim.analysis import find_line_peaks, order_means_pm, peak_center, wave
 from braggsim.constants import MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import sample_counts
-from braggsim.scan import coupled_betas, expected_rate
+from braggsim.scan import DEFAULT, coupled_betas, expected_rate
 
 # Leaflet settings: 2° → 25°, Δβ = 0.1°, Δt = 10 s, 35 kV, 1 mA (LD P6.3.3.1).
 BETA = coupled_betas(2.0, 25.0, 0.1)
@@ -104,3 +104,54 @@ def test_too_short_scan_or_window_is_rejected():
         find_line_peaks(np.array([7.2]), np.array([100.0]), DT_S)
     with pytest.raises(ValueError):
         peak_center(BETA, R_BAR, DT_S, 7.2, 7.2)
+
+
+@pytest.mark.parametrize(
+    "beta, rate",
+    [
+        (BETA, np.where(BETA == 10.0, np.nan, R_BAR)),  # a NaN reading
+        (BETA[::-1], R_BAR[::-1]),  # descending β
+        (np.r_[BETA[:50], BETA[51:]], np.r_[R_BAR[:50], R_BAR[51:]]),  # one step missing
+        (BETA, R_BAR[:-1]),  # lengths differ
+    ],
+)
+def test_malformed_scans_are_rejected(beta, rate):
+    with pytest.raises(ValueError):
+        find_line_peaks(beta, rate, DT_S)
+
+
+def test_a_step_too_coarse_for_the_lines_is_rejected():
+    beta = coupled_betas(2.0, 25.0, 0.3)
+    with pytest.raises(ValueError, match="too coarse"):
+        find_line_peaks(beta, expected_rate(beta, 35.0, 1.0), DT_S)
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_the_narrow_bremsstrahlung_hump_at_30kV_is_not_a_line(seed):
+    # At 30 kV the hump sits near 5.4° and is only ≈ 0.5° wide, narrow enough to pass the width
+    # test; no Mo K line reflects below 6.3°, so it is dropped and the six lines remain.
+    rate = sample_counts(expected_rate(BETA, 30.0, 1.0), DT_S, np.random.default_rng(seed)) / DT_S
+    assert find_line_peaks(BETA, rate, DT_S).size == 6
+    means = order_means_pm(wavelength_table(BETA, rate, DT_S))
+    assert means["Ka"][0] == approx(MO_KA_PM, abs=0.1)
+
+
+def test_resolved_kb2_at_sharp_resolution_is_merged_into_its_line():
+    # σ = 0.05°: Kβ₂ separates from Kβ₁,₃ in 3rd order (0.37° apart) but is still Kβ.
+    rate = expected_rate(BETA, 35.0, 1.0, DEFAULT.replace(sigma_deg=0.05))
+    assert find_line_peaks(BETA, rate, DT_S).size == 6
+    means = order_means_pm(wavelength_table(BETA, rate, DT_S))
+    assert means["Kb"][0] == approx(MO_KB_PM, abs=0.03)
+
+
+def test_a_single_order_is_rejected():
+    # 2° → 10° holds only the 1st-order pair: nothing confirms which order it is.
+    beta = coupled_betas(2.0, 10.0, 0.1)
+    with pytest.raises(ValueError, match="two orders"):
+        wavelength_table(beta, expected_rate(beta, 35.0, 1.0), DT_S)
+
+
+def test_a_scan_starting_inside_the_first_kb_line_is_rejected():
+    beta = coupled_betas(6.0, 25.0, 0.1)
+    with pytest.raises(ValueError, match="start it below"):
+        wavelength_table(beta, expected_rate(beta, 35.0, 1.0), DT_S)

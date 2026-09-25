@@ -47,7 +47,10 @@ plausible, but that is not an independent confirmation.
 |---|---|---|
 | `filters.MU_RHO_GRID_PM` | 1000 log-spaced points, 30–600 pm, rounded to 1e-9 pm (the same nodes on every CPU) | μ/ρ is tabulated here and interpolated log–log, so the web app reads the same numbers (`artifacts/tables/mu_rho.json`). Away from edges it agrees with xraylib to within 3e-6, and 500 points would already give 1e-5. Beyond 30–600 pm the end values are held. The range covers λ_min at 35 kV and 1st order at θ = 85° |
 | `analysis.PEAK_HALF_WINDOW_DEG` | 0.7° | Half-width of the region marked around each line, the leaflet's "entire width" of a peak, cut halfway to its neighbours. It is set by an a-priori criterion: reach Kβ₂, 0.37° below Kβ₁,₃ in 3rd order, plus ≈ 2.7σ. It does not change R̄. On the noise-free leaflet scan the model's own blend mean is 63.0945 pm (Kβ) and 71.0768 pm (Kα). At 0.7° the single orders give Kβ 63.072 / 63.094 / 63.101 pm for n = 1/2/3. The 1st order sits 0.023 pm low from a straight baseline under the curved continuum, the 3rd 0.007 pm high from the clipped Kβ₂ tail. They partly cancel in the mean (63.089 pm). Each ±0.1° of window moves λ̄(Kβ) by 0.01–0.017 pm (0.6° → 63.106, 0.8° → 63.080), below its 1σ counting error of 0.040 pm at the leaflet settings. Narrower windows miss Kβ₂ (0.4° → 63.18 pm), and from 1.0° on the 1st-order continuum biases Kβ low (63.05 pm). Chosen on 2026-09-24 in notebook 04 |
-| `analysis.MAX_LINE_FWHM_DEG`, `MIN_LINE_WIDTH_STEPS`, `MIN_PROMINENCE_SIGMA` | 0.8°, 1.5 steps, 5 | A peak counts as a line if it is 1.5 Δβ steps to 0.8° wide and stands 5σ of Poisson noise above its surroundings. This excludes the bremsstrahlung hump near 5° and lone noise spikes. At the leaflet settings 0 of 500 noisy scans fail. At Δt = 1 s or U near the K edge some do, and they raise instead of mislabelling (`MAX_ORDER_SPREAD_PM` = 1 pm) |
+| `analysis.MAX_LINE_FWHM_DEG`, `MIN_LINE_WIDTH_STEPS`, `MIN_PROMINENCE_SIGMA`, `MAX_STEP_DEG` | 0.8°, 1.2 steps, 5, 0.23° | A peak counts as a line if it is 1.2 Δβ steps to 0.8° wide and stands 5σ of Poisson noise above its surroundings. This excludes the 35 kV bremsstrahlung hump (≈ 1.2° wide) and lone noise spikes. A line with FWHM 0.28° needs ≥ 1.2 steps across it, so Δβ > 0.23° raises. Lowering the width limit cannot exclude the hump at 30 kV, which is 0.2–0.8° wide in noisy scans; `FIRST_LINE_DEG` handles that case |
+| `analysis.FIRST_LINE_DEG` | 6.02° | 1st-order Kβ₂ (6.32°) minus 0.3° (≈ 2.5σ). No Mo K line reflects lower, so any peak below this is the bremsstrahlung hump |
+| `analysis.MIN_PEAK_SEPARATION_DEG` | 0.5° | Of peaks closer than this, only the most prominent is kept. That is above the Kβ₁,₃–Kβ₂ spacing (0.37° in 3rd order, resolved at σ = 0.05°) and below the closest distinct pair (1st-order Kβ–Kα, 0.81°). The whole blend still falls inside its ±0.7° window, so the centroid is unchanged |
+| `analysis.MAX_ORDER_SPREAD_PM`, `MAX_KB_KA_RATIO_DEV` | 3 pm, 3 % | Pairing checks: λ of one line across orders, and λ(Kβ)/λ(Kα) = 0.888 per order. A wrong pairing is off by ≥ 30 pm or ≥ 40 %. These limits also stay above the honest near-edge bias of 1st-order Kβ, so they reject mislabelling, not bias. The scan must also start ≥ `PEAK_HALF_WINDOW_DEG` below 1st-order Kβ and hold at least two orders |
 
 ## Calibration-only (never used by the model)
 
@@ -73,6 +76,13 @@ plausible, but that is not an independent confirmation.
   it gives 11/s against 5.7/s in Fig. 4, and at 2.8° it gives 8.7/s where the figure dips below its axis
   (≲ 4.4/s, a point the digitizer omits). A steeper leak shape could fix this but is not justified by
   the data yet.
+- **1st-order Kβ reads low near the K edge.** The Kβ line sits on the steep rise of the continuum hump, which a
+  straight baseline cannot follow. On noise-free scans λ̄(Kβ) is 63.089 pm at 35 kV, 63.05 pm at 30 kV and 62.9 pm at
+  25 kV, where 1st-order Kβ alone gives ≈ 62.5 pm. Kα and higher orders are unaffected. This is a limit of the
+  evaluation, not of the model, and students at low U would see it too.
+- **Analysis tested range** (noisy Monte Carlo, `wavelength_table`, 2°→25°, Δβ = 0.1°): 0 mislabelled tables at 25–35 kV,
+  Δt = 1–10 s, σ = 0.05–0.2°. Failures are clear ValueErrors: 0.4 % at the leaflet settings, 12 % at 25 kV, and 73 % at σ = 0.03°,
+  where lines are narrower than 1.2 steps.
 - **Counts after dead time are drawn as Poisson.** A dead-time-limited GM counter is slightly
   sub-Poissonian (variance ≈ N(1 − Rτ)², 0.58× at the 1st-order Kα tip). `detector.sample_counts` ignores this.
 - **Leak and scatter are phenomenological.** They have no explicit dependence on the slits or the crystal,
