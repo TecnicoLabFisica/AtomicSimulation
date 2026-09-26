@@ -1,6 +1,6 @@
 // The procedures of LD instruction sheet 554 800 §11, key by key, plus the panel's guard rails.
 import { describe, expect, test } from 'vitest'
-import { Apparatus, OK_S, SAFE_S, adjustMultiplier, fmtMean, wrapTarget, type Key } from '../src/apparatus/apparatus'
+import { Apparatus, MOTOR_DEG_PER_S, OK_S, SAFE_S, adjustMultiplier, fmtMean, wrapTarget, type Key } from '../src/apparatus/apparatus'
 import { mulberry32 } from '../src/physics/detector'
 import { expectedRate } from '../src/physics/scan'
 
@@ -114,6 +114,7 @@ describe('§11 c) manual positioning', () => {
     a.adjust(10)
     expect([a.target, a.sensor]).toEqual([10, 50]) // 1.0°, 5.0° — relative, as the manual warns
     a.press('ZERO')
+    a.tick(1) // the motor drives both arms home
     a.adjust(72)
     expect([a.target, a.sensor]).toEqual([72, 144])
     a.adjust(10_000)
@@ -203,6 +204,103 @@ describe('§11 e) exposure timer', () => {
   })
 })
 
+describe('motor-driven arms (emulator assumption: MOTOR_DEG_PER_S)', () => {
+  const tenthsPerS = 10 * MOTOR_DEG_PER_S
+
+  test('ZERO drives both arms home together, 2:1 all the way; ADJUST waits for the motor', () => {
+    const a = device()
+    set(a, 'COUPLED', 125) // 12.5° / 25.0°
+    a.press('ZERO')
+    expect(a.moving).toBe(true)
+    a.tick(100 / tenthsPerS) // the faster arm (sensor) covers 10.0°
+    expect(a.sensor).toBeCloseTo(150, 9)
+    expect(a.target).toBeCloseTo(75, 9)
+    expect(a.display().bottom).toBe('7.5')
+    a.adjust(5) // ignored while the motor drives
+    a.tick(1)
+    expect([a.target, a.sensor, a.moving]).toEqual([0, 0, false])
+  })
+
+  test('SCAN: self-test, then arms to zero and to the lower limit with HV off, then HV on', () => {
+    const a = device()
+    set(a, 'COUPLED', 100) // 10° / 20°
+    set(a, 'I', 100)
+    a.press('LIMITS')
+    a.adjust(20)
+    a.press('LIMITS')
+    a.adjust(30)
+    a.press('SCAN')
+    a.tick(SAFETY_S)
+    expect([a.phase, a.hvOn]).toEqual(['positioning', false])
+    a.tick(100 / tenthsPerS) // halfway home
+    expect(a.sensor).toBeCloseTo(100, 9)
+    expect([a.phase, a.hvOn, a.lastSecondCounts]).toEqual(['positioning', false, 0])
+    a.tick(0.5 * 200 / tenthsPerS + 40 / tenthsPerS + 0.1) // home, then out to 2.0° / 4.0°, 0.1 s counted
+    expect([a.phase, a.hvOn, a.target, a.sensor]).toEqual(['scan', true, 20, 40])
+    expect(a.lastScan).toEqual({ mode: 'COUPLED', first: 20, last: 30 })
+    // 11 points of Δt = 1 s, each step after the first needs 0.2° / speed of travel first
+    const travel = 2 / tenthsPerS
+    a.tick(10.95 + 9 * travel - 0.1)
+    expect(a.replay).toHaveLength(10) // the 11th still counts: travel time is not counting time
+    a.tick(0.1 + 10 * travel)
+    expect(a.replay).toHaveLength(11)
+    expect([a.phase, a.hvOn]).toEqual(['idle', false])
+  })
+
+  test('instant mode: the rate meter still refreshes every real second', () => {
+    const a = device()
+    a.timeScale = Infinity
+    set(a, 'U', 300)
+    set(a, 'I', 100)
+    a.press('HV')
+    a.tick(SAFETY_S)
+    const n = a.secondsCounted
+    a.tick(1)
+    expect(a.secondsCounted).toBe(n + 1)
+    expect(a.lastSecondCounts).toBeGreaterThan(0)
+  })
+
+  test('RESET mid-move drives the arms home with HV off', () => {
+    const a = device()
+    set(a, 'COUPLED', 100)
+    a.press('ZERO')
+    a.tick(0.25)
+    a.press('RESET')
+    expect(a.moving).toBe(true)
+    a.tick(2)
+    expect([a.target, a.sensor, a.moving, a.hvOn]).toEqual([0, 0, false, false])
+  })
+
+  test('an exposure started while the arms travel counts from their arrival', () => {
+    const a = device()
+    set(a, 'COUPLED', 100) // 10° / 20°
+    set(a, 'I', 100)
+    set(a, 'DBETA', -1)
+    a.press('ZERO') // 1 s of travel
+    a.press('SCAN')
+    a.tick(SAFETY_S) // the motor waits for the self-test
+    a.tick(1.5) // 1 s of travel, 0.5 s counted
+    expect(a.display().bottom).toBe('1') // Δt = 1 s not yet over
+    a.tick(0.6)
+    expect(a.replay).toEqual([{ angle: 0, rate: expect.any(Number) }])
+  })
+
+  test('HV during positioning stops the program; the arms finish their current leg only', () => {
+    const a = device()
+    set(a, 'COUPLED', 100)
+    a.press('LIMITS')
+    a.adjust(20)
+    a.press('LIMITS')
+    a.adjust(30)
+    a.press('SCAN')
+    a.tick(SAFETY_S + 0.1)
+    a.press('HV')
+    expect([a.phase, a.hvOn]).toEqual(['idle', false])
+    a.tick(5)
+    expect([a.target, a.sensor]).toEqual([0, 0])
+  })
+})
+
 describe('§11 f, h) auto-scan: Bragg reflection at NaCl (leaflet settings)', () => {
   function leafletScan(timeScale: number) {
     const a = device()
@@ -238,6 +336,7 @@ describe('§11 f, h) auto-scan: Bragg reflection at NaCl (leaflet settings)', ()
     expect(Number(a.display().top)).toBeGreaterThan(1000) // 1st-order Kα peak
     expect([a.target, a.sensor]).toEqual([250, 500]) // REPLAY does not move the arms
     a.press('RESET')
+    a.tick(0) // instant: the arms land at zero
     expect(a.replay).toHaveLength(0)
     expect([a.u, a.i, a.dt, a.dBeta, a.target, a.sensor, a.mode]).toEqual([50, 0, 1, 1, 0, 0, null])
   })
@@ -245,9 +344,11 @@ describe('§11 f, h) auto-scan: Bragg reflection at NaCl (leaflet settings)', ()
   test('real time ×100: steps every Δt, rate shown every second; SCAN again stops', () => {
     const a = leafletScan(100)
     a.tick(SAFETY_S)
-    expect(a.phase).toBe('scan')
+    expect(a.phase).toBe('positioning')
+    a.tick(0.01) // 1 s: the arms need 0.2 s to reach the lower limit, then HV comes on
+    expect([a.phase, a.hvOn]).toEqual(['scan', true])
     expect([a.target, a.sensor]).toEqual([20, 40]) // arms at the lower limit
-    a.tick(0.25) // 25 s → 2 steps done
+    a.tick(0.25) // 25 s more → 2 steps done (10 s each plus 0.01 s of travel)
     expect(a.replay).toHaveLength(2)
     expect(a.display().bottom).toBe('2.2')
     a.press('SCAN')
