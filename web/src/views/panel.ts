@@ -1,5 +1,5 @@
 // Minimal functional 554 800 panel (Phase 7). Renders Apparatus state; Phase 8 restyles it.
-import { adjustMultiplier, type Apparatus, type Key } from '../apparatus/apparatus'
+import { adjustMultiplier, wrapTarget, type Apparatus, type Key } from '../apparatus/apparatus'
 import { getLang, setLang, t, type Lang } from '../i18n'
 
 const GROUPS: [keyof ReturnType<typeof t>, Key[]][] = [
@@ -9,6 +9,10 @@ const GROUPS: [keyof ReturnType<typeof t>, Key[]][] = [
 ]
 const SCALES = [1, 10, 100, Infinity]
 const ADJUST_WINDOW_MS = 300
+// Holding − or + repeats after HOLD_DELAY_MS every HOLD_REPEAT_MS, speeding up the longer it is held
+// (×1 for the first second, then ×5, ×20 after 3 s): big changes are practical on touch screens.
+const HOLD_DELAY_MS = 400
+const HOLD_REPEAT_MS = 100
 
 /** Builds the panel into `root`; returns the per-frame render function. */
 export function mountPanel(root: HTMLElement, a: Apparatus): () => void {
@@ -20,6 +24,23 @@ export function mountPanel(root: HTMLElement, a: Apparatus): () => void {
     const rate = recent.length < 3 ? 0 : (1000 * recent.length) / ADJUST_WINDOW_MS
     a.adjust(dir * (coarse ? 10 : 1) * adjustMultiplier(rate))
   }
+
+  let hold: ReturnType<typeof setTimeout> | undefined
+  const release = () => clearTimeout(hold)
+  root.addEventListener('pointerdown', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-adjust]')
+    if (!b || e.button !== 0) return
+    const dir = Number(b.dataset.adjust)
+    const t0 = performance.now()
+    turn(dir, false)
+    const repeat = () => {
+      a.adjust(dir * adjustMultiplier((5 * (performance.now() - t0 - HOLD_DELAY_MS)) / 1000))
+      hold = setTimeout(repeat, HOLD_REPEAT_MS)
+    }
+    release()
+    hold = setTimeout(repeat, HOLD_DELAY_MS)
+  })
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave', 'blur'] as const) root.addEventListener(ev, release, true)
 
   const build = () => {
     const s = t()
@@ -66,7 +87,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus): () => void {
     if (!b) return
     const d = b.dataset
     if (d.key) a.press(d.key as Key)
-    else if (d.adjust) turn(Number(d.adjust), false)
+    else if (d.adjust && (e as MouseEvent).detail === 0) turn(Number(d.adjust), false) // keyboard; pointers use pointerdown
     else if (d.doors !== undefined) a.setDoors(!a.doorsClosed)
     else if (d.scale) a.timeScale = Number(d.scale)
     else if (d.lang) {
@@ -112,7 +133,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus): () => void {
     setText(doors, a.doorsClosed ? s.doorsClosed : s.doorsOpen)
     doors.toggleAttribute('disabled', a.hvOn || a.busy)
     doors.title = a.hvOn || a.busy ? s.doorsLocked : ''
-    setText(q('[data-arms]'), `${s.target} ${(a.target / 10).toFixed(1)}° · ${s.sensor} ${(a.sensor / 10).toFixed(1)}°`)
+    setText(q('[data-arms]'), `${s.target} ${(wrapTarget(a.target) / 10).toFixed(1)}° · ${s.sensor} ${(a.sensor / 10).toFixed(1)}°`)
     for (const b of root.querySelectorAll<HTMLElement>('[data-scale]'))
       b.setAttribute('aria-pressed', String(Number(b.dataset.scale) === a.timeScale))
   }

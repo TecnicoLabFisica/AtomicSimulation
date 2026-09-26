@@ -1,6 +1,6 @@
 // The procedures of LD instruction sheet 554 800 §11, key by key, plus the panel's guard rails.
 import { describe, expect, test } from 'vitest'
-import { Apparatus, OK_S, SAFE_S, adjustMultiplier, type Key } from '../src/apparatus/apparatus'
+import { Apparatus, OK_S, SAFE_S, adjustMultiplier, wrapTarget, type Key } from '../src/apparatus/apparatus'
 import { mulberry32 } from '../src/physics/detector'
 import { expectedRate } from '../src/physics/scan'
 
@@ -141,10 +141,25 @@ describe('§11 c) manual positioning', () => {
     expect(a.display().topUnit).toBe('1/s')
   })
 
-  test('the target arm turns without limit', () => {
+  test('the target arm turns without limit; the display folds it into −180° … 180°', () => {
     const a = device()
     set(a, 'TARGET', 4000)
     expect(a.target).toBe(4000)
+    expect(a.display().bottom).toBe('40.0')
+    a.adjust(-4050)
+    expect(a.display().bottom).toBe('-5.0')
+    expect([1799, 1800, -1800, -1801].map(wrapTarget)).toEqual([1799, -1800, -1800, 1799])
+  })
+
+  test('limits set for another arm are clamped when a mode is selected', () => {
+    const a = device()
+    a.press('TARGET')
+    a.press('LIMITS')
+    a.adjust(900)
+    a.press('LIMITS')
+    a.adjust(1000)
+    a.press('COUPLED')
+    expect([a.limitLo, a.limitHi]).toEqual([850, 850]) // 90°/100° → the coupled maximum 85°
   })
 })
 
@@ -165,6 +180,7 @@ describe('§11 e) exposure timer', () => {
     a.tick(6)
     expect(a.phase).toBe('idle')
     expect(a.hvOn).toBe(false)
+    expect(a.display()).toMatchObject({ bottom: '0', bottomUnit: 's', symbol: 'exposure' }) // "when it reaches zero"
     expect([a.target, a.sensor]).toEqual([72, 144])
     a.press('REPLAY')
     const rBar = expectedRate([7.2], 35, 1)[0]

@@ -97,7 +97,11 @@ const en: Dict = {
 
 export type Lang = 'es' | 'en'
 const dicts: Record<Lang, Dict> = { es, en }
-let lang: Lang = localStorage.getItem('lang') === 'en' ? 'en' : 'es'
+// Storage can throw (blocked cookies, sandboxed LMS iframes): the language then just isn't remembered.
+let lang: Lang = 'es'
+try {
+  if (localStorage.getItem('lang') === 'en') lang = 'en'
+} catch {}
 
 export function t(): Dict {
   return dicts[lang]
@@ -107,6 +111,8 @@ export function getLang(): Lang {
 }
 export function setLang(l: Lang): void {
   lang = l
-  localStorage.setItem('lang', l)
+  try {
+    localStorage.setItem('lang', l)
+  } catch {}
   document.documentElement.lang = l
 }

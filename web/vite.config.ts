@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/AtomicSimulation/', // GitHub Pages project site: /<repo-name>/
+  base: './', // relative asset paths: works on GitHub Pages under any repo name (no router)
   server: { fs: { allow: ['.', '../artifacts'] } }, // tables are imported from ../artifacts
   test: { include: ['tests/**/*.test.ts'] },
 })

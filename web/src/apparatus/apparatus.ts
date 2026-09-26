@@ -80,6 +80,7 @@ export class Apparatus {
   edit: Param | null = null
   bottomShows: Param | Mode = 'U'
   topShowsSensor = false
+  exposureDone = false // "0 s" stays on show after an exposure until the next key or turn
   speaker = false
   doorsClosed = true
   hvOn = false
@@ -120,7 +121,7 @@ export class Apparatus {
   }
 
   press(key: Key): void {
-    this.blinkTop = false
+    this.blinkTop = this.exposureDone = false
     if (key !== 'REPLAY') this.replayIndex = null
     const prevEdit = this.edit
     this.edit = null // any key ends a parameter edit (§7 b2)
@@ -138,14 +139,14 @@ export class Apparatus {
         return
       case 'SENSOR':
       case 'TARGET':
-        this.mode = this.bottomShows = key
+        this.selectMode(key)
         return
       case 'COUPLED':
         // Pressed again while COUPLED is on show: the top display toggles rate ↔ sensor angle.
         if (this.mode === 'COUPLED' && (this.bottomShows === 'COUPLED' || this.busy))
           this.topShowsSensor = !this.topShowsSensor
         else if (!this.busy) {
-          this.mode = this.bottomShows = 'COUPLED'
+          this.selectMode('COUPLED')
           this.coupleRef = { target: this.target, sensor: this.sensor }
           this.topShowsSensor = false
         }
@@ -186,6 +187,7 @@ export class Apparatus {
   /** Turn ADJUST by `detents` (negative: counter-clockwise), already multiplied by adjustMultiplier. */
   adjust(detents: number): void {
     detents = Math.trunc(detents)
+    this.exposureDone = false
     if (this.replayIndex !== null) {
       this.replayIndex = clamp(this.replayIndex + detents, 0, this.replay.length - 1)
       return
@@ -265,6 +267,7 @@ export class Apparatus {
     if (this.phase === 'exposure' && this.program && this.edit === null) {
       return { ...d, bottom: String(this.dt - this.program.elapsedS), bottomUnit: 's', symbol: 'exposure' }
     }
+    if (this.exposureDone) return { ...d, bottom: '0', bottomUnit: 's', symbol: 'exposure' }
     const shows = this.phase === 'scan' && this.edit === null ? this.mode! : this.bottomShows
     switch (shows) {
       case 'U':
@@ -282,7 +285,7 @@ export class Apparatus {
       case 'SENSOR':
         return { ...d, bottom: fmtAngle(this.sensor), bottomUnit: '°' }
       default: // TARGET, COUPLED
-        return { ...d, bottom: fmtAngle(this.target), bottomUnit: '°' }
+        return { ...d, bottom: fmtAngle(wrapTarget(this.target)), bottomUnit: '°' }
     }
   }
 
@@ -307,7 +310,8 @@ export class Apparatus {
       this.program = { steps: [this.scanArm()], index: 0, elapsedS: 0, counts: 0 }
       return
     }
-    // Auto-scan: arms to zero, then the scan arm to the lower limit (§7 b5).
+    // Auto-scan: both arms to zero (in every mode, confirmed by the lab staff), then the scan arm to the
+    // lower limit (§7 b5).
     const mode = this.mode!
     const [lo, hi] = ARM_RANGE[mode]
     const first = clamp(this.limitLo, lo, hi)
@@ -318,6 +322,15 @@ export class Apparatus {
     this.phase = 'scan'
     this.program = { steps: Array.from({ length: n }, (_, k) => first + k * this.dBeta), index: 0, elapsedS: 0, counts: 0 }
     this.moveTo(this.program.steps[0])
+  }
+
+  /** Select a scan mode; limits set for another arm are clamped into this one's range, so the
+   * display never shows limits the scan would not use. */
+  private selectMode(mode: Mode): void {
+    const [lo, hi] = ARM_RANGE[mode]
+    this.mode = this.bottomShows = mode
+    this.limitLo = clamp(this.limitLo, lo, hi)
+    this.limitHi = clamp(this.limitHi, lo, hi)
   }
 
   private scanArm(): number {
@@ -348,7 +361,10 @@ export class Apparatus {
     this.replay.push({ angle: p.steps[p.index], rate: p.counts / this.dt })
     p.index++
     p.elapsedS = p.counts = 0
-    if (p.index === p.steps.length) this.stop()
+    if (p.index === p.steps.length) {
+      this.exposureDone = this.phase === 'exposure'
+      this.stop()
+    }
     else this.moveTo(p.steps[p.index])
   }
 
@@ -374,6 +390,11 @@ export class Apparatus {
 
 function clamp(x: number, lo: number, hi: number): number {
   return Math.min(Math.max(x, lo), hi)
+}
+
+/** Target angle in 0.1° folded into −180.0° … 179.9°, as the physics wraps it; the arm itself turns freely. */
+export function wrapTarget(tenths: number): number {
+  return ((((tenths + 1800) % 3600) + 3600) % 3600) - 1800
 }
 
 function fmtAngle(tenths: number): string {

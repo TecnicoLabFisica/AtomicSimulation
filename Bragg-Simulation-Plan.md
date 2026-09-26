@@ -405,6 +405,7 @@ Port constraints found in the Phase 0–3 review (needed for 1e-9 parity):
 
 Deviations from this plan:
 - uPlot is installed but not imported until the spectrum plot (Phase 8).
+- `base: './'` instead of `'/<repo-name>/'`: relative asset paths work under any repo name or fork (there is no router).
 - The port is scalar (one β per loop iteration) rather than vectorized, and `ModelParams` keeps the snake_case
   field names of the dataclass and the JSON artifacts, so no mapping layer can drift. Only objects made by
   `modelParams()` are accepted (runtime check), mirroring the dataclass's `__post_init__`.
@@ -450,9 +451,16 @@ Deviations and emulator assumptions (the manual gives no number; each is a named
 - Self-test timing: SAFE 1 s, then OK 0.5 s. Arms move instantly (Phase 8 animates them). Default limits 0.0°/0.0°.
   The self-test always runs in real time; time acceleration only speeds up counting.
 - Auto-scan sends **both** arms to zero before the lower limit (manual §7 b5 says "the device" goes to zero) and
-  re-references the coupling there. Open question for TARGET rocking scans with the sensor held at 2θ: check on
-  the lab unit whether a TARGET scan also zeroes the sensor.
+  re-references the coupling there. This holds for SENSOR and TARGET scans too (confirmed by the lab staff,
+  2026-09-25), so a TARGET scan runs with the sensor at 0°.
 - Dynamic ADJUST measures the turning speed over a 300 ms window (≥ 3 detents), not from one click interval.
+- From the pre-lab bug hunt (2026-09-25):
+  - Limits set for one arm are clamped when another scan mode is selected.
+  - The target is shown folded into −180° … 180° (the arm turns freely).
+  - "0 s" stays on show after an exposure until the next key.
+  - Holding − / + repeats and speeds up (×1, then ×5 after 1 s, ×20 after 3 s), so touch users can make big changes.
+  - A screen wake lock is held while a program runs.
+  - The app still loads when `localStorage` is blocked.
 - Phase 8 to-dos from the apparatus review: a positioning phase before HV comes on (animated arms), arrow keys
   scoped to the panel, doors moved into the device section, REPLAY showing k/N.
 - HV switches off when a scan or exposure ends. The program waits while I = 0 (no emission current).
