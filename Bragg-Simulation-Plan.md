@@ -397,11 +397,24 @@ Port constraints found in the Phase 0–3 review (needed for 1e-9 parity):
 
 ### Phase 6 — Web scaffold and physics port
 
-- [ ] `npm create vite@latest` → vanilla TypeScript
-- [ ] Add Vitest and uPlot
-- [ ] Set `base: '/<repo-name>/'` in `vite.config.ts`
-- [ ] Port `braggsim` modules 1:1 into `src/physics/` (same names, same units)
-- [ ] Vitest suite loading every fixture
+- [x] `npm create vite@latest` → vanilla TypeScript
+- [x] Add Vitest and uPlot
+- [x] Set `base: '/<repo-name>/'` in `vite.config.ts`
+- [x] Port `braggsim` modules 1:1 into `src/physics/` (same names, same units)
+- [x] Vitest suite loading every fixture
+
+Deviations from this plan:
+- uPlot is installed but not imported until the spectrum plot (Phase 8).
+- The port is scalar (one β per loop iteration) rather than vectorized, and `ModelParams` keeps the snake_case
+  field names of the dataclass and the JSON artifacts, so no mapping layer can drift. Only objects made by
+  `modelParams()` are accepted (runtime check), mirroring the dataclass's `__post_init__`.
+- The smoothed continuum is cached once per (U, I, params) on the full θ lattice (nodes 1 … ⌈85/0.01⌉ + half).
+  It equals Python's per-query grid bit for bit (physics review checked 25 500 nodes and 3000 random θ): a warm
+  single-β call costs ≈ 2 µs, a cache miss ≈ 20 ms. One slot only; use a small LRU if a view ever alternates
+  between two (U, I) in one frame.
+- `rejected_inputs` fixture: inputs just outside each limit, which both languages must refuse.
+- The Poisson sampler ports numpy's `random_poisson` (multiplication below λ = 10, PTRS above) with a seeded
+  `mulberry32` in place of the numpy Generator; it is tested with mean/variance and χ², never sample by sample.
 
 > [!success] Done when
 > All fixtures pass in Vitest.
@@ -424,14 +437,31 @@ stateDiagram-v2
     Replay --> Idle: RESET / SCAN
 ```
 
-- [ ] Parameter ranges and steps from [[#Apparatus limits — Instruction sheet 554 800]]
-- [ ] Keys: U, I, Δt, Δβ, β LIMITS, SENSOR, TARGET, COUPLED, ZERO, RESET, REPLAY, SCAN, HV ON/OFF, speaker
-- [ ] Door interlock and "SAFE… OK" self-test
-- [ ] Refuse scan if upper limit < lower limit (display flashes)
-- [ ] ADJUST knob with dynamic response (faster turn → bigger increments)
-- [ ] **Time acceleration** control (1×, 10×, 100×, instant)
-- [ ] Hold U and I as integers (U in 0.1 kV, I in 0.01 mA) and convert only when calling the model. Summing
+- [x] Parameter ranges and steps from [[#Apparatus limits — Instruction sheet 554 800]]
+- [x] Keys: U, I, Δt, Δβ, β LIMITS, SENSOR, TARGET, COUPLED, ZERO, RESET, REPLAY, SCAN, HV ON/OFF, speaker
+- [x] Door interlock and "SAFE… OK" self-test
+- [x] Refuse scan if upper limit < lower limit (display flashes)
+- [x] ADJUST knob with dynamic response (faster turn → bigger increments)
+- [x] **Time acceleration** control (1×, 10×, 100×, instant)
+- [x] Hold U and I as integers (U in 0.1 kV, I in 0.01 mA) and convert only when calling the model. Summing
       0.01 mA a hundred times in floats gives 1.0000000000000007 mA, which the model rejects as > 1 mA
+
+Deviations and emulator assumptions (the manual gives no number; each is a named constant in `apparatus.ts`):
+- Self-test timing: SAFE 1 s, then OK 0.5 s. Arms move instantly (Phase 8 animates them). Default limits 0.0°/0.0°.
+  The self-test always runs in real time; time acceleration only speeds up counting.
+- Auto-scan sends **both** arms to zero before the lower limit (manual §7 b5 says "the device" goes to zero) and
+  re-references the coupling there. Open question for TARGET rocking scans with the sensor held at 2θ: check on
+  the lab unit whether a TARGET scan also zeroes the sensor.
+- Dynamic ADJUST measures the turning speed over a 300 ms window (≥ 3 detents), not from one click interval.
+- Phase 8 to-dos from the apparatus review: a positioning phase before HV comes on (animated arms), arrow keys
+  scoped to the panel, doors moved into the device section, REPLAY showing k/N.
+- HV switches off when a scan or exposure ends. The program waits while I = 0 (no emission current).
+- Dynamic ADJUST: ×1 / ×5 / ×20 by detents per second; keyboard arrows ±1, Shift ±10.
+- The rate display is Poisson(R̄ · 1 s) per simulated second (clock quantized to whole seconds); a scan point is
+  the mean over Δt. Instant mode draws one Poisson(R̄ · Δt) per step, which has the same statistics.
+- The speaker key toggles a flag only; the click sound comes with Phase 8.
+- The Phase 7 panel is a plain functional view (i18n es/en, tokens, 44 px targets). Phase 8 restyles it.
+- §11 a, b, c, e, f, h are scripted key by key in `web/tests/apparatus.test.ts`.
 
 > [!example] Why time acceleration matters
 > The leaflet scan (2° → 25°, $\Delta\beta = 0.1°$, $\Delta t = 10$ s) has 231 steps → $231 \times 10\ \text{s} \approx 38.5$ min of real time.

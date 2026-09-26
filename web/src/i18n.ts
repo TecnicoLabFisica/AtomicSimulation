@@ -1,0 +1,112 @@
+// UI strings, Spanish (default) and English. Views never hard-code user-facing text.
+const es = {
+  title: 'Reflexión de Bragg · Equipo de rayos X 554 800',
+  panel: 'Panel del equipo 554 800',
+  displays: 'Pantallas',
+  groupParams: 'Parámetros',
+  groupMode: 'Modo de barrido',
+  groupOps: 'Operación',
+  adjust: 'ADJUST',
+  adjustHint: 'Flechas del teclado: ±1 · Mayús: ±10',
+  adjustDown: 'Girar ADJUST a la izquierda',
+  adjustUp: 'Girar ADJUST a la derecha',
+  hvLamp: 'Alta tensión',
+  hvOn: 'Alta tensión encendida',
+  hvOff: 'Alta tensión apagada',
+  doors: 'Puertas',
+  doorsClosed: 'Cerradas',
+  doorsOpen: 'Abiertas',
+  doorsLocked: 'Bloqueadas mientras haya alta tensión',
+  simulation: 'Simulación',
+  timeScale: 'Aceleración del tiempo',
+  timeScaleNote: 'No existe en el equipo real',
+  instant: 'Instantáneo',
+  arms: 'Goniómetro',
+  target: 'Blanco',
+  sensor: 'Sensor',
+  language: 'Idioma',
+  symLower: 'límite inferior',
+  symUpper: 'límite superior',
+  symExposure: 'temporizador de exposición',
+  replayPoints: 'Valores guardados',
+  keys: {
+    U: ['U', 'Tensión del tubo U'],
+    I: ['I', 'Corriente de emisión I'],
+    DT: ['Δt', 'Tiempo de medida por paso Δt'],
+    DBETA: ['Δβ', 'Paso angular Δβ'],
+    LIMITS: ['β LIMITS', 'Límites angulares'],
+    SENSOR: ['SENSOR', 'Modo sensor'],
+    TARGET: ['TARGET', 'Modo blanco'],
+    COUPLED: ['COUPLED', 'Modo acoplado 2:1'],
+    ZERO: ['ZERO', 'Brazos a cero'],
+    RESET: ['RESET', 'Restablecer'],
+    REPLAY: ['REPLAY', 'Ver valores guardados'],
+    SCAN: ['SCAN', 'Iniciar o detener barrido'],
+    HV: ['HV ON/OFF', 'Alta tensión'],
+    SPEAKER: ['🔈', 'Altavoz'],
+  },
+}
+type Dict = typeof es
+const en: Dict = {
+  title: 'Bragg reflection · X-ray apparatus 554 800',
+  panel: 'Apparatus 554 800 panel',
+  displays: 'Displays',
+  groupParams: 'Parameters',
+  groupMode: 'Scan mode',
+  groupOps: 'Operation',
+  adjust: 'ADJUST',
+  adjustHint: 'Arrow keys: ±1 · Shift: ±10',
+  adjustDown: 'Turn ADJUST left',
+  adjustUp: 'Turn ADJUST right',
+  hvLamp: 'High voltage',
+  hvOn: 'High voltage on',
+  hvOff: 'High voltage off',
+  doors: 'Doors',
+  doorsClosed: 'Closed',
+  doorsOpen: 'Open',
+  doorsLocked: 'Locked while high voltage is on',
+  simulation: 'Simulation',
+  timeScale: 'Time acceleration',
+  timeScaleNote: 'Not a feature of the real device',
+  instant: 'Instant',
+  arms: 'Goniometer',
+  target: 'Target',
+  sensor: 'Sensor',
+  language: 'Language',
+  symLower: 'lower limit',
+  symUpper: 'upper limit',
+  symExposure: 'exposure timer',
+  replayPoints: 'Stored values',
+  keys: {
+    U: ['U', 'Tube voltage U'],
+    I: ['I', 'Emission current I'],
+    DT: ['Δt', 'Measuring time per step Δt'],
+    DBETA: ['Δβ', 'Angular step Δβ'],
+    LIMITS: ['β LIMITS', 'Angle limits'],
+    SENSOR: ['SENSOR', 'Sensor mode'],
+    TARGET: ['TARGET', 'Target mode'],
+    COUPLED: ['COUPLED', 'Coupled 2:1 mode'],
+    ZERO: ['ZERO', 'Arms to zero'],
+    RESET: ['RESET', 'Reset'],
+    REPLAY: ['REPLAY', 'Show stored values'],
+    SCAN: ['SCAN', 'Start or stop scan'],
+    HV: ['HV ON/OFF', 'High voltage'],
+    SPEAKER: ['🔈', 'Speaker'],
+  },
+}
+
+export type Lang = 'es' | 'en'
+const dicts: Record<Lang, Dict> = { es, en }
+let lang: Lang = localStorage.getItem('lang') === 'en' ? 'en' : 'es'
+
+export function t(): Dict {
+  return dicts[lang]
+}
+export function getLang(): Lang {
+  return lang
+}
+export function setLang(l: Lang): void {
+  lang = l
+  localStorage.setItem('lang', l)
+  document.documentElement.lang = l
+}
