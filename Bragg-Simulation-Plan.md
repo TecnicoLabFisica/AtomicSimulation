@@ -554,7 +554,7 @@ Deviations and decisions (2026-09-26):
 
 - [x] `test.yml`: `mamba-org/setup-micromamba` → pytest → artifact freshness check → `npm ci` → Vitest
 - [x] `deploy.yml`: build `web/` → `actions/upload-pages-artifact` → `actions/deploy-pages`
-- [ ] Enable Pages (source: GitHub Actions) in repo settings
+- [x] Enable Pages (source: GitHub Actions) in repo settings
 
 Decisions (2026-09-26):
 - The freshness check is a pytest (`test_artifacts.py`), so it runs inside the `pytest model` step. `test.yml` also runs
