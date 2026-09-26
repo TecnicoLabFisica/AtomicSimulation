@@ -552,9 +552,15 @@ Deviations and decisions (2026-09-26):
 
 ### Phase 10 — CI/CD
 
-- [ ] `test.yml`: `mamba-org/setup-micromamba` → pytest → artifact freshness check → `npm ci` → Vitest
-- [ ] `deploy.yml`: build `web/` → `actions/upload-pages-artifact` → `actions/deploy-pages`
+- [x] `test.yml`: `mamba-org/setup-micromamba` → pytest → artifact freshness check → `npm ci` → Vitest
+- [x] `deploy.yml`: build `web/` → `actions/upload-pages-artifact` → `actions/deploy-pages`
 - [ ] Enable Pages (source: GitHub Actions) in repo settings
+
+Decisions (2026-09-26):
+- The freshness check is a pytest (`test_artifacts.py`), so it runs inside the `pytest model` step. `test.yml` also runs
+  `ruff check`, `ruff format --check` and `npm run build` (`tsc` catches type errors Vitest doesn't).
+- `deploy.yml` is triggered by `workflow_run` after a green `test` run from a push to `main` (or by hand), so tests
+  run once per push and a red run never publishes. It needs only Node: the build reads the committed `artifacts/`.
 
 > [!success] Done when
 > A push to `main` runs all tests and publishes the site automatically.

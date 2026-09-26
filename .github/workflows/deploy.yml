@@ -1,0 +1,54 @@
+name: deploy
+
+# Publishes web/ to GitHub Pages after a green `test` run on a push to main,
+# so tests run once per push and a red run never publishes.
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # The build only needs node: it imports the committed artifacts/ tables.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --prefix web
+      - run: npm --prefix web run build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,34 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0} # login shell activates the micromamba env
+    steps:
+      - uses: actions/checkout@v7
+
+      # xraylib (pinned: artifacts/ embed its μ/ρ) only ships on conda-forge; the env also provides node.
+      - uses: mamba-org/setup-micromamba@v3
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      - run: pip install -e ./model
+      - run: ruff check .
+      - run: ruff format --check .
+      # Includes test_artifacts.py: fails if the committed artifacts/ are stale.
+      - run: pytest model
+      - run: npm ci --prefix web
+      - run: npm --prefix web test
+      - run: npm --prefix web run build # tsc catches type errors Vitest doesn't
