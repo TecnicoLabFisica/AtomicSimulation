@@ -57,6 +57,16 @@ const es = {
   symUpper: 'límite superior',
   symExposure: 'temporizador de exposición',
   replayPoints: 'Valores guardados',
+  modeLabel: 'Modo de uso',
+  modes: { explore: 'Explorar', lab: 'Laboratorio' },
+  modeHint: {
+    explore: 'Muestra la física: ángulos esperados, λ y controles deslizantes. Puedes arrastrar el cristal.',
+    lab: 'Como en el laboratorio: solo el panel del equipo y los datos medidos.',
+  },
+  csv: 'CSV',
+  csvLabel: 'Descargar los valores guardados (CSV)',
+  lambdaMinBand: 'λ < λmín: el tubo no la emite',
+  dragCrystal: 'Arrastra el cristal para girarlo.',
   keys: {
     U: ['U', 'Tensión del tubo U'],
     I: ['I', 'Corriente de emisión I'],
@@ -133,6 +143,16 @@ const en: Dict = {
   symUpper: 'upper limit',
   symExposure: 'exposure timer',
   replayPoints: 'Stored values',
+  modeLabel: 'App mode',
+  modes: { explore: 'Explore', lab: 'Lab' },
+  modeHint: {
+    explore: 'Shows the physics: expected angles, λ and sliders. You can drag the crystal.',
+    lab: 'As in the lab: only the apparatus panel and the measured data.',
+  },
+  csv: 'CSV',
+  csvLabel: 'Download the stored values (CSV)',
+  lambdaMinBand: 'λ < λmin: not emitted by the tube',
+  dragCrystal: 'Drag the crystal to turn it.',
   keys: {
     U: ['U', 'Tube voltage U'],
     I: ['I', 'Emission current I'],

@@ -26,7 +26,8 @@ button, select { font: inherit; color: inherit; }
   background: transparent; cursor: pointer; touch-action: manipulation;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
-.tool[aria-pressed='true'] { background: var(--fill); color: var(--accent); }
+.tool[aria-pressed='true'] { background: var(--fill); font-weight: 600; }
+.tool:disabled { color: var(--label-3); cursor: not-allowed; }
 .scale { display: flex; align-items: center; gap: var(--space-1); }
 .sim-tag { font: var(--text-caption); color: var(--label-2); letter-spacing: 0.04em; }
 .scale select { background: var(--fill); padding: 0 var(--space-3); font-variant-numeric: tabular-nums; }
@@ -46,6 +47,7 @@ button, select { font: inherit; color: inherit; }
   position: absolute; inset: 0; margin: 0; display: grid; place-items: center; padding: var(--space-5);
   text-align: center; font: var(--text-footnote); color: var(--label-2); pointer-events: none; z-index: var(--z-overlay);
 }
+.plot .empty[hidden] { display: none; }
 .plot .empty span { background: var(--surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); }
 .u-select { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .u-cursor-x, .u-cursor-y { border-color: var(--label-3) !important; }
@@ -76,6 +78,7 @@ button, select { font: inherit; color: inherit; }
 .key[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--accent); }
 .key[aria-pressed='true']::before { background: var(--accent); }
 .key.step, .key[data-doors] { padding: 0 var(--space-4); }
+.key[data-task] { font-weight: 600; } /* the keys a guided task needs */
 .key.step::before, .key[data-doors]::before { content: none; }
 .key.step { font: var(--text-title); }
 .key:disabled { color: var(--label-3); cursor: not-allowed; }
@@ -133,11 +136,11 @@ button, select { font: inherit; color: inherit; }
 .doors { display: flex; align-items: center; gap: var(--space-2); color: var(--label-2); }
 .doors .key { color: var(--label); }
 
-/* ── Huygens ───────────────────────────────────────────────────────────── */
-.huygens-sheet { display: none; position: relative; }
-.huygens-sheet[data-open='true'] { display: block; }
-.huygens { padding: var(--space-3) var(--space-4) var(--space-4); }
-.huygens .view-head { padding-right: calc(var(--touch) + var(--space-2)); }
+/* ── Inspectors (Learn, Huygens) ───────────────────────────────────────── */
+.inspector { display: none; position: relative; }
+.inspector[data-open='true'] { display: block; }
+.huygens, .learn { padding: var(--space-3) var(--space-4) var(--space-4); }
+.huygens .view-head, .learn > .view-head:first-child, .learn .back { margin-right: calc(var(--touch) + var(--space-2)); }
 .huygens-canvas { display: block; width: 100%; aspect-ratio: 4 / 3; }
 .close { position: absolute; top: var(--space-2); right: var(--space-2); background: var(--fill); }
 .equation {
@@ -148,13 +151,92 @@ button, select { font: inherit; color: inherit; }
 .met[data-met='true'] { color: var(--phys-constructive); }
 .note { font: var(--text-footnote); color: var(--label-2); margin: 0; }
 
+/* ── Explore / Lab ─────────────────────────────────────────────────────── */
+[data-mode='lab'] .explore { display: none; }
+.tool[data-learn] { padding: 0 var(--space-3); }
+.sliders { display: grid; gap: var(--space-1); padding: 0 var(--space-4) var(--space-3); }
+.slider {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 var(--space-2);
+  font: var(--text-footnote); color: var(--label-2);
+}
+.slider output { color: var(--label); font-variant-numeric: tabular-nums; }
+.slider input { grid-column: 1 / -1; width: 100%; min-height: var(--touch); margin: 0; accent-color: var(--accent); }
+.gonio { position: relative; }
+/* A guided task's act instruction while its card is closed; tap to reopen the card. */
+.act-strip {
+  position: absolute; top: var(--space-2); inset-inline: var(--space-2); min-height: var(--touch);
+  padding: 0 var(--space-3); border: none; border-radius: var(--radius-full); background: var(--surface-2);
+  box-shadow: var(--shadow-1); font: var(--text-footnote); color: var(--label); text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.act-strip[hidden] { display: none; }
+[data-mode='explore'] .gonio canvas { touch-action: none; } /* ponytail: the canvas can't scroll the page in explore; fine while it isn't taller than the screen */
+
+/* ── Guided tasks ──────────────────────────────────────────────────────── */
+.learn { display: grid; gap: var(--space-3); }
+.learn .view-head { margin: 0; }
+.learn h3 { font: var(--text-footnote); color: var(--label-2); margin: var(--space-2) 0 0; }
+.learn p { margin: 0; }
+.task-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.task-list button {
+  width: 100%; display: grid; justify-items: start; gap: var(--space-1); text-align: left;
+  padding: var(--space-3) 0; min-height: var(--touch); border: none; border-bottom: var(--stroke-hair) solid var(--separator);
+  background: none; cursor: pointer;
+}
+.task-list strong { font: var(--text-headline); }
+.task-list .meta { font: var(--text-footnote); color: var(--label-2); }
+.chip { font: var(--text-caption); color: var(--label-2); text-transform: uppercase; letter-spacing: 0.06em; }
+.back { justify-self: start; min-height: var(--touch); padding: 0; border: none; background: none; color: var(--accent); cursor: pointer; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; gap: var(--space-3); font: var(--text-caption); color: var(--label-2); }
+.steps li { display: flex; align-items: center; gap: var(--space-1); }
+.steps li::before {
+  content: ''; width: var(--space-2); aspect-ratio: 1; border-radius: var(--radius-full); background: var(--fill);
+  box-shadow: inset 0 0 0 1px var(--label-3);
+}
+.steps li[data-past]::before { background: var(--label-3); }
+.steps li[aria-current] { color: var(--label); font-weight: 600; }
+.steps li[aria-current]::before { background: var(--accent); box-shadow: none; }
+.task-body { display: grid; gap: var(--space-3); }
+.predict-number { display: flex; align-items: baseline; gap: var(--space-2); font: var(--text-title); }
+.predict-number input {
+  width: 7ch; font: inherit; font-variant-numeric: tabular-nums; color: var(--label); padding: var(--space-2) var(--space-3);
+  border: none; border-radius: var(--radius-m); background: var(--fill);
+}
+.choices { display: grid; gap: var(--space-2); }
+.choices button {
+  min-height: var(--touch); padding: var(--space-2) var(--space-3); text-align: left; border: none;
+  border-radius: var(--radius-m); background: var(--fill); cursor: pointer;
+}
+.choices button[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--accent); font-weight: 600; }
+.primary {
+  justify-self: start; min-height: var(--touch); padding: 0 var(--space-4); border: none; border-radius: var(--radius-full);
+  background: var(--accent-fill); color: var(--on-accent); font-weight: 600; cursor: pointer;
+}
+.primary:disabled { background: var(--fill); color: var(--label-3); cursor: not-allowed; }
+.done { font: var(--text-headline); color: var(--success); animation: fade-in var(--dur-slow) var(--ease-out); }
+@keyframes fade-in { from { opacity: 0; } }
+.recall { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); margin: 0; font: var(--text-footnote); }
+.recall dt { color: var(--label-2); }
+.recall dd { margin: 0; font-variant-numeric: tabular-nums; }
+.teacher { font: var(--text-footnote); color: var(--label-2); border-top: var(--stroke-hair) solid var(--separator); padding-top: var(--space-2); }
+.teacher summary { cursor: pointer; min-height: var(--touch); display: flex; align-items: center; }
+
 /* ── Phone: the instrument fills the screen, the panel peeks from a bottom sheet ── */
 @media (max-width: 599px) {
   body { overflow: hidden; }
   #app { height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
   .topbar { padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4); }
-  .stage { grid-template-rows: auto minmax(0, 1fr) auto; gap: var(--space-2); padding: 0 var(--space-2); min-height: 0; }
+  /* The tools need the whole width at 360 px; document.title still names the app. */
+  .topbar h1, .sim-tag { display: none; }
+  /* The spectrum keeps ≥ 40 % of the screen; on short phones the goniometer shrinks instead. */
+  .stage { grid-template-rows: minmax(0, 1fr) minmax(40dvh, 1fr) auto; gap: var(--space-2); padding: 0 var(--space-2); min-height: 0; }
+  .gonio { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+  .gonio canvas { aspect-ratio: auto; height: 100%; min-height: 0; }
   .view { border-radius: var(--radius-m); }
+  /* U and I side by side: the spectrum needs the height */
+  .sliders { grid-template-columns: 1fr 1fr; gap: 0 var(--space-3); padding: 0 var(--space-3) var(--space-1); }
+  .slider { font: var(--text-caption); }
+  .slider > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .panel-sheet {
     margin: 0 calc(-1 * var(--space-2)); border-radius: var(--radius-l) var(--radius-l) 0 0; box-shadow: var(--shadow-sheet);
     max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain;
@@ -186,17 +268,17 @@ button, select { font: inherit; color: inherit; }
 
 /* ── Phone and tablet: Huygens is a bottom sheet over the instrument ── */
 @media (max-width: 1023px) {
-  .huygens-sheet {
+  .inspector {
     display: block; position: fixed; inset: auto 0 0; z-index: var(--z-sheet); max-height: 85dvh; overflow-y: auto;
     background: var(--surface); border-radius: var(--radius-l) var(--radius-l) 0 0; box-shadow: var(--shadow-sheet);
     padding-bottom: env(safe-area-inset-bottom);
     translate: 0 100%; visibility: hidden;
     transition: translate var(--dur-slow) var(--ease-out), visibility 0s var(--dur-slow);
   }
-  .huygens-sheet[data-open='true'] { translate: 0 0; visibility: visible; transition-delay: 0s; }
+  .inspector[data-open='true'] { translate: 0 0; visibility: visible; transition-delay: 0s; }
 }
 @media (min-width: 600px) and (max-width: 1023px) {
-  .huygens-sheet { max-width: 40rem; margin-inline: auto; }
+  .inspector { max-width: 40rem; margin-inline: auto; }
 }
 
 /* ── Tablet: goniometer | spectrum, the panel docked below ── */
@@ -211,13 +293,13 @@ button, select { font: inherit; color: inherit; }
 @media (min-width: 1024px) {
   .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
   .stage[data-inspector] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(20rem, 26rem); }
-  .huygens-sheet[data-open='true'] { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
+  .inspector[data-open='true'] { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
   .stage[data-inspector] .panel-sheet { grid-column: 1 / 3; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* Keep the signal, drop the flashing: steady colour plus an outline. */
-  .lamp.on, .led.blink, .group.alert .key:not([data-key='ZERO']) { animation: none; }
+  .lamp.on, .led.blink, .group.alert .key:not([data-key='ZERO']), .done { animation: none; }
   .led.blink { outline: 2px solid var(--danger); }
   * { transition-duration: 0s !important; }
 }

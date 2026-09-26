@@ -2,6 +2,9 @@
 import './styles/app.css'
 import { Apparatus } from './apparatus/apparatus'
 import { getLang, setLang, t, type Lang } from './i18n'
+import { mountLearn, pt } from './pedagogy/card'
+import { mountExplore } from './pedagogy/explore'
+import { getMode, setMode } from './pedagogy/mode'
 import { readPalette } from './views/canvas'
 import { mountGoniometer } from './views/goniometer'
 import { mountHuygens } from './views/huygens'
@@ -13,6 +16,7 @@ type Theme = 'auto' | 'light' | 'dark'
 const THEMES: Theme[] = ['auto', 'light', 'dark']
 const SCALES = [1, 10, 100, Infinity]
 const SWIPE_PX = 40
+const DESKTOP = matchMedia('(min-width: 1024px)') // as in app.css
 
 const app = document.querySelector<HTMLElement>('#app')!
 app.innerHTML = `
@@ -22,15 +26,23 @@ app.innerHTML = `
       <label class="scale"><span class="sim-tag" aria-hidden="true" data-sim-tag></span><span class="visually-hidden" data-scale-label></span>
         <select data-scale>${SCALES.map((x) => `<option value="${x}">${x === Infinity ? '' : `×${x}`}</option>`).join('')}</select>
       </label>
-      <button class="tool" data-huygens aria-controls="huygens" aria-pressed="false">λ</button>
+      <button class="tool" data-learn aria-controls="learn" aria-pressed="false"></button>
+      <button class="tool explore" data-huygens aria-controls="huygens" aria-pressed="false">λ</button>
       <button class="tool" data-theme></button>
       <button class="tool" data-lang></button>
     </div>
   </header>
   <main class="stage">
-    <section class="view gonio"><canvas role="img" data-gonio></canvas></section>
+    <section class="view gonio">
+      <canvas role="img" data-gonio></canvas><div class="sliders explore" data-explore></div>
+      <button class="act-strip" data-act hidden></button>
+    </section>
     <section class="view spectrum" data-spectrum></section>
-    <aside class="sheet huygens-sheet" id="huygens" data-open="false">
+    <aside class="sheet inspector" id="learn" data-open="false">
+      <button class="tool close" data-close aria-label="">×</button>
+      <div class="learn" data-learn-body></div>
+    </aside>
+    <aside class="sheet inspector" id="huygens" data-open="false">
       <button class="tool close" data-close aria-label="">×</button>
       <div class="huygens" data-huygens-body></div>
     </aside>
@@ -52,6 +64,7 @@ function applyTheme() {
   readPalette()
 }
 applyTheme()
+setMode(getMode())
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readPalette)
 
 const apparatus = new Apparatus()
@@ -60,8 +73,22 @@ const gonio = mountGoniometer(q<HTMLCanvasElement>('[data-gonio]'), apparatus)
 const spectrum = mountSpectrum(q('[data-spectrum]'), apparatus)
 const huygens = mountHuygens(q('[data-huygens-body]'), apparatus)
 const panel = mountPanel(q('[data-panel]'), apparatus, sound.detent)
+const explore = mountExplore(q('[data-explore]'), apparatus)
+const learn = mountLearn(q('[data-learn-body]'), apparatus, {
+  onMode: applyMode,
+  onFocus: (keys) => panel.focus(keys),
+  // Below desktop the card is a bottom sheet over the instrument: step aside for the act step (the act
+  // strip keeps the instruction, and the frame loop brings the card back once it is met).
+  onAct: () => {
+    if (!DESKTOP.matches) openSheet(learnSheet, false, false)
+  },
+})
 const panelSheet = q('.panel-sheet')
-const huygensSheet = q('.huygens-sheet')
+const huygensSheet = q('#huygens')
+const learnSheet = q('#learn')
+const actStrip = q<HTMLButtonElement>('[data-act]')
+const inspectors = [learnSheet, huygensSheet]
+const opener = (sheet: HTMLElement) => q(sheet === learnSheet ? '[data-learn]' : '[data-huygens]')
 
 function labels() {
   const s = t()
@@ -71,30 +98,42 @@ function labels() {
   q('[data-sim-tag]').textContent = s.simTag
   q('[data-scale-label]').textContent = `${s.timeScale} (${s.timeScaleNote})`
   q('[data-scale]').title = `${s.simulation}: ${s.timeScale}. ${s.timeScaleNote}`
-  q('[data-scale] option:last-child').textContent = s.instant
+  q('[data-scale] option:last-child').textContent = '×∞' // short for the phone topbar; the title names it
+  q('[data-scale] option:last-child').title = s.instant
   q('[data-huygens]').setAttribute('aria-label', s.huygens)
   q('[data-huygens]').title = s.huygens
+  q('[data-learn]').textContent = pt().learn
   const themeLabel = `${s.theme}: ${s.themes[theme]}`
   q('[data-theme]').setAttribute('aria-label', themeLabel)
   q('[data-theme]').title = themeLabel
   q('[data-theme]').textContent = { auto: '◐', light: '○', dark: '●' }[theme]
   q('[data-lang]').textContent = getLang() === 'es' ? 'EN' : 'ES'
   q('[data-lang]').setAttribute('aria-label', s.language)
-  q('[data-gonio]').setAttribute('aria-label', s.gonioLabel)
-  q('[data-close]').setAttribute('aria-label', s.close)
+  q('[data-gonio]').setAttribute('aria-label', getMode() === 'explore' ? `${s.gonioLabel}. ${s.dragCrystal}` : s.gonioLabel)
+  for (const b of app.querySelectorAll('[data-close]')) b.setAttribute('aria-label', s.close)
   q('[data-grab]').setAttribute('aria-label', panelSheet.dataset.open === 'true' ? s.panelHide : s.panelShow)
 }
 labels()
 
-function openSheet(sheet: HTMLElement, open: boolean) {
+function openSheet(sheet: HTMLElement, open: boolean, moveFocus = true) {
   sheet.dataset.open = String(open)
   if (sheet === panelSheet) q('[data-grab]').setAttribute('aria-expanded', String(open))
   else {
-    q('[data-huygens]').setAttribute('aria-pressed', String(open))
+    // One inspector at a time: Learn and Huygens share the right-hand column (the bottom sheet on phones).
+    for (const o of inspectors) {
+      if (o !== sheet && open) o.dataset.open = 'false'
+      opener(o).setAttribute('aria-pressed', o.dataset.open!)
+    }
     q('.stage').toggleAttribute('data-inspector', open)
     // ponytail: focus moves in and back, no focus trap (the sheet is non-modal, Esc closes it)
-    q(open ? '[data-close]' : '[data-huygens]').focus()
+    if (moveFocus) (open ? sheet.querySelector<HTMLElement>('[data-close]')! : opener(sheet)).focus()
   }
+  labels()
+}
+
+/** Explore ↔ Lab: lab mode hides every reveal (λ panel, overlays, sliders, λ in the readout). */
+function applyMode() {
+  if (getMode() === 'lab' && huygensSheet.dataset.open === 'true') openSheet(huygensSheet, false, false)
   labels()
 }
 
@@ -103,7 +142,9 @@ app.addEventListener('click', (e) => {
   if (!b) return
   if (b.dataset.grab !== undefined) openSheet(panelSheet, panelSheet.dataset.open !== 'true')
   else if (b.dataset.huygens !== undefined) openSheet(huygensSheet, huygensSheet.dataset.open !== 'true')
-  else if (b.dataset.close !== undefined) openSheet(huygensSheet, false)
+  else if (b.dataset.learn !== undefined) openSheet(learnSheet, learnSheet.dataset.open !== 'true')
+  else if (b.dataset.close !== undefined) openSheet(b.closest<HTMLElement>('.inspector')!, false)
+  else if (b.dataset.act !== undefined) openSheet(learnSheet, true)
   else if (b.dataset.theme !== undefined) {
     theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]
     try {
@@ -117,6 +158,8 @@ app.addEventListener('click', (e) => {
     panel.build()
     spectrum.build()
     huygens.build()
+    explore.build()
+    learn.build()
   }
 })
 q<HTMLSelectElement>('[data-scale]').addEventListener('change', (e) => {
@@ -124,7 +167,8 @@ q<HTMLSelectElement>('[data-scale]').addEventListener('change', (e) => {
 })
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return
-  if (huygensSheet.dataset.open === 'true') openSheet(huygensSheet, false)
+  const inspector = inspectors.find((o) => o.dataset.open === 'true')
+  if (inspector) openSheet(inspector, false)
   else if (panelSheet.dataset.open === 'true') openSheet(panelSheet, false)
 })
 // Swipe the grabber or the displays up to open the panel sheet, down to close it (phone layout).
@@ -165,6 +209,13 @@ function frame(now: number) {
   spectrum.render()
   if (huygensSheet.dataset.open === 'true') huygens.render(dtS)
   panel.render()
+  if (getMode() === 'explore') explore.render()
+  // A task met while its sheet is closed (the student is at the instrument): bring the card back.
+  if (learn.render() && learnSheet.dataset.open !== 'true') openSheet(learnSheet, true)
+  // Meanwhile its instruction stays on show over the goniometer.
+  const act = learnSheet.dataset.open === 'true' ? null : learn.actText()
+  if (actStrip.hidden !== (act === null)) actStrip.hidden = act === null
+  if (act !== null && actStrip.textContent !== act) actStrip.textContent = act
   sound.render()
   keepAwake(apparatus.busy)
   requestAnimationFrame(frame)

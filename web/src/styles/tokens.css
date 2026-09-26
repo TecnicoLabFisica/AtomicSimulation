@@ -30,6 +30,8 @@
   --phys-kalpha: #e8590c; --phys-kbeta: #7048e8; --phys-continuum: #868e96;
   --phys-beam: #0ca5b0; --phys-crystal: #495057; --phys-constructive: var(--success);
   --phys-kalpha-text: #c2410c; /* Kα as text: AA on --fill */
+  /* Filled primary button, the same in both themes: white on the dark theme's #0a84ff is only 3.65:1. */
+  --accent-fill: #0071e3; --on-accent: #ffffff;
 
   /* 554 800 LED displays: the one skeuomorphic element, identical in both themes. */
   --led-bg: #0b0b0c; --led-on: #ff3b30; --led-glow: 0 0 6px rgba(255, 59, 48, 0.55);

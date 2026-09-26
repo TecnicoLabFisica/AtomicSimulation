@@ -237,7 +237,7 @@ describe('motor-driven arms (emulator assumption: MOTOR_DEG_PER_S)', () => {
     expect([a.phase, a.hvOn, a.lastSecondCounts]).toEqual(['positioning', false, 0])
     a.tick(0.5 * 200 / tenthsPerS + 40 / tenthsPerS + 0.1) // home, then out to 2.0° / 4.0°, 0.1 s counted
     expect([a.phase, a.hvOn, a.target, a.sensor]).toEqual(['scan', true, 20, 40])
-    expect(a.lastScan).toEqual({ mode: 'COUPLED', first: 20, last: 30 })
+    expect(a.lastScan).toMatchObject({ mode: 'COUPLED', first: 20, last: 30 })
     // 11 points of Δt = 1 s, each step after the first needs 0.2° / speed of travel first
     const travel = 2 / tenthsPerS
     a.tick(10.95 + 9 * travel - 0.1)

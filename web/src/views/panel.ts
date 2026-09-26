@@ -180,6 +180,19 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
     setAttr(doors, 'title', a.hvOn || a.busy ? s.doorsLocked : null)
   }
 
+  /** A guided task's keys are emphasised; the others stay as they are (dimming would read as disabled). */
+  let focusKeys: Key[] | null = null
+  const focus = (keys: Key[] | null) => {
+    focusKeys = keys
+    for (const b of root.querySelectorAll<HTMLElement>('[data-key]')) {
+      b.toggleAttribute('data-task', keys?.includes(b.dataset.key as Key) ?? false)
+    }
+  }
+  const rebuild = () => {
+    build()
+    focus(focusKeys)
+  }
+
   build()
-  return { build, render }
+  return { build: rebuild, render, focus }
 }

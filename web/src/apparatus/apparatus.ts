@@ -16,7 +16,7 @@ export type Phase = 'idle' | 'safety' | 'positioning' | 'scan' | 'exposure'
 type Arms = { target: number; sensor: number } // 0.1°
 
 // [min, max, default] in device steps, LD 554 800 §7 b3.
-const RANGES: Record<'U' | 'I' | 'DT' | 'DBETA', readonly [number, number, number]> = {
+export const RANGES: Record<'U' | 'I' | 'DT' | 'DBETA', readonly [number, number, number]> = {
   U: [0, 350, 50], // 0.1 kV
   I: [0, 100, 0], // 0.01 mA
   DT: [1, 9999, 1], // s
@@ -100,8 +100,10 @@ export class Apparatus {
   private program: Program | null = null
   replay: ReplayPoint[] = []
   replayIndex: number | null = null
-  /** The auto-scan that filled `replay`: its arm and limits in 0.1° (null after an exposure). */
-  lastScan: { mode: Mode; first: number; last: number } | null = null
+  /** The auto-scan that filled `replay`: its arm, limits in 0.1°, and U, I, Δt at its start in device
+   * steps (null after an exposure). `changed`: U or I differed from those while it counted (the device
+   * allows it). */
+  lastScan: { mode: Mode; first: number; last: number; u: number; i: number; dt: number; changed: boolean } | null = null
   /** Counts in the last whole simulated second; the rate display and speaker clicks use it. */
   lastSecondCounts = 0
   secondsCounted = 0 // increments with every whole simulated second
@@ -246,7 +248,14 @@ export class Apparatus {
       this[key] = clamp(this[key] + detents, lo, hi)
       return
     }
+    this.moveArm(detents)
+  }
+
+  /** Turn the selected arm by `detents` × 0.1° by hand (ADJUST, or dragging the crystal in the view),
+   * keeping the 2:1 coupling in COUPLED mode. Ignored while a program runs or the motor drives. */
+  moveArm(detents: number): void {
     if (this.busy || this.mode === null || this.moving) return
+    this.edit = this.replayIndex = null // a hand on the arm ends an edit, as a key would
     this.bottomShows = this.mode // the display shows the arm being moved
     if (this.mode === 'TARGET') this.target += detents
     else if (this.mode === 'SENSOR') this.sensor = clamp(this.sensor + detents, ...ARM_RANGE.SENSOR)
@@ -377,7 +386,7 @@ export class Apparatus {
     const first = clamp(this.limitLo, lo, hi)
     const last = clamp(this.limitHi, lo, hi)
     const n = Math.floor((last - first) / this.dBeta) + 1
-    this.lastScan = { mode, first, last }
+    this.lastScan = { mode, first, last, u: this.u, i: this.i, dt: this.dt, changed: false }
     this.path = [{ target: 0, sensor: 0 }]
     this.coupleRef = { target: 0, sensor: 0 } // auto-scan couples to the zero of the measuring system
     this.phase = 'positioning'
@@ -431,6 +440,8 @@ export class Apparatus {
     const p = this.program
     if (!p || !this.emitting || this.moving) return // a program waits for HV, emission current and the arms (§7 b5)
     p.counts += c
+    const s = this.lastScan // null for an exposure
+    if (s && (this.u !== s.u || this.i !== s.i)) s.changed = true
     if (++p.elapsedS === this.dt) this.endStep()
   }
 

@@ -5,12 +5,22 @@ import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import type { Apparatus } from '../apparatus/apparatus'
 import { t } from '../i18n'
-import { lambdaFromTheta } from '../physics/crystal'
+import { downloadCsv } from '../pedagogy/csv'
+import { showHints } from '../pedagogy/mode'
+import { MO_KA_PM, MO_KB_PM } from '../physics/constants'
+import { lambdaFromTheta, thetaFromLambda } from '../physics/crystal'
+import { lambdaMinPm } from '../physics/source'
 import { palette, paletteVersion, scaledFont } from './canvas'
 
 const LOG_RANGE = { min: 1, max: 1e5 } // 1/s
 const EMPTY_RANGE = { min: 0, max: 30 } // °, before the first scan
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+// Explore mode: Bragg angles θₙ of the Mo K lines, n = 1–3 (Kα reflects up to n = 7; the leaflet's scan
+// shows three orders).
+const LINES = [1, 2, 3].flatMap((n) => [
+  { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n), colour: 'phys-kalpha-text' as const },
+  { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n), colour: 'phys-kbeta' as const },
+])
 
 /** Smallest 1-2-5 × 10ⁿ at or above x (at least 10). */
 function niceCeil(x: number): number {
@@ -24,6 +34,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   let scan = a.lastScan
   let shown = 0
   let yMax = 10
+  let builtHints = showHints()
   const xs: number[] = []
   const ys: number[] = []
   const data = (): uPlot.AlignedData => [xs, log ? ys.map((y) => (y > 0 ? y : null)) : ys] // log: no zeros
@@ -49,9 +60,12 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       <div class="seg" role="group" aria-label="${s.scale}">
         <button data-log="0" aria-pressed="${!log}">${s.linear}</button>
         <button data-log="1" aria-pressed="${log}">${s.log}</button>
-      </div>`
+      </div>
+      <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}" disabled>${s.csv}</button>`
     empty.firstElementChild!.textContent = s.spectrumEmpty
     const readout = head.querySelector<HTMLElement>('[data-readout]')!
+    const explore = showHints()
+    empty.hidden = xs.length > 0
     const P = palette
     const font = scaledFont(P.caption, 1)
     const labelFont = scaledFont(P.footnote, 1)
@@ -89,14 +103,59 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
           bind: { dblclick: (u) => () => (u.setScale('x', xRange()), null) },
         },
         hooks: {
+          // Explore overlays, under the data: the band the tube cannot reach (λ < λmin at the present U)
+          // and the expected line angles. The x axis is β (θ) for TARGET/COUPLED scans, 2θ for SENSOR scans.
+          drawClear: [
+            (u) => {
+              if (!explore || !scan || scan.mode === 'TARGET') return // none on the empty axis
+              const f = scan.mode === 'SENSOR' ? 2 : 1
+              const { ctx, bbox } = u
+              const k = uPlot.pxRatio
+              const [left, right] = [bbox.left, bbox.left + bbox.width]
+              ctx.save()
+              ctx.font = scaledFont(P.caption, k)
+              ctx.textBaseline = 'top'
+              const m = ctx.measureText('Kα')
+              const row = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent
+              // |angle| < f·θ(λmin): the tube emits nothing that short at the scan's U.
+              const th = thetaFromLambda(lambdaMinPm(scan.u / 10))
+              const edge = f * (Number.isNaN(th) ? 90 : th)
+              const [x0, x1] = [Math.max(u.valToPos(-edge, 'x', true), left), Math.min(u.valToPos(edge, 'x', true), right)]
+              if (x1 > x0) {
+                ctx.fillStyle = P.fill
+                ctx.fillRect(x0, bbox.top, x1 - x0, bbox.height)
+                ctx.fillStyle = P['label-2']
+                ctx.textAlign = 'left'
+                const band = t().lambdaMinBand
+                if (empty.hidden && ctx.measureText(band).width < x1 - x0) ctx.fillText(band, x0 + 4 * k, bbox.top + bbox.height - row - 4 * k)
+              }
+              ctx.textAlign = 'center'
+              for (const [i, l] of LINES.entries()) {
+                const x = Math.round(u.valToPos(f * l.theta, 'x', true))
+                if (!(x >= left && x <= right)) continue
+                const y = bbox.top + (i % 2) * row // Kα and Kβ labels on alternate rows
+                const kb = l.colour === 'phys-kbeta'
+                ctx.fillStyle = P[l.colour]
+                ctx.fillText(l.label, x, y)
+                // Kβ dashed, so the two lines differ by more than colour
+                ctx.strokeStyle = P[kb ? 'phys-kbeta' : 'phys-kalpha']
+                ctx.lineWidth = k
+                ctx.setLineDash(kb ? [2 * k, 2 * k] : [])
+                ctx.beginPath()
+                ctx.moveTo(x + k / 2, y + row)
+                ctx.lineTo(x + k / 2, bbox.top + bbox.height)
+                ctx.stroke()
+              }
+              ctx.restore()
+            },
+          ],
           setCursor: [
             (u) => {
               const i = u.cursor.idx
               if (i == null || i >= xs.length) return void (readout.textContent = '')
               const [x, y] = [xs[i], ys[i]]
-              // ponytail: reveals λ; gate it off in Phase 9 lab mode
-              const lam = scan?.mode === 'COUPLED' ? ` · ${t().pathDiff} = ${lambdaFromTheta(x).toFixed(1)} pm (= nλ)` : ''
-              readout.textContent = `${x.toFixed(1)}° · ${y.toFixed(1)} /s${lam}`
+              const lam = explore && scan?.mode === 'COUPLED' ? ` · ${t().pathDiff} = ${lambdaFromTheta(x).toFixed(1)} pm (= nλ)` : ''
+              readout.textContent = `${x.toFixed(1)}° · ${y.toFixed(1)} 1/s${lam}`
             },
           ],
         },
@@ -107,10 +166,11 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     plot.setScale('x', xRange())
     setY()
     builtPalette = paletteVersion
-    empty.hidden = xs.length > 0
+    builtHints = explore
   }
 
   root.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-csv]')) return downloadCsv(a)
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-log]')
     if (!b || (b.dataset.log === '1') === log) return
     log = !log
@@ -122,7 +182,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   }).observe(box)
 
   const render = () => {
-    if (paletteVersion !== builtPalette) build()
+    if (paletteVersion !== builtPalette || showHints() !== builtHints) build()
     if (a.lastScan !== scan) {
       // A new scan (or none): start over with its range.
       scan = a.lastScan
@@ -131,6 +191,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       build()
     }
     const n = scan ? a.replay.length : 0
+    const csv = head.querySelector<HTMLButtonElement>('[data-csv]')!
+    if (csv.disabled !== (n === 0)) csv.disabled = n === 0
     if (n === shown) return
     if (n < shown) xs.length = ys.length = shown = 0
     for (; shown < n; shown++) {
@@ -139,9 +201,9 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       ys.push(p.rate)
       if (p.rate > yMax) yMax = niceCeil(p.rate * 1.05)
     }
+    empty.hidden = n > 0 // before the redraw: the band caption shows only without it
     plot!.setData(data(), false)
     setY()
-    empty.hidden = n > 0
   }
 
   build()

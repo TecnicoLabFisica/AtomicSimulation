@@ -2,8 +2,8 @@
 // Canvas code never hard-codes a colour: it reads the palette, which follows the theme.
 
 const COLOURS = [
-  'label', 'label-2', 'label-3', 'separator', 'surface', 'surface-2', 'accent', 'led-on',
-  'phys-kalpha', 'phys-kbeta', 'phys-beam', 'phys-crystal', 'phys-constructive',
+  'label', 'label-2', 'label-3', 'separator', 'fill', 'surface', 'surface-2', 'accent', 'led-on',
+  'phys-kalpha', 'phys-kalpha-text', 'phys-kbeta', 'phys-continuum', 'phys-beam', 'phys-crystal', 'phys-constructive',
 ] as const // prettier-ignore
 export type Palette = Record<(typeof COLOURS)[number], string> & { caption: string; footnote: string; font: string }
 

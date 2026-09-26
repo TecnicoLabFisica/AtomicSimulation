@@ -11,10 +11,12 @@ quotes, even where Kβ2 separates from Kβ1,3 (from 2nd order on).
 import dataclasses
 
 import numpy as np
+from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 
-from braggsim.constants import MO_KA_PM, MO_KB_COMPONENTS, MO_KB_PM
+from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_COMPONENTS, MO_KB_PM
 from braggsim.crystal import dlambda_dtheta_pm_per_deg, lambda_from_theta, theta_from_lambda
+from braggsim.source import LINE_EXPONENT_M
 
 # A characteristic line is at most this wide (FWHM ≈ 0.3° at the leaflet's slits); the
 # bremsstrahlung hump near 5° is several degrees wide and must not count as a line.
@@ -37,6 +39,10 @@ FIRST_LINE_DEG = float(theta_from_lambda(min(lam for lam, _ in MO_KB_COMPONENTS)
 # 1st-order Kβ near the K edge (≈ −0.6 pm at 25 kV, PARAMETERS.md).
 MAX_ORDER_SPREAD_PM = 3.0
 MAX_KB_KA_RATIO_DEV = 0.03
+# Line threshold: the 1st-order Kα area is integrated over ±0.5° (rounded to Δβ). The lower end,
+# 6.7°, is ≈ 2.3σ above 1st-order Kβ₁,₃; that tail scales with the line, so it rescales the areas
+# but does not move the extrapolated U_K.
+THRESHOLD_HALF_WINDOW_DEG = 0.5
 
 
 @dataclasses.dataclass(frozen=True)
@@ -44,6 +50,8 @@ class Peak:
     center_deg: float
     center_err_deg: float  # 1σ, propagated from Poisson counting noise
     width_deg: float  # rms width of the marked region (low: the window truncates the tails)
+    area: float  # Σ (rate − baseline) · Δβ over the marked region, in 1/s · °
+    area_err: float  # 1σ, propagated from Poisson counting noise
 
 
 def _rate_var(rate_per_s, dt_s):
@@ -87,7 +95,7 @@ def find_line_peaks(beta_deg, rate_per_s, dt_s):
 
 
 def peak_center(beta_deg, rate_per_s, dt_s, lo_deg, hi_deg):
-    """Centroid and rms width of the peak marked from ``lo_deg`` to ``hi_deg`` (inclusive).
+    """Centroid, rms width and area of the peak marked from ``lo_deg`` to ``hi_deg`` (inclusive).
 
     The background is the straight line through the two end points. The error propagates the
     Poisson variance of every point, the end points included through the baseline.
@@ -107,9 +115,15 @@ def peak_center(beta_deg, rate_per_s, dt_s, lo_deg, hi_deg):
     grad = g.copy()
     grad[0] -= ((1 - t) * g).sum()
     grad[-1] -= (t * g).sum()
-    err = np.sqrt((grad**2 * _rate_var(y, dt_s)).sum())
+    var = _rate_var(y, dt_s)
+    err = np.sqrt((grad**2 * var).sum())
     width = np.sqrt(max(((x - center) ** 2 * signal).sum() / area, 0.0))
-    return Peak(float(center), float(err), float(width))
+    step = (x[-1] - x[0]) / (x.size - 1)
+    g_area = np.ones_like(x)  # ∂area/∂y, the end points through the baseline
+    g_area[0] -= (1 - t).sum()
+    g_area[-1] -= t.sum()
+    area_err = step * np.sqrt((g_area**2 * var).sum())
+    return Peak(float(center), float(err), float(width), float(area * step), float(area_err))
 
 
 def wavelength_table(beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDOW_DEG):
@@ -180,3 +194,38 @@ def order_means_pm(rows):
         err = np.array([r["lambda_err_pm"] for r in rows if r["line"] == line])
         out[line] = (float(lam.mean()), float(np.sqrt((err**2).sum()) / lam.size))
     return out
+
+
+def line_threshold_kv(U_kV, area, area_err):
+    """Voltage U_K (kV) where a characteristic line starts, from its peak areas at several U.
+
+    Fits area = A · (U/U_K − 1)^m with A, U_K and m free (weighted by ``area_err``) and returns
+    ``(U_K, U_K_err, m, m_err)``, 1σ. This extrapolates the area to zero, as the Phase 9 answer key
+    asks; the first U with a *visible* peak lies well above U_K because the line rises as a power
+    m ≈ 1.67 (Green & Cosslett 1968, source.py). U_K and m are strongly anti-correlated, so a free
+    m dominates U_K_err; fixing m would make U_K look more precise than it is.
+
+    Bias budget on the model's noise-free 1st-order Kα, 22–35 kV (test_analysis.py): the straight
+    baseline under the curved continuum −0.18 kV; GM dead time (τ = 100 µs) +0.10 kV at 0.1 mA,
+    +0.70 kV at 1 mA, where it also drags m to ≈ 1.35. So sweep at ≈ 0.1 mA.
+    The fit recovers the model's own input law: it checks the method, not the physics near U_K,
+    where the real thick-target yield need not be a pure power law.
+    """
+    U = np.asarray(U_kV, dtype=float)
+    a = np.asarray(area, dtype=float)
+    e = np.asarray(area_err, dtype=float)
+    if U.ndim != 1 or U.shape != a.shape or a.shape != e.shape or U.size < 4:
+        raise ValueError("need U, area and area_err as 1-D arrays of the same length, at least 4")
+    if not (np.all(np.isfinite(U)) and np.all(np.isfinite(a)) and np.all(e > 0)):
+        raise ValueError("U and the areas must be finite and every area_err > 0")
+
+    def model(u, amp, u_k, m):
+        return amp * np.clip(u / u_k - 1, 0, None) ** m
+
+    # The start uses the known edge and exponent (convergence only; all three are free). The bounds
+    # keep U_K below every swept U, where the clipped model would have no gradient, and m physical.
+    i = np.argmax(U)
+    p0 = (a[i] / (U[i] / MO_K_EDGE_KEV - 1) ** LINE_EXPONENT_M, MO_K_EDGE_KEV, LINE_EXPONENT_M)
+    bounds = ([0, 0, 0.5], [np.inf, U.min() * (1 - 1e-6), 4])
+    p, cov = curve_fit(model, U, a, p0=p0, sigma=e, absolute_sigma=True, bounds=bounds)
+    return float(p[1]), float(np.sqrt(cov[1, 1])), float(p[2]), float(np.sqrt(cov[2, 2]))

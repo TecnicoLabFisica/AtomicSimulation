@@ -2,11 +2,19 @@ import numpy as np
 import pytest
 from pytest import approx
 
-from braggsim.analysis import find_line_peaks, order_means_pm, peak_center, wavelength_table
-from braggsim.constants import MO_KA_PM, MO_KB_PM
+from braggsim.analysis import (
+    THRESHOLD_HALF_WINDOW_DEG,
+    find_line_peaks,
+    line_threshold_kv,
+    order_means_pm,
+    peak_center,
+    wavelength_table,
+)
+from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import sample_counts
 from braggsim.scan import DEFAULT, coupled_betas, expected_rate
+from braggsim.source import LINE_EXPONENT_M
 
 # Leaflet settings: 2° → 25°, Δβ = 0.1°, Δt = 10 s, 35 kV, 1 mA (LD P6.3.3.1).
 BETA = coupled_betas(2.0, 25.0, 0.1)
@@ -155,3 +163,61 @@ def test_a_scan_starting_inside_the_first_kb_line_is_rejected():
     beta = coupled_betas(6.0, 25.0, 0.1)
     with pytest.raises(ValueError, match="start it below"):
         wavelength_table(beta, expected_rate(beta, 35.0, 1.0), DT_S)
+
+
+def _kalpha1_areas(I_mA, U_kV, rng=None, dt_s=DT_S):
+    """Areas of the 1st-order Kα peak at each U, noise-free or sampled with ``rng``."""
+    theta = float(theta_from_lambda(MO_KA_PM))
+    w = THRESHOLD_HALF_WINDOW_DEG
+    beta = coupled_betas(round(theta - w, 1), round(theta + w, 1), 0.1)
+    peaks = []
+    for U in U_kV:
+        rate = expected_rate(beta, U, I_mA)
+        if rng is not None:
+            rate = sample_counts(rate, dt_s, rng) / dt_s
+        peaks.append(peak_center(beta, rate, dt_s, beta[0], beta[-1]))
+    return [p.area for p in peaks], [p.area_err for p in peaks]
+
+
+U_SWEEP_KV = np.arange(22.0, 35.1, 1.0)
+
+
+def test_line_area_extrapolates_to_the_mo_k_edge_at_low_current():
+    # Noise-free at 0.1 mA the fit gives 19.92 kV, m = 1.63: the straight baseline under the curved
+    # continuum (−0.18 kV) and a little dead time (+0.10 kV). 0.15 kV is a third of the ±0.4 kV
+    # counting error of a real sweep (Δt = 10 s).
+    area, err = _kalpha1_areas(0.1, U_SWEEP_KV)
+    U_K, _, m, _ = line_threshold_kv(U_SWEEP_KV, area, err)
+    assert U_K == approx(MO_K_EDGE_KEV, abs=0.15)
+    assert m == approx(LINE_EXPONENT_M, abs=0.1)
+
+
+def test_dead_time_at_full_current_pushes_the_extrapolated_threshold_up():
+    # At 1 mA the 1st-order Kα peak reaches ≈ 2600/s, and τ = 100 µs flattens the top of the
+    # sweep: U_K 20.52 kV (0.6 kV above the 0.1 mA fit), m 1.35.
+    area, err = _kalpha1_areas(1.0, U_SWEEP_KV)
+    U_K, _, m, _ = line_threshold_kv(U_SWEEP_KV, area, err)
+    assert U_K > line_threshold_kv(U_SWEEP_KV, *_kalpha1_areas(0.1, U_SWEEP_KV))[0] + 0.4
+    assert m < LINE_EXPONENT_M - 0.2
+
+
+def test_threshold_uncertainty_is_honest():
+    # 20 noisy sweeps (Δt = 10 s, 0.1 mA): the reported 1σ matches the scatter of U_K within 40 %.
+    fits = np.array(
+        [
+            line_threshold_kv(
+                U_SWEEP_KV, *_kalpha1_areas(0.1, U_SWEEP_KV, np.random.default_rng(s))
+            )
+            for s in range(20)
+        ]
+    )
+    assert fits[:, 0].mean() == approx(MO_K_EDGE_KEV, abs=3 * fits[:, 1].mean() / np.sqrt(20))
+    assert fits[:, 0].std() == approx(fits[:, 1].mean(), rel=0.4)
+
+
+def test_peak_area_matches_a_known_gaussian():
+    beta = coupled_betas(5.0, 9.0, 0.1)
+    rate = 100 + 400 * np.exp(-0.5 * ((beta - 7.0) / 0.12) ** 2)
+    assert peak_center(beta, rate, DT_S, 6.0, 8.0).area == approx(
+        400 * 0.12 * np.sqrt(2 * np.pi), rel=1e-3
+    )

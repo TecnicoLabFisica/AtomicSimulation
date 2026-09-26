@@ -519,12 +519,36 @@ Decisions, deviations and emulator assumptions (2026-09-25):
 
 Folder: `src/pedagogy/`
 
-- [ ] **Explore mode**: physics visible, sliders, overlays of expected angles
-- [ ] **Lab mode**: raw data only, CSV export for student analysis
-- [ ] Guided tasks, e.g. *"Find the voltage at which the characteristic lines disappear"*, *"Reduce $s_2$ until $K_\alpha$ and $K_\beta$ merge"*
-- [ ] Optional teacher answer key generated from `analysis` outputs
-- [ ] Line-threshold answer key: extrapolate the line area vs U to zero (≈ U_K = 20.0 kV), not "the first U
+- [x] **Explore mode**: physics visible, sliders, overlays of expected angles
+- [x] **Lab mode**: raw data only, CSV export for student analysis
+- [x] Guided tasks, e.g. *"Find the voltage at which the characteristic lines disappear"*, *"Reduce $s_2$ until $K_\alpha$ and $K_\beta$ merge"*
+- [x] Optional teacher answer key generated from `analysis` outputs
+- [x] Line-threshold answer key: extrapolate the line area vs U to zero (≈ U_K = 20.0 kV), not "the first U
       where a peak is visible". The lines rise as (U/U_K − 1)^1.67, so a visible peak appears only well above U_K
+
+Deviations and decisions (2026-09-26):
+- **s₂ deferred**: no slider and no "merge Kα and Kβ" task, because σ(s₂) has no data to fit it to.
+- Three tasks: `kalpha-third-order` (explore), `line-threshold` (explore) and `lambda-three-orders` (lab).
+  Third order, not the planned second: in second order the "n × θ₁" misconception (14.48°) is within σ of
+  the line (14.60°), so the wrong guess still finds the peak; in third order it is 4σ short.
+  Success conditions come from the physics port and the apparatus. The lab task checks that the scan is one
+  `braggsim.analysis` could evaluate (windows, Δβ ≤ `MAX_STEP_DEG`, every line expected ≥ 5σ; the constants
+  are ported in `web/src/physics/analysis.ts`) and that the CSV was exported, never the student's λ.
+  Scans during which U or I changed (`lastScan.changed`) don't count.
+- In a task, the Explore overlays (expected angles, λ band, nλ) stay hidden until the act step is met.
+- The Explore sliders and the crystal drag drive the same `Apparatus` state as the panel. The drag goes through
+  `Apparatus.moveArm`, so the coupling rules stay in one place.
+- The teacher key is a generated document, `docs/teacher-key.md` (`model/scripts/teacher_key.py`, seeded), not
+  a TS port of `analysis`. In the app, teacher notes appear only with `?teacher` in the URL.
+- CSV export is available in both modes, since it only exports raw data.
+- Line threshold: GM dead time at 1 mA flattens the peaks and biases the extrapolated U_K up by about 0.6 kV.
+  The key therefore sweeps at 0.1 mA (U_K = 20.1 ± 0.4 kV). `Peak` gained `area`/`area_err` and
+  `analysis.line_threshold_kv` does the fit. There are no new empirical parameters.
+- Lab mode hides the Huygens panel, the overlays, the sliders, the drag and the λ in the spectrum readout.
+  It is honour-based: the mode switch and `?teacher` stay reachable.
+
+> [!success] Done when
+> A student can finish each task on a phone. Lab mode shows nothing the real bench doesn't.
 
 ### Phase 10 — CI/CD
 

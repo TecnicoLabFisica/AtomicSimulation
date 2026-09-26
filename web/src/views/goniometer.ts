@@ -2,6 +2,9 @@
 // on the target arm at β and the GM counter on the sensor arm. It draws the apparatus state. The beam
 // brightness comes from the apparatus (the physics model), never from the view.
 import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
+import { getMode, showHints } from '../pedagogy/mode'
+import { MO_KA_PM, MO_KB_PM } from '../physics/constants'
+import { thetaFromLambda } from '../physics/crystal'
 import { dpr, palette, paletteVersion, reducedMotion, scaledFont, watchSize } from './canvas'
 
 const S1_CM = 5 // collimator–crystal distance, LD P6.3.3.1
@@ -11,6 +14,12 @@ const SPRING_C = 30
 const DASH_PX_PER_S = 40 // the beam's dashes travel while the tube emits
 const LABEL_MIN_GAP_PX = 40 // angle labels every 5°, 10°, 20° or 30°, whichever keeps them this far apart ("170°" is ~28 px)
 const RAD = Math.PI / 180
+const GRAB_CM = 2.2 // explore mode: a pointer this close to the axis turns the crystal
+// Explore mode: where the counter meets each line, sensor angle 2θₙ (n = 1–3).
+const EXPECTED = [1, 2, 3].flatMap((n) => [
+  { deg: 2 * thetaFromLambda(MO_KA_PM, n), colour: 'phys-kalpha' as const },
+  { deg: 2 * thetaFromLambda(MO_KB_PM, n), colour: 'phys-kbeta' as const },
+])
 
 /** Folded target angle in degrees (float), as the display shows it. */
 const foldDeg = (tenths: number) => wrapTarget(tenths) / 10
@@ -30,6 +39,12 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
   let drawnGlow = NaN
   let drawnRate = NaN
   let drawnPalette = -1
+  let drawnHints = showHints()
+  let drawnTurn = false
+  // Explore mode: the crystal can be dragged round (below) in TARGET or COUPLED, arms at rest, no program.
+  const canTurn = () => getMode() === 'explore' && (a.mode === 'TARGET' || a.mode === 'COUPLED') && !a.busy && !a.moving
+  let grab: { last: number; acc: number; t0: number } | null = null
+  const handle = () => grab !== null || canTurn()
   // The specular rate changes only with the target, U, I or HV.
   let rate = 0
   let rateKey = ''
@@ -67,6 +82,19 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     for (let d = 0; d <= 170; d += step) ctx.fillText(`${d}°`, cx + rL * Math.cos(d * RAD), cy - rL * Math.sin(d * RAD))
+    if (showHints()) {
+      // Kβ shorter, so the two lines differ by more than colour
+      ctx.lineWidth = 2 * k
+      for (const { deg, colour } of EXPECTED) {
+        const len = (colour === 'phys-kbeta' ? 0.25 : 0.4) * u
+        ctx.beginPath()
+        ctx.moveTo(cx + rT * Math.cos(deg * RAD), cy - rT * Math.sin(deg * RAD))
+        ctx.lineTo(cx + (rT + len) * Math.cos(deg * RAD), cy - (rT + len) * Math.sin(deg * RAD))
+        ctx.strokeStyle = P[colour]
+        ctx.stroke()
+      }
+      ctx.lineWidth = k
+    }
 
     // Turntable
     ctx.beginPath()
@@ -151,6 +179,14 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     }
     ctx.globalAlpha = 0.5
     ctx.stroke()
+    if (handle()) {
+      // Explore: a grab handle at the crystal's end, the one accent on the canvas (touch has no hover cursor)
+      ctx.globalAlpha = 1
+      ctx.beginPath()
+      ctx.arc(0.9 * u, 0, 0.15 * u, 0, 2 * Math.PI)
+      ctx.fillStyle = P.accent
+      ctx.fill()
+    }
     ctx.restore()
 
     // Sensor arm with the GM counter tube, its window facing the crystal.
@@ -212,10 +248,34 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     const animate = a.emitting && !reducedMotion()
     if (animate) dash = (dash + DASH_PX_PER_S * dtS) % 1100
     const still = t === drawnT && s === drawnS && glow === drawnGlow && rate === drawnRate
-    if (!resized && !animate && still && paletteVersion === drawnPalette) return
-    ;[drawnT, drawnS, drawnGlow, drawnRate, drawnPalette, resized] = [t, s, glow, rate, paletteVersion, false]
+    if (!resized && !animate && still && paletteVersion === drawnPalette && showHints() === drawnHints && handle() === drawnTurn) return
+    ;[drawnT, drawnS, drawnGlow, drawnRate, drawnPalette, drawnHints, drawnTurn, resized] = [t, s, glow, rate, paletteVersion, showHints(), handle(), false]
     draw(glow, a.emitting)
   }
+  // Explore mode: drag the crystal round the axis. It turns the arm through Apparatus.moveArm, so the 2:1
+  // coupling and the "not while the motor drives or a program runs" rules stay in one place.
+  const polar = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect()
+    const u = Math.min(r.width / 15.6, r.height / 10.4)
+    const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2 + 2.6 * u]
+    const [dx, dy] = [e.clientX - cx, cy - e.clientY]
+    return { near: Math.hypot(dx, dy) < GRAB_CM * u, deg: Math.atan2(dy, dx) / RAD }
+  }
+  canvas.addEventListener('pointerdown', (e) => {
+    const p = polar(e)
+    if (e.button !== 0 || !p.near || !canTurn()) return
+    grab = { last: p.deg, acc: 0, t0: a.target }
+    canvas.setPointerCapture(e.pointerId)
+  })
+  canvas.addEventListener('pointermove', (e) => {
+    const p = polar(e)
+    if (!grab) return void (canvas.style.cursor = p.near && canTurn() ? 'grab' : '')
+    grab.acc += ((p.deg - grab.last + 540) % 360) - 180 // shortest way round
+    grab.last = p.deg
+    a.moveArm(grab.t0 + Math.round(10 * grab.acc) - a.target)
+  })
+  for (const ev of ['pointerup', 'pointercancel'] as const) canvas.addEventListener(ev, () => (grab = null))
+
   watchSize(canvas, () => {
     resized = true
     render(0)
