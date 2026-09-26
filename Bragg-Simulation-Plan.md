@@ -448,7 +448,7 @@ stateDiagram-v2
       0.01 mA a hundred times in floats gives 1.0000000000000007 mA, which the model rejects as > 1 mA
 
 Deviations and emulator assumptions (the manual gives no number; each is a named constant in `apparatus.ts`):
-- Self-test timing: SAFE 1 s, then OK 0.5 s. Arms move instantly (Phase 8 animates them). Default limits 0.0°/0.0°.
+- Self-test timing: SAFE 1 s, then OK 0.5 s. Default limits 0.0°/0.0°. (Arm motion: see Phase 8.)
   The self-test always runs in real time; time acceleration only speeds up counting.
 - Auto-scan sends **both** arms to zero before the lower limit (manual §7 b5 says "the device" goes to zero) and
   re-references the coupling there. This holds for SENSOR and TARGET scans too (confirmed by the lab staff,
@@ -469,14 +469,13 @@ Deviations and emulator assumptions (the manual gives no number; each is a named
 - Refused actions explain themselves (a simulation aid, like the time scale). SCAN without a scan mode rings the
   SENSOR/TARGET/COUPLED keys in red, and a short message names what is missing. The same message line covers
   upper < lower and a door open at the self-test.
-- Phase 8 to-dos from the apparatus review: a positioning phase before HV comes on (animated arms), arrow keys
-  scoped to the panel, doors moved into the device section, REPLAY showing k/N.
+- Phase 8 to-dos from the apparatus review (done in Phase 8): a positioning phase before HV comes on (animated
+  arms), arrow keys scoped to the panel, doors moved into the device section, REPLAY showing k/N.
 - HV switches off when a scan or exposure ends. The program waits while I = 0 (no emission current).
 - Dynamic ADJUST: ×1 / ×5 / ×20 by detents per second; keyboard arrows ±1, Shift ±10.
 - The rate display is Poisson(R̄ · 1 s) per simulated second (clock quantized to whole seconds); a scan point is
   the mean over Δt. Instant mode draws one Poisson(R̄ · Δt) per step, which has the same statistics.
-- The speaker key toggles a flag only; the click sound comes with Phase 8.
-- The Phase 7 panel is a plain functional view (i18n es/en, tokens, 44 px targets). Phase 8 restyles it.
+- The speaker key toggles GM clicks and the ADJUST detent tick (sound added in Phase 8).
 - §11 a, b, c, e, f, h are scripted key by key in `web/tests/apparatus.test.ts`.
 
 > [!example] Why time acceleration matters
@@ -489,11 +488,29 @@ Deviations and emulator assumptions (the manual gives no number; each is a named
 
 Folder: `src/views/`
 
-- [ ] **Goniometer canvas**: crystal at $\theta$, counter at $2\theta$, beam path
-- [ ] **Live spectrum** (uPlot), point by point during scan; linear/log toggle
-- [ ] **Huygens / path-difference panel**: highlights when $2d\sin\theta = n\lambda$
-- [ ] **LED-style displays** mimicking the 554 800 panel
-- [ ] Responsive layout; test on a phone
+- [x] **Goniometer canvas**: crystal at $\theta$, counter at $2\theta$, beam path
+- [x] **Live spectrum** (uPlot), point by point during scan; linear/log toggle
+- [x] **Huygens / path-difference panel**: highlights when $2d\sin\theta = n\lambda$
+- [x] **LED-style displays** mimicking the 554 800 panel
+- [ ] Responsive layout; test on a phone (layout done and checked headless at 390/820/1440 px; real phone pending)
+
+Decisions, deviations and emulator assumptions (2026-09-25):
+- **The arms are driven by a motor inside the apparatus**, not just animated in the view. `MOTOR_DEG_PER_S = 20` is an
+  assumption; the lab staff should time the 554 831. A move interpolates both arms over
+  max(|Δtarget|, |Δsensor|) / speed, so coupled moves stay 2:1. Motion runs on the physics clock (scaled by the
+  time acceleration) and pauses during the self-test.
+- New phase `positioning`: SCAN → SAFE/OK → the arms drive to 0 and then to the lower limit with HV off → HV on →
+  counting. Doing the self-test before the drive is an assumption to confirm. A program step counts only once its
+  arm has arrived.
+- ADJUST stays instant, because a hand turns slower than the motor. The view eases between 0.1° steps
+  (spring k = 300, c = 30).
+- The specular beam brightness in the goniometer is the model's expected rate at the current β (log scale), so
+  an uncoupled counter visibly misses it.
+- Huygens: n is the order nearest to θ. "Met" means |θ − θₙ| < `sigma_deg`, the model's angular resolution.
+- The ADJUST dial takes 15° of drag per detent. The wheel and the arrow keys work only with focus in the panel.
+- GM clicks follow the last counted second × time acceleration, capped at 200/s of real time.
+- Explore overlays (expected-angle ticks, n·Kα markers, λ_min band) move to Phase 9 with the Explore/Lab switch.
+- Skipped: 7-segment SVG digits (mono is allowed), pinch zoom, CSV export (Phase 9 lab mode), point fade-in.
 
 > [!success] Done when
 > The app is usable and smooth on a phone screen.

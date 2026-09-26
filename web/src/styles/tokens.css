@@ -15,20 +15,28 @@
   --radius-s: 8px; --radius-m: 14px; --radius-l: 22px; --radius-full: 999px;
   --stroke-hair: 1px;
   --touch: 44px;
-  --dur-ui: 250ms;
+  --dur-fast: 150ms; --dur-base: 250ms; --dur-slow: 350ms;
+  --blink: 1s; /* the 554 800 flashes at about 1 Hz */
+  --z-overlay: 1; --z-sheet: 2;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04);
+  --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.12);
 
   --bg: #f5f5f7; --surface: #ffffff; --surface-2: #f2f2f7;
   --fill: rgba(120, 120, 128, 0.12); --separator: rgba(60, 60, 67, 0.18);
-  --label: #1d1d1f; --label-2: rgba(60, 60, 67, 0.62); --label-3: rgba(60, 60, 67, 0.32);
-  --accent: #0071e3; --danger: #d70015; --success: #248a3d;
+  --label: #1d1d1f; --label-2: rgba(60, 60, 67, 0.72); --label-3: rgba(60, 60, 67, 0.32);
+  --accent: #0071e3; --danger: #d70015; --success: #1f7a35;
   --phys-kalpha: #e8590c; --phys-kbeta: #7048e8; --phys-continuum: #868e96;
   --phys-beam: #0ca5b0; --phys-crystal: #495057; --phys-constructive: var(--success);
+  --phys-kalpha-text: #c2410c; /* Kα as text: AA on --fill */
 
   /* 554 800 LED displays: the one skeuomorphic element, identical in both themes. */
   --led-bg: #0b0b0c; --led-on: #ff3b30; --led-glow: 0 0 6px rgba(255, 59, 48, 0.55);
 }
 @media (min-resolution: 2dppx) { :root { --stroke-hair: 0.5px; } }
+/* Dark: follows the system unless the manual toggle forces a theme. The two blocks hold the same values
+   (light-dark() would remove the copy, but needs iOS 17.5+). */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --bg: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e;
@@ -36,6 +44,18 @@
     --label: #f5f5f7; --label-2: rgba(235, 235, 245, 0.62); --label-3: rgba(235, 235, 245, 0.32);
     --accent: #0a84ff; --danger: #ff453a; --success: #30d158;
     --phys-kalpha: #ff8a3d; --phys-kbeta: #9d7bff; --phys-continuum: #8e8e93;
-    --phys-beam: #3fe0e8; --phys-crystal: #c7c7cc;
+    --phys-beam: #3fe0e8; --phys-crystal: #c7c7cc; --phys-kalpha-text: #ff8a3d;
+    --shadow-1: none; --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
   }
 }
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #000000; --surface: #1c1c1e; --surface-2: #2c2c2e;
+  --fill: rgba(120, 120, 128, 0.24); --separator: rgba(84, 84, 88, 0.6);
+  --label: #f5f5f7; --label-2: rgba(235, 235, 245, 0.62); --label-3: rgba(235, 235, 245, 0.32);
+  --accent: #0a84ff; --danger: #ff453a; --success: #30d158;
+  --phys-kalpha: #ff8a3d; --phys-kbeta: #9d7bff; --phys-continuum: #8e8e93;
+  --phys-beam: #3fe0e8; --phys-crystal: #c7c7cc; --phys-kalpha-text: #ff8a3d;
+  --shadow-1: none; --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
+}
+:root[data-theme='light'] { color-scheme: light; }
