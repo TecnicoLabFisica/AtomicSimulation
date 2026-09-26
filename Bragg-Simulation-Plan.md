@@ -461,6 +461,14 @@ Deviations and emulator assumptions (the manual gives no number; each is a named
   - Holding − / + repeats and speeds up (×1, then ×5 after 1 s, ×20 after 3 s), so touch users can make big changes.
   - A screen wake lock is held while a program runs.
   - The app still loads when `localStorage` is blocked.
+- Confirmed by the lab staff (2026-09-25):
+  - REPLAY means show as many decimals as fit the 4 digits (5.810 · 58.10 · 581.0 · 5810). The live rate stays an
+    integer, since it is whole counts in a 1 s gate.
+  - A crystal turned half a turn (β = θ + 180°) reflects nothing, because the holder blocks the beam. The model
+    already behaves this way; a pytest covers it.
+- Refused actions explain themselves (a simulation aid, like the time scale). SCAN without a scan mode rings the
+  SENSOR/TARGET/COUPLED keys in red, and a short message names what is missing. The same message line covers
+  upper < lower and a door open at the self-test.
 - Phase 8 to-dos from the apparatus review: a positioning phase before HV comes on (animated arms), arrow keys
   scoped to the panel, doors moved into the device section, REPLAY showing k/N.
 - HV switches off when a scan or exposure ends. The program waits while I = 0 (no emission current).

@@ -201,7 +201,9 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None):
     reflected spectrum is that of θ = |S|/2 whatever the target angle. A target off S/2 by
     ε = S/2 − β only weakens it, by exp(−½ (ε/σ)²): the rocking curve, given the same width σ
     as the coupled line profile (no new parameter; model/PARAMETERS.md). The direct-beam leak
-    depends on the sensor alone and scatter on neither.
+    depends on the sensor alone and scatter on neither. The rocking weight is centred on S/2
+    only, so a crystal turned half a turn (β = S/2 + 180°) reflects nothing: its holder blocks
+    the beam (confirmed by the lab staff, 2026-09-25).
     """
     beta = np.asarray(beta_deg, dtype=float)
     if sensor_deg is None:

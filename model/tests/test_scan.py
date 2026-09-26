@@ -7,6 +7,7 @@ from pytest import approx
 
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
+from braggsim.detector import dead_time
 from braggsim.scan import DEFAULT, coupled_betas, expected_rate, tube_factor
 from braggsim.source import lambda_min_pm
 
@@ -180,6 +181,17 @@ def test_leak_and_scatter_follow_the_photon_rate_leaving_the_tube():
 def test_rate_rises_with_voltage(beta):
     rate = [expected_rate(np.array([beta]), U, 1.0)[0] for U in np.arange(5.0, 35.01, 0.5)]
     assert np.all(np.diff(rate) >= 0)
+
+
+def test_crystal_turned_half_a_turn_reflects_nothing():
+    # The holder blocks the beam at β = θ + 180° (lab staff): only leak and scatter remain.
+    ka = float(theta_from_lambda(MO_KA_PM))
+    p = DEFAULT
+    leak = p.leak_amp_per_s * np.exp(-0.5 * (2 * ka / p.leak_width_deg) ** 2)
+    background = dead_time(tube_factor(35.0, 1.0) * (p.scatter_per_s + leak), p.tau_s)
+    rate = expected_rate([ka + 180.0], 35.0, 1.0, sensor_deg=[2 * ka])[0]
+    assert rate == approx(background, rel=1e-12)
+    assert expected_rate([ka], 35.0, 1.0)[0] > 100 * rate
 
 
 def test_rate_is_continuous_across_the_k_edge():

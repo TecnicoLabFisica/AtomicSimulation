@@ -186,7 +186,8 @@ export function tubeFactor(UkV: number, ImA: number, params: ModelParams = DEFAU
 
 /** port of braggsim.scan.expected_rate: expected observed rate R̄ in counts/s (deterministic).
  * `betaDeg`: target angles; `sensorDeg`: sensor angles, same length, or null/undefined for the 2:1
- * coupled scan (sensor at 2β). Throws on the same invalid inputs as Python. */
+ * coupled scan (sensor at 2β). Throws on the same invalid inputs as Python. A crystal turned half a
+ * turn (β = S/2 + 180°) reflects nothing: its holder blocks the beam. */
 export function expectedRate(
   betaDeg: ArrayLike<number>,
   UkV: number,

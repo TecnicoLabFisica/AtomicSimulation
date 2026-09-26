@@ -58,8 +58,9 @@ export function mountPanel(root: HTMLElement, a: Apparatus): () => void {
           <div class="led" aria-live="off"><output data-top></output><span class="unit" data-top-unit></span></div>
           <div class="led"><output data-bottom></output><span class="unit" data-bottom-unit></span><span class="sym" data-sym></span></div>
         </div>
+        <p class="alert-msg" role="status" data-alert></p>
         ${GROUPS.map(([g, keys]) => `
-          <div class="group" role="group" aria-label="${s[g]}">
+          <div class="group" role="group" aria-label="${s[g]}" data-group="${g}">
             <h2>${s[g]}</h2>
             <div class="keys">${keys.map((k) => `<button class="key" data-key="${k}" aria-label="${s.keys[k][1]}">${s.keys[k][0]}</button>`).join('')}</div>
           </div>`).join('')}
@@ -117,6 +118,8 @@ export function mountPanel(root: HTMLElement, a: Apparatus): () => void {
     setText(q('[data-sym]'), d.symbol === 'lower' ? '▼' : d.symbol === 'upper' ? '▲' : d.symbol === 'exposure' ? '⧗' : '')
     q('[data-sym]').title = d.symbol ? s[({ lower: 'symLower', upper: 'symUpper', exposure: 'symExposure' } as const)[d.symbol]] : ''
     q('[data-top]').parentElement!.classList.toggle('blink', d.blinkTop)
+    setText(q('[data-alert]'), d.alert ? s[({ mode: 'alertMode', limits: 'alertLimits', doors: 'alertDoors' } as const)[d.alert]] : '')
+    q('[data-group="groupMode"]').classList.toggle('alert', d.alert === 'mode') // the keys that are missing
     q('[data-bottom]').parentElement!.classList.toggle('blink', d.flashBottom)
     const lamp = q('[data-lamp]')
     lamp.classList.toggle('on', d.hvLamp)

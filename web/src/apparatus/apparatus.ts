@@ -54,7 +54,9 @@ export type Display = {
   blinkTop: boolean // self-test failed: a door is open (§6)
   flashBottom: boolean // upper limit < lower limit: no scan can start (§7 b3)
   hvLamp: boolean // flashes while HV is on (§7 b6)
+  alert: Alert | null // why the last SCAN/HV was refused; the view explains it (simulation aid)
 }
+export type Alert = 'mode' | 'limits' | 'doors'
 
 type Program = {
   steps: number[] // scan-arm angles in 0.1° (one entry for the exposure timer)
@@ -84,7 +86,7 @@ export class Apparatus {
   speaker = false
   doorsClosed = true
   hvOn = false
-  blinkTop = false
+  alert: Alert | null = null // cleared by the next key
   // Program
   phase: Phase = 'idle'
   private safetyLeftS = 0
@@ -121,7 +123,8 @@ export class Apparatus {
   }
 
   press(key: Key): void {
-    this.blinkTop = this.exposureDone = false
+    this.alert = null
+    this.exposureDone = false
     if (key !== 'REPLAY') this.replayIndex = null
     const prevEdit = this.edit
     this.edit = null // any key ends a parameter edit (§7 b2)
@@ -175,8 +178,12 @@ export class Apparatus {
       case 'SCAN':
         if (this.busy) return this.stop()
         if (this.dBeta === 0) return this.startSafety('exposure')
-        if (this.mode === null) return // auto-scan needs SENSOR, TARGET or COUPLED (§7 b5)
+        if (this.mode === null) {
+          this.alert = 'mode' // auto-scan needs SENSOR, TARGET or COUPLED (§7 b5)
+          return
+        }
         if (this.limitHi < this.limitLo) {
+          this.alert = 'limits'
           this.edit = this.bottomShows = 'LIMIT_HI' // show the flashing limit, ready to correct
           return
         }
@@ -225,7 +232,7 @@ export class Apparatus {
   setDoors(closed: boolean): boolean {
     if (!closed && (this.hvOn || this.busy)) return false
     this.doorsClosed = closed
-    if (closed) this.blinkTop = false
+    if (closed && this.alert === 'doors') this.alert = null
     return true
   }
 
@@ -251,7 +258,8 @@ export class Apparatus {
   display(): Display {
     const d: Display = {
       top: '', topUnit: '', bottom: '', bottomUnit: '', symbol: null,
-      blinkTop: this.blinkTop, flashBottom: this.limitHi < this.limitLo, hvLamp: this.hvOn,
+      blinkTop: this.alert === 'doors', flashBottom: this.limitHi < this.limitLo, hvLamp: this.hvOn,
+      alert: this.alert,
     } // prettier-ignore
     if (this.phase === 'safety') {
       d.top = 'SAFE'
@@ -260,7 +268,7 @@ export class Apparatus {
     }
     if (this.replayIndex !== null) {
       const p = this.replay[this.replayIndex]
-      return { ...d, top: fmtRate(p.rate), topUnit: '1/s', bottom: fmtAngle(p.angle), bottomUnit: '°' }
+      return { ...d, top: fmtMean(p.rate), topUnit: '1/s', bottom: fmtAngle(p.angle), bottomUnit: '°' }
     }
     if (this.mode === 'COUPLED' && this.topShowsSensor) Object.assign(d, { top: fmtAngle(this.sensor), topUnit: '°' })
     else Object.assign(d, { top: fmtRate(this.lastSecondCounts), topUnit: '1/s' })
@@ -291,7 +299,7 @@ export class Apparatus {
 
   private startSafety(next: 'hv' | 'scan' | 'exposure'): void {
     if (!this.doorsClosed) {
-      this.blinkTop = true // self-test fails, HV stays off (§6)
+      this.alert = 'doors' // self-test fails, HV stays off, top display blinks (§6)
       return
     }
     this.phase = 'safety'
@@ -399,6 +407,15 @@ export function wrapTarget(tenths: number): number {
 
 function fmtAngle(tenths: number): string {
   return (tenths / 10).toFixed(1)
+}
+
+/** A stored mean rate (REPLAY) with as many decimals as fit the 4 digits: 5.810, 58.10, 581.0, 5810. */
+export function fmtMean(rate: number): string {
+  for (let decimals = 3; decimals > 0; decimals--) {
+    const s = rate.toFixed(decimals)
+    if (s.replace('.', '').length <= 4) return s // 9.9996 → "10.000" is 5 digits: one decimal fewer
+  }
+  return fmtRate(rate)
 }
 
 function fmtRate(rate: number): string {

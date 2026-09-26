@@ -1,6 +1,6 @@
 // The procedures of LD instruction sheet 554 800 §11, key by key, plus the panel's guard rails.
 import { describe, expect, test } from 'vitest'
-import { Apparatus, OK_S, SAFE_S, adjustMultiplier, wrapTarget, type Key } from '../src/apparatus/apparatus'
+import { Apparatus, OK_S, SAFE_S, adjustMultiplier, fmtMean, wrapTarget, type Key } from '../src/apparatus/apparatus'
 import { mulberry32 } from '../src/physics/detector'
 import { expectedRate } from '../src/physics/scan'
 
@@ -48,9 +48,9 @@ describe('§11 a) switch on', () => {
     a.press('HV')
     a.tick(5)
     expect(a.hvOn).toBe(false)
-    expect(a.display().blinkTop).toBe(true)
+    expect(a.display()).toMatchObject({ blinkTop: true, alert: 'doors' })
     a.setDoors(true)
-    expect(a.display().blinkTop).toBe(false)
+    expect(a.display()).toMatchObject({ blinkTop: false, alert: null })
   })
 })
 
@@ -184,6 +184,7 @@ describe('§11 e) exposure timer', () => {
     expect([a.target, a.sensor]).toEqual([72, 144])
     a.press('REPLAY')
     const rBar = expectedRate([7.2], 35, 1)[0]
+    expect(a.display().top).toMatch(/^\d{4}$|^\d{3}\.\d$/) // a mean fills the 4 digits
     const rate = Number(a.display().top)
     expect(Math.abs(rate - rBar)).toBeLessThan(5 * Math.sqrt(rBar / 10) + 1)
   })
@@ -290,7 +291,7 @@ describe('§11 f, h) auto-scan: Bragg reflection at NaCl (leaflet settings)', ()
     a.press('LIMITS')
     a.adjust(100)
     a.press('SCAN')
-    expect(a.display()).toMatchObject({ symbol: 'upper', flashBottom: true })
+    expect(a.display()).toMatchObject({ symbol: 'upper', flashBottom: true, alert: 'limits' })
     a.adjust(150)
     expect([a.limitHi, a.target, a.display().flashBottom]).toEqual([150, 0, false])
   })
@@ -301,6 +302,9 @@ describe('§11 f, h) auto-scan: Bragg reflection at NaCl (leaflet settings)', ()
     a.press('SCAN')
     a.tick(5)
     expect(a.phase).toBe('idle')
+    expect(a.display().alert).toBe('mode') // says what is missing
+    a.press('SENSOR')
+    expect(a.alert).toBe(null)
     a.press('SENSOR')
     a.press('LIMITS')
     a.adjust(100)
@@ -324,4 +328,10 @@ test('display caps at 9999 while the counter runs', () => {
   a.tick(1) // arms at zero: direct beam ≈ 9200/s after dead time; force a larger count
   a.lastSecondCounts = 20_000
   expect(a.display().top).toBe('9999')
+})
+
+test('REPLAY means use as many decimals as fit the 4 digits', () => {
+  expect([5.81, 58.1, 581, 5810, 9.9996, 99.996, 999.96, 0, 20_000].map(fmtMean)).toEqual(
+    ['5.810', '58.10', '581.0', '5810', '10.00', '100.0', '1000', '0.000', '9999'],
+  )
 })
