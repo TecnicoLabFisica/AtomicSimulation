@@ -63,7 +63,11 @@ Agents (`.claude/agents/`, read-only reviewers; call them after meaningful chang
 
 ## Before going public (checklist)
 
-- [x] LD PDFs (once committed under `start/`) purged from history on 2026-09-24. Before publishing,
-      re-check: `git log --all --stat -- '*.pdf'` must print nothing.
+- [ ] LD PDFs (once committed under `start/`) purged from local history on 2026-09-24, but GitHub still
+      serves the orphaned commits 5c1ceb8, 66e2a74, 8aacb70 by SHA (checked 2026-09-26; the repo is public
+      and its event feed lists them). Needs a GitHub Support purge or a delete-and-recreate of the repo.
+      Re-check: `git log --all --stat -- '*.pdf'` is empty and
+      `curl -so /dev/null -w '%{http_code}' https://api.github.com/repos/TecnicoLabFisica/AtomicSimulation/commits/5c1ceb8` is 404/422.
 - [x] LICENSE files: MIT (code) + CC BY 4.0 (educational content/docs); README cites LD sources.
-- [ ] No absolute local paths, tokens or `settings.local.json` in history.
+- [x] No absolute local paths, tokens or `settings.local.json` in history: audited all refs on 2026-09-26.
+      Re-check: `git grep -nIE '/home/|/Users/|ghp_|github_pat_|sk-|PRIVATE KEY' $(git rev-list --all)`.
