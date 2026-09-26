@@ -8,7 +8,8 @@ paths:
 
 - `web/src/physics/` is a **1:1 port** of `model/src/braggsim/`. Module per module, with the same
   names in camelCase (`theta_from_lambda` → `thetaFromLambda`), the same units, and the same argument
-  order. Add a doc comment `// port of braggsim.crystal.theta_from_lambda`.
+  order. Add a doc comment `// port of braggsim.crystal.theta_from_lambda`. Exception: `ModelParams`
+  keeps the snake_case field names of the dataclass and the JSON artifacts (a serialization schema).
 - **No new physics in TS.** If the port needs a behaviour Python lacks, add it to Python first
   (see the `add-physics-feature` skill).
 - Lookup data (Zr transmission, GM efficiency, …) is loaded from `artifacts/tables/*.json` and

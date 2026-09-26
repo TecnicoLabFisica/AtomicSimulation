@@ -71,6 +71,36 @@ def _transmission_case():
     }  # fmt: skip
 
 
+def _rejected_case():
+    # Inputs just outside each limit: the port must refuse exactly what Python refuses, so a limit
+    # constant drifting between the two copies fails a test. (NaN cannot be written to JSON.)
+    tube = {"U_kV": 35.0, "I_mA": 1.0}
+    rate, betas = "expected_rate", "coupled_betas"
+    cases = [
+        (rate, "β above the coupled range", {"beta_deg": [85 + 1e-9], **tube}),
+        (rate, "β below the coupled range", {"beta_deg": [-5 - 1e-9], **tube}),
+        (rate, "U above 35 kV", {"beta_deg": [7.2], "U_kV": 35 + 1e-9, "I_mA": 1.0}),
+        (rate, "U negative", {"beta_deg": [7.2], "U_kV": -1e-9, "I_mA": 1.0}),
+        (rate, "I above 1 mA", {"beta_deg": [7.2], "U_kV": 35.0, "I_mA": 1 + 1e-9}),
+        (rate, "sensor above +170°", {"beta_deg": [7.2], **tube, "sensor_deg": [170 + 1e-9]}),
+        (rate, "sensor below −10°", {"beta_deg": [7.2], **tube, "sensor_deg": [-10 - 1e-9]}),
+        (rate, "lengths differ", {"beta_deg": [7.2, 7.3], **tube, "sensor_deg": [14]}),
+        (betas, "upper limit below lower", {"lo_deg": 25.0, "hi_deg": 2.0, "step_deg": 0.1}),
+        (betas, "Δβ = 0", {"lo_deg": 2.0, "hi_deg": 25.0, "step_deg": 0.0}),
+        (betas, "too many steps", {"lo_deg": -5.0, "hi_deg": 85.0, "step_deg": 1e-4}),
+    ]
+    out = []
+    for fn, description, inputs in cases:
+        try:
+            getattr(scan, fn)(**inputs)
+        except ValueError as e:
+            out.append({"function": f"scan.{fn}", "description": description, "inputs": inputs,
+                        "expected": {"error": type(e).__name__}})  # fmt: skip
+        else:
+            raise AssertionError(f"scan.{fn} accepted {inputs}")
+    return {"function": "rejected", "description": "Inputs the model refuses", "cases": out}
+
+
 def _fixtures():
     duane_hunt_deg = float(theta_from_lambda(lambda_min_pm(35.0)))
     ka_deg = float(theta_from_lambda(MO_KA_PM))
@@ -183,6 +213,7 @@ def _fixtures():
                 ]
             ],
         },  # fmt: skip
+        "rejected_inputs": _rejected_case(),
     }
 
 
