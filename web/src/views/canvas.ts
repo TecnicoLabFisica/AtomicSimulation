@@ -1,11 +1,14 @@
 // Shared plumbing for the canvas views: design tokens read from CSS, DPR-aware sizing, reduced motion.
 // Canvas code never hard-codes a colour: it reads the palette, which follows the theme.
 
+import type { Apparatus } from '../apparatus/apparatus'
+
 const COLOURS = [
   'label', 'label-2', 'label-3', 'separator', 'fill', 'surface', 'surface-2', 'accent', 'led-on',
-  'phys-kalpha', 'phys-kalpha-text', 'phys-kbeta', 'phys-continuum', 'phys-beam', 'phys-crystal', 'phys-constructive',
+  'danger', 'phys-kalpha', 'phys-kalpha-text', 'phys-kbeta', 'phys-continuum', 'phys-beam', 'phys-crystal', 'phys-constructive',
+  'led-bg', 'bench-housing', 'bench-trim', 'bench-ink', 'bench-metal', 'bench-glass', 'bench-table',
 ] as const // prettier-ignore
-export type Palette = Record<(typeof COLOURS)[number], string> & { caption: string; footnote: string; font: string }
+export type Palette = Record<(typeof COLOURS)[number], string> & { caption: string; footnote: string; font: string; mono: string }
 
 export let palette = {} as Palette
 /** Bumped whenever the palette is re-read: views compare it to know they must redraw. */
@@ -18,6 +21,7 @@ export function readPalette(): void {
   palette.caption = v('text-caption')
   palette.footnote = v('text-footnote')
   palette.font = v('font')
+  palette.mono = v('font-mono')
   paletteVersion++
 }
 
@@ -44,4 +48,34 @@ export function watchSize(canvas: HTMLCanvasElement, onResize: () => void): void
 /** A CSS font token ("500 11px/13px …") at `scale` × its size, for a canvas drawn in device pixels. */
 export function scaledFont(token: string, scale: number): string {
   return token.replace(/([\d.]+)px\/[\d.]+px/, (_, px) => `${Number(px) * scale}px`)
+}
+
+const SPRING_K = 300 // bragg-ui motion.md: the arms ease within an ADJUST step
+const SPRING_C = 30
+
+/** Displayed arm angles in 0.1°, shared by the 2D and 3D goniometers so both show the same thing: eased
+ * toward the apparatus after an ADJUST jump, equal to it while the motor drives or with reduced motion. */
+export function armEaser(a: Apparatus) {
+  const e = {
+    t: a.target,
+    s: a.sensor,
+    vt: 0,
+    vs: 0,
+    step(dtS: number): void {
+      if (a.moving || reducedMotion()) {
+        e.t = a.target
+        e.s = a.sensor
+        e.vt = e.vs = 0
+        return
+      }
+      const h = Math.min(dtS, 1 / 30) // semi-implicit Euler stays stable at this step
+      e.vt += (SPRING_K * (a.target - e.t) - SPRING_C * e.vt) * h
+      e.vs += (SPRING_K * (a.sensor - e.s) - SPRING_C * e.vs) * h
+      e.t += e.vt * h
+      e.s += e.vs * h
+      if (Math.abs(a.target - e.t) < 0.01 && Math.abs(e.vt) < 0.01) [e.t, e.vt] = [a.target, 0]
+      if (Math.abs(a.sensor - e.s) < 0.01 && Math.abs(e.vs) < 0.01) [e.s, e.vs] = [a.sensor, 0]
+    },
+  }
+  return e
 }

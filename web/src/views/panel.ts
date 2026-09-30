@@ -3,7 +3,7 @@
 import { adjustMultiplier, type Apparatus, type Key } from '../apparatus/apparatus'
 import { t } from '../i18n'
 
-const GROUPS: [keyof ReturnType<typeof t>, Key[]][] = [
+export const GROUPS: [keyof ReturnType<typeof t>, Key[]][] = [
   ['groupParams', ['U', 'I', 'DT', 'DBETA', 'LIMITS']],
   ['groupMode', ['SENSOR', 'TARGET', 'COUPLED', 'ZERO']],
   ['groupOps', ['RESET', 'REPLAY', 'SCAN', 'HV', 'SPEAKER']],
@@ -15,6 +15,15 @@ const HOLD_DELAY_MS = 400
 const HOLD_REPEAT_MS = 100
 const DETENT_DEG = 15 // dial rotation per ADJUST step: 24 detents per turn
 const WHEEL_PX = 40 // wheel/trackpad scroll per ADJUST step
+
+/** Whether the LED next to key `k` is lit. The HTML panel and the 3D device face both show it. */
+export function keySelected(a: Apparatus, k: Key): boolean {
+  return (
+    k === a.bottomKey || (k === 'LIMITS' && a.bottomKey.startsWith('LIMIT')) ||
+    (k === 'SPEAKER' && a.speaker) || (k === 'REPLAY' && a.replayIndex !== null) ||
+    (k === 'HV' && a.hvOn) || (k === 'SCAN' && a.programOn) || k === a.mode
+  )
+}
 
 /** Builds the panel into `root`. `onDetent` fires on every ADJUST step (sound, haptics). */
 export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void) {
@@ -103,7 +112,6 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
         <div class="led" role="group" aria-label="${s.topDisplay}"><output data-top></output><span class="unit" data-top-unit></span></div>
         <div class="led" role="group" aria-label="${s.bottomDisplay}"><output data-bottom></output><span class="unit" data-bottom-unit></span><span class="sym" data-sym></span></div>
       </div>
-      <div class="more"><div>
       <p class="alert-msg" role="status" data-alert></p>
       <div class="controls">
         ${GROUPS.map(([g, keys]) => `
@@ -125,8 +133,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
       <div class="device-row">
         <p class="hint" data-replay></p>
         <span class="doors">${s.doors} <button class="key" data-doors></button></span>
-      </div>
-      </div></div>`
+      </div>`
   }
 
   root.addEventListener('click', (e) => {
@@ -166,12 +173,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
     lamp.classList.toggle('on', d.hvLamp)
     setAttr(lamp, 'aria-label', d.hvLamp ? s.hvOn : s.hvOff)
     for (const b of root.querySelectorAll<HTMLElement>('[data-key]')) {
-      const k = b.dataset.key
-      const selected =
-        k === a.bottomKey || (k === 'LIMITS' && a.bottomKey.startsWith('LIMIT')) ||
-        (k === 'SPEAKER' && a.speaker) || (k === 'REPLAY' && a.replayIndex !== null) ||
-        (k === 'HV' && a.hvOn) || (k === 'SCAN' && a.programOn) || k === a.mode
-      setAttr(b, 'aria-pressed', String(selected))
+      setAttr(b, 'aria-pressed', String(keySelected(a, b.dataset.key as Key)))
     }
     setText(q('[data-replay]'), a.replayIndex === null ? '' : `${s.replayPoints} ${a.replayIndex + 1} / ${a.replay.length}`)
     const doors = q('[data-doors]')
@@ -194,5 +196,5 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
   }
 
   build()
-  return { build: rebuild, render, focus }
+  return { build: rebuild, render, focus, dialDeg: () => dialDeg }
 }

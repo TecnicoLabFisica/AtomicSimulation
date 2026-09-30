@@ -23,7 +23,7 @@ export const en: PedagogyDict = {
       concept: 'Diffraction orders',
       predict: 'In first order, Kα shows up at θ = 7.24°. At which angle θ do you expect third-order Kα?',
       options: [],
-      act: 'Switch HV on and turn the crystal (drag it or use ADJUST). Try your angle, then find where the counter receives third-order Kα.',
+      act: 'Switch HV on and turn the crystal: drag it in Goniometer or use ADJUST in ⚙︎ Settings. Try your angle, then find where the counter receives third-order Kα.',
       observe: 'At 3 × 7.24° only the weak continuum arrives; Kα shows up a little further on, with the counter at 2θ. In “Path difference” (λ button), 2d sin θ = 3λ.',
       explain:
         'Bragg’s law, nλ = 2d sin θ, fixes sin θ, not θ: for n = 3, sin θ triples and θ = 22.21°, not 21.72°. Same λ; only the order changes. The “reflection” is interference: waves scattered by neighbouring planes add up only at these angles.',
@@ -35,7 +35,7 @@ export const en: PedagogyDict = {
       concept: 'Characteristic lines',
       predict: 'If you lower the voltage U, below which value does the Kα line disappear?',
       options: ['17.4 kV', '20.0 kV', 'Never: the crystal always reflects Kα at that angle'],
-      act: 'Run a scan (SCAN) from 5° to 9°. Lower U with the slider and repeat until Kα is gone but X-rays still reach its angle. Tip: speed up time.',
+      act: 'Run a scan (SCAN) from 5° to 9°. Lower U (slider in Goniometer, or U and ADJUST in ⚙︎ Settings) and repeat until Kα is gone but X-rays still reach its angle. Tip: speed up time.',
       observe: 'Kα and Kβ vanished together, but bremsstrahlung (the continuum) still reaches their angle.',
       explain:
         'Kα takes two steps: a beam electron knocks a K-shell electron out of Mo (eU > 20.0 keV), then an L electron fills the hole and emits a photon of only 17.4 keV. The continuum at that angle only needs λmin < λ(Kα), i.e. U > 17.4 kV. Just above 20 kV the line is still very weak.',
@@ -47,7 +47,7 @@ export const en: PedagogyDict = {
       concept: 'Measuring wavelengths',
       predict: 'From each order n you will compute λ = 2d sin θ / n for Kα. What do you expect?',
       options: ['The same λ in all three orders', 'A shorter λ in each higher order', 'A longer λ in each higher order'],
-      act: 'Set up a COUPLED scan that covers the first three orders of Kβ and Kα, with a fine step Δβ and a long Δt, as in the leaflet. When it ends, download the data (CSV). If it doesn’t complete, check that the scan starts before the first peak and ends after the last one, that the weakest peak stands out from the noise, and that the CSV is from the finished scan.',
+      act: 'Set up a COUPLED scan that covers the first three orders of Kβ and Kα, with a fine step Δβ and a long Δt, as in the leaflet. When it ends, download the data with CSV on the Monitor. If it doesn’t complete, check that the scan starts before the first peak and ends after the last one, that the weakest peak stands out from the noise, and that the CSV is from the finished scan.',
       observe: 'You have three Kβ–Kα pairs: in each higher order the pair is further apart and weaker.',
       explain:
         'Find the centre of each peak, compute λ = 2d sin θ / n with d = a₀/2 = 282.01 pm, and average the orders. If all give the same λ, you have confirmed Bragg’s law: the order changes the angle, not the wavelength.',

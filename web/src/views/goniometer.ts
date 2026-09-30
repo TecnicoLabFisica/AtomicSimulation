@@ -5,12 +5,10 @@ import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
 import { getMode, showHints } from '../pedagogy/mode'
 import { MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { thetaFromLambda } from '../physics/crystal'
-import { dpr, palette, paletteVersion, reducedMotion, scaledFont, watchSize } from './canvas'
+import { armEaser, dpr, palette, paletteVersion, reducedMotion, scaledFont, watchSize } from './canvas'
 
-const S1_CM = 5 // collimator–crystal distance, LD P6.3.3.1
-const S2_CM = 6 // crystal–counter distance
-const SPRING_K = 300 // bragg-ui motion.md: the arms ease within an ADJUST step
-const SPRING_C = 30
+export const S1_CM = 5 // collimator–crystal distance, LD P6.3.3.1
+export const S2_CM = 6 // crystal–counter distance
 const DASH_PX_PER_S = 40 // the beam's dashes travel while the tube emits
 const LABEL_MIN_GAP_PX = 40 // angle labels every 5°, 10°, 20° or 30°, whichever keeps them this far apart ("170°" is ~28 px)
 const RAD = Math.PI / 180
@@ -27,11 +25,7 @@ const foldDeg = (tenths: number) => wrapTarget(tenths) / 10
 /** Mounts the goniometer on `canvas`; returns the per-frame render function (dtS: frame time in s). */
 export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: number) => void {
   const ctx = canvas.getContext('2d')!
-  // Displayed arm angles in 0.1°: eased toward the apparatus after an ADJUST jump, equal to it otherwise.
-  let t = a.target
-  let s = a.sensor
-  let vt = 0
-  let vs = 0
+  const arms = armEaser(a)
   let dash = 0
   // What the last frame drew, so a still picture costs nothing.
   let drawnT = NaN
@@ -41,6 +35,7 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
   let drawnPalette = -1
   let drawnHints = showHints()
   let drawnTurn = false
+  let drawnMode = getMode()
   // Explore mode: the crystal can be dragged round (below) in TARGET or COUPLED, arms at rest, no program.
   const canTurn = () => getMode() === 'explore' && (a.mode === 'TARGET' || a.mode === 'COUPLED') && !a.busy && !a.moving
   let grab: { last: number; acc: number; t0: number } | null = null
@@ -57,8 +52,8 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     const u = Math.min(W / 15.6, H / 10.4) // px per cm
     const cx = W / 2
     const cy = H / 2 + 2.6 * u
-    const beta = foldDeg(t)
-    const sensorDeg = s / 10
+    const beta = foldDeg(arms.t)
+    const sensorDeg = arms.s / 10
     ctx.clearRect(0, 0, W, H)
     ctx.lineCap = 'round'
 
@@ -117,8 +112,10 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
       ctx.moveTo(xTube, cy)
       ctx.lineTo(cx, cy)
       ctx.stroke()
-      ctx.globalAlpha = Math.min(1, Math.max(0.08, Math.log10(1 + rate) / 4))
-      if (rate > 0) {
+      // Lab mode: a faint constant path, since a brightness that follows the rate would find the peaks
+      const lab = getMode() === 'lab'
+      ctx.globalAlpha = lab ? 0.2 : Math.min(1, Math.max(0.2, Math.log10(1 + rate) / 4))
+      if (rate > 0 || lab) {
         const r = (S2_CM + 1.8) * u
         ctx.beginPath()
         ctx.moveTo(cx, cy)
@@ -229,27 +226,17 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
 
   let resized = true
   const render = (dtS: number) => {
-    if (a.moving || reducedMotion()) {
-      t = a.target
-      s = a.sensor
-      vt = vs = 0
-    } else {
-      const h = Math.min(dtS, 1 / 30) // semi-implicit Euler stays stable at this step
-      vt += (SPRING_K * (a.target - t) - SPRING_C * vt) * h
-      vs += (SPRING_K * (a.sensor - s) - SPRING_C * vs) * h
-      t += vt * h
-      s += vs * h
-      if (Math.abs(a.target - t) < 0.01 && Math.abs(vt) < 0.01) [t, vt] = [a.target, 0]
-      if (Math.abs(a.sensor - s) < 0.01 && Math.abs(vs) < 0.01) [s, vs] = [a.sensor, 0]
-    }
+    arms.step(dtS)
+    const { t, s } = arms
     const key = `${a.target} ${a.u} ${a.i} ${a.hvOn}`
     if (key !== rateKey) [rate, rateKey] = [a.specularRate(), key]
-    const glow = a.hvOn ? 0.3 + (0.7 * a.i) / 100 : 0
+    const glow = a.hvOn && a.i > 0 ? 0.3 + (0.7 * a.i) / 100 : 0
     const animate = a.emitting && !reducedMotion()
     if (animate) dash = (dash + DASH_PX_PER_S * dtS) % 1100
     const still = t === drawnT && s === drawnS && glow === drawnGlow && rate === drawnRate
-    if (!resized && !animate && still && paletteVersion === drawnPalette && showHints() === drawnHints && handle() === drawnTurn) return
+    if (!resized && !animate && still && paletteVersion === drawnPalette && showHints() === drawnHints && handle() === drawnTurn && getMode() === drawnMode) return
     ;[drawnT, drawnS, drawnGlow, drawnRate, drawnPalette, drawnHints, drawnTurn, resized] = [t, s, glow, rate, paletteVersion, showHints(), handle(), false]
+    drawnMode = getMode()
     draw(glow, a.emitting)
   }
   // Explore mode: drag the crystal round the axis. It turns the arm through Apparatus.moveArm, so the 2:1

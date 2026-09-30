@@ -515,6 +515,30 @@ Decisions, deviations and emulator assumptions (2026-09-25):
 > [!success] Done when
 > The app is usable and smooth on a phone screen.
 
+### Phase 8b — 3D bench
+
+Folder: `src/views/bench.ts` (three.js, MIT, lazy chunk ≈ 142 kB gzip; the main bundle stays ≈ 75 kB gzip)
+
+- [x] 3D 554 800 on a table with a monitor. The panel face shows the live displays, key LEDs and the ADJUST knob
+- [x] The door opens and closes with a tap, following the interlock (a refusal shakes the door and shows a toast)
+- [x] The arms and beam follow the apparatus (shared `armEaser`); the monitor copies the live spectrum
+- [x] Focus cards: panel (⚙︎), monitor, chamber (the 2D goniometer). The camera flies in, × flies back out
+- [x] No-WebGL fallback: the dock opens every card
+- [ ] Real phone check (checked headless at 500 and 1440 px, light and dark, reduced motion, no WebGL)
+
+Decisions (2026-09-29):
+- Housing proportions come from instruction sheet §1/§4/§7 (67 × 48 × 35 cm, panel column, tube chamber,
+  experiment chamber). Inner positions (beam height, collimator length, arm lengths) are assumptions chosen for
+  legibility, apart from s₁ and s₂.
+- The experiment chamber door slides left up to the panel column. The direction is an assumption to check on the
+  lab unit. The tube chamber door is drawn closed and is not interactive, because the apparatus has one door flag.
+- The camera goes back to the room when SCAN passes its self-test, not when SCAN is pressed, so a refused self-test
+  (door open) stays visible on the panel.
+- At ×∞ the whole program finishes inside one frame, so the fly-back never sees `positioning`/`scan` and the panel
+  card stays open. That's acceptable: the result is already on the monitor.
+- The sensor arm is shortened to clear the back wall at 2θ = 90°. Past about 160° the counter clips the
+  chamber wall. Bragg scans don't reach that angle.
+
 ### Phase 9 — Pedagogy layer
 
 Folder: `src/pedagogy/`

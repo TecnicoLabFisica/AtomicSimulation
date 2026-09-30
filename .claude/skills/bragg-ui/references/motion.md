@@ -15,6 +15,7 @@
 | `--ease-out` | cubic-bezier(0.22, 1, 0.36, 1) | Default for anything entering or settling |
 | `--ease-in-out` | cubic-bezier(0.65, 0, 0.35, 1) | Moves between two resting states |
 | spring (JS) | stiffness 300, damping 30 | Knob inertia, goniometer arm easing between steps |
+| `--dur-camera` | 700ms | The 3D camera flying to or from a focus card (ease-in-out). The card fades in during the second half |
 No bounce or overshoot on data, because data must never visually lie.
 
 ## What animates
@@ -34,6 +35,7 @@ Axes rescaling during a scan (fix the range up front, or change it only between 
 - The beam becomes a static line whose opacity still encodes the rate. Wavefronts become static snapshots updated
   only when θ changes.
 - Arms jump to each step with no interpolation. Sheets cross-fade instead of sliding.
+- The camera jumps to its framing and the card appears at once. The door jumps, and there is no shake.
 - Blinking becomes a steady state with an icon or text cue.
 
 ## Frame loop

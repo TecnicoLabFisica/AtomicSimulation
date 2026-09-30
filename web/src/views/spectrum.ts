@@ -35,6 +35,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   let shown = 0
   let yMax = 10
   let builtHints = showHints()
+  let version = 0 // bumped after every uPlot draw (it draws in a microtask): the 3D monitor copies the canvas then
   const xs: number[] = []
   const ys: number[] = []
   const data = (): uPlot.AlignedData => [xs, log ? ys.map((y) => (y > 0 ? y : null)) : ys] // log: no zeros
@@ -103,6 +104,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
           bind: { dblclick: (u) => () => (u.setScale('x', xRange()), null) },
         },
         hooks: {
+          draw: [() => void version++],
           // Explore overlays, under the data: the band the tube cannot reach (λ < λmin at the present U)
           // and the expected line angles. The x axis is β (θ) for TARGET/COUPLED scans, 2θ for SENSOR scans.
           drawClear: [
@@ -207,5 +209,5 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   }
 
   build()
-  return { build, render }
+  return { build, render, canvas: () => plot!.ctx.canvas, version: () => version, empty: () => xs.length === 0 }
 }

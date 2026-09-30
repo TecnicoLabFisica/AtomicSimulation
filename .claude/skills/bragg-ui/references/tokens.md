@@ -56,6 +56,11 @@ Kα and Kβ must *also* differ in something other than colour: labels ("Kα", "K
 marker. Orange and violet stay distinguishable for the common forms of colour-blindness.
 The data curve is drawn in `--label` (strong) or `--phys-continuum`. Line colours are reserved for markers and overlays.
 
+## Colour: 3D bench
+`--bench-housing`, `--bench-trim` (the panel, frames, and monitor), `--bench-ink` (labels on the trim), `--bench-metal`,
+`--bench-glass` (lead glass, drawn at low opacity), and `--bench-table`. These are physical objects, so they keep their
+colour in both themes. Only `--bench-table` darkens in dark mode. The bench reads them through `readPalette()`.
+
 ## Elevation
 Mostly flat. `--shadow-1: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.04)` for cards in light mode.
 In dark mode use surface steps instead of shadows. Sheets use `backdrop-filter: saturate(180%) blur(20px)` over a

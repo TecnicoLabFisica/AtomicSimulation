@@ -1,7 +1,7 @@
 @import './tokens.css';
 
 * { box-sizing: border-box; }
-html, body { overflow-x: hidden; }
+html, body { overflow: hidden; }
 body {
   margin: 0; background: var(--bg); color: var(--label); font: var(--text-callout);
   -webkit-font-smoothing: antialiased;
@@ -15,7 +15,7 @@ button, select { font: inherit; color: inherit; }
 }
 
 /* ── Shell ─────────────────────────────────────────────────────────────── */
-#app { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); }
+#app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
@@ -32,12 +32,72 @@ button, select { font: inherit; color: inherit; }
 .sim-tag { font: var(--text-caption); color: var(--label-2); letter-spacing: 0.04em; }
 .scale select { background: var(--fill); padding: 0 var(--space-3); font-variant-numeric: tabular-nums; }
 
-.stage { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); padding: 0 var(--space-4) var(--space-4); }
-.view { background: var(--surface); border-radius: var(--radius-l); box-shadow: var(--shadow-1); min-width: 0; }
-.gonio canvas { display: block; width: 100%; aspect-ratio: 3 / 2; }
+/* ── Bench: the 3D room fills the stage; everything else floats over it ── */
+.stage { position: relative; min-height: 0; overflow: hidden; container-type: size; }
+.bench { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+.no3d { position: absolute; top: 35%; inset-inline: var(--space-5); margin: 0; text-align: center; font: var(--text-footnote); color: var(--label-2); }
+.dock {
+  position: absolute; z-index: var(--z-overlay); left: 50%; bottom: calc(var(--space-4) + env(safe-area-inset-bottom)); translate: -50% 0;
+  display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-sheet); transition: opacity var(--dur-base) var(--ease-out);
+}
+.dock .tool { padding: 0 var(--space-3); white-space: nowrap; }
+.stage:not([data-view='room']) .dock { opacity: 0; pointer-events: none; }
+/* Behind an open card the room steps back; tapping it (the stage itself) returns to the room. */
+.stage::before {
+  content: ''; position: absolute; inset: 0; z-index: var(--z-overlay); background: color-mix(in srgb, var(--bg) 60%, transparent);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-slow) var(--ease-out);
+}
+.stage:not([data-view='room'])::before { opacity: 1; pointer-events: auto; transition-delay: calc(var(--dur-camera) / 2); }
+.gear {
+  display: flex; align-items: center; gap: var(--space-2); min-height: var(--touch); padding: 0 var(--space-4);
+  border: none; border-radius: var(--radius-full); background: var(--accent-fill); color: var(--on-accent);
+  font-weight: 600; white-space: nowrap; cursor: pointer; touch-action: manipulation;
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+.gear { position: relative; }
+/* A guided task needs the panel: a badge, distinct from the focus ring */
+.gear[data-task]::after {
+  content: ''; position: absolute; top: 0; right: 0; width: calc(var(--space-2) + var(--space-1)); aspect-ratio: 1;
+  border-radius: var(--radius-full); background: var(--accent); box-shadow: 0 0 0 2px var(--surface);
+}
+.toast {
+  position: absolute; z-index: var(--z-overlay); left: 50%; bottom: calc(var(--touch) + 2 * var(--space-4) + var(--space-2)); translate: -50% 0;
+  margin: 0; max-width: calc(100% - 2 * var(--space-4)); padding: var(--space-2) var(--space-3); border-radius: var(--radius-m);
+  background: var(--surface-2); box-shadow: var(--shadow-1); font: var(--text-footnote); color: var(--label);
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-base) var(--ease-out);
+}
+.toast[data-show='true'] { opacity: 1; }
+
+/* Focus cards: the part the camera flew to, as its precise, accessible view. They stay laid out while closed
+   (the spectrum keeps drawing for the 3D monitor) and fade in during the second half of the flight. */
+.focus-card {
+  position: absolute; z-index: var(--z-overlay); top: 50%; left: 50%; translate: -50% -50%;
+  max-height: calc(100cqh - 2 * var(--space-4)); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border-radius: var(--radius-l); box-shadow: var(--shadow-sheet);
+  opacity: 0; scale: 0.96; pointer-events: none;
+  transition: opacity var(--dur-slow) var(--ease-out), scale var(--dur-slow) var(--ease-out);
+}
+.focus-card:focus { outline: none; }
+.focus-card:not([inert]) { opacity: 1; scale: 1; pointer-events: auto; transition-delay: calc(var(--dur-camera) / 2); }
+.panel-card { width: min(100cqw - 2 * var(--space-4), 52rem); }
+.monitor-card { width: min(100cqw - 2 * var(--space-4), 64rem, (100cqh - 2 * var(--space-4)) * 1.6); aspect-ratio: 16 / 10; overflow: hidden; }
+.chamber-card { width: min(100cqw - 2 * var(--space-4), 40rem, (100cqh - 2 * var(--space-4) - 10rem) * 1.5); }
+.chamber-card canvas { display: block; width: calc(100% - 2 * var(--space-4)); margin-inline: var(--space-4); aspect-ratio: 16 / 9; }
+.led.rate { flex: none; margin: var(--space-2) var(--space-4) 0; min-height: var(--touch); padding: var(--space-1) var(--space-3); }
+.led.rate output { font-size: 1.5rem; }
+.card-title {
+  display: flex; align-items: center; min-height: var(--touch); margin: var(--space-2) calc(var(--touch) + var(--space-3)) 0 var(--space-4);
+  font: var(--text-headline); color: var(--label);
+}
+.panel-card .panel { padding-top: var(--space-2); }
+.monitor-card .spectrum { height: 100%; }
+.monitor-card .view-head { margin-right: calc(var(--touch) + var(--space-2)); }
 
 /* ── Spectrum ──────────────────────────────────────────────────────────── */
-.spectrum { display: grid; grid-template-rows: auto 1fr; padding: var(--space-3) var(--space-3) var(--space-2); min-height: 0; }
+.spectrum { display: grid; grid-template-rows: auto minmax(0, 1fr); padding: var(--space-3) var(--space-3) var(--space-2); min-height: 0; }
 .view-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-2); }
 .view-head h2 { font: var(--text-headline); color: var(--label); }
 .readout { flex: 1; font: var(--text-footnote); color: var(--label-2); font-variant-numeric: tabular-nums; text-align: right; }
@@ -84,9 +144,7 @@ button, select { font: inherit; color: inherit; }
 .key:disabled { color: var(--label-3); cursor: not-allowed; }
 
 /* ── 554 800 panel ─────────────────────────────────────────────────────── */
-.panel-sheet { background: var(--surface); border-radius: var(--radius-l); box-shadow: var(--shadow-1); }
 .panel { display: grid; gap: var(--space-3); padding: var(--space-4); }
-.grabber { display: none; }
 .displays { display: flex; align-items: center; gap: var(--space-2); max-width: 44rem; }
 .lamp {
   flex: none; width: var(--space-3); height: var(--space-3); border-radius: var(--radius-full);
@@ -109,8 +167,6 @@ button, select { font: inherit; color: inherit; }
 .group.alert .key:not([data-key='ZERO']) { box-shadow: inset 0 0 0 2px var(--danger); animation: ring-flash var(--blink) steps(1) 3; }
 @keyframes ring-flash { 50% { box-shadow: none; } }
 
-.more { display: grid; grid-template-rows: 1fr; }
-.more > div { min-height: 0; display: grid; gap: var(--space-3); }
 .controls { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-5); align-items: flex-start; }
 .group { display: grid; gap: var(--space-2); }
 .keys { display: flex; flex-wrap: wrap; gap: var(--space-2); }
@@ -142,7 +198,7 @@ button, select { font: inherit; color: inherit; }
 .huygens, .learn { padding: var(--space-3) var(--space-4) var(--space-4); }
 .huygens .view-head, .learn > .view-head:first-child, .learn .back { margin-right: calc(var(--touch) + var(--space-2)); }
 .huygens-canvas { display: block; width: 100%; aspect-ratio: 4 / 3; }
-.close { position: absolute; top: var(--space-2); right: var(--space-2); background: var(--fill); }
+.close { position: absolute; z-index: var(--z-overlay); top: var(--space-2); right: var(--space-2); background: var(--fill); font: var(--text-headline); }
 .equation {
   display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin: var(--space-2) 0;
   font: var(--text-footnote); font-variant-numeric: tabular-nums;
@@ -161,16 +217,15 @@ button, select { font: inherit; color: inherit; }
 }
 .slider output { color: var(--label); font-variant-numeric: tabular-nums; }
 .slider input { grid-column: 1 / -1; width: 100%; min-height: var(--touch); margin: 0; accent-color: var(--accent); }
-.gonio { position: relative; }
 /* A guided task's act instruction while its card is closed; tap to reopen the card. */
 .act-strip {
-  position: absolute; top: var(--space-2); inset-inline: var(--space-2); min-height: var(--touch);
+  position: absolute; z-index: var(--z-sheet); top: var(--space-2); /* over an open card: the task's instruction */ inset-inline: var(--space-2); min-height: var(--touch);
   padding: 0 var(--space-3); border: none; border-radius: var(--radius-full); background: var(--surface-2);
   box-shadow: var(--shadow-1); font: var(--text-footnote); color: var(--label); text-align: left; cursor: pointer;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .act-strip[hidden] { display: none; }
-[data-mode='explore'] .gonio canvas { touch-action: none; } /* ponytail: the canvas can't scroll the page in explore; fine while it isn't taller than the screen */
+[data-mode='explore'] .chamber-card canvas { touch-action: none; } /* ponytail: the canvas can't scroll the card in explore; fine while it isn't taller than the screen */
 
 /* ── Guided tasks ──────────────────────────────────────────────────────── */
 .learn { display: grid; gap: var(--space-3); }
@@ -221,41 +276,26 @@ button, select { font: inherit; color: inherit; }
 .teacher { font: var(--text-footnote); color: var(--label-2); border-top: var(--stroke-hair) solid var(--separator); padding-top: var(--space-2); }
 .teacher summary { cursor: pointer; min-height: var(--touch); display: flex; align-items: center; }
 
-/* ── Phone: the instrument fills the screen, the panel peeks from a bottom sheet ── */
+/* ── Phone: cards fill the width; the dock spans it ── */
 @media (max-width: 599px) {
-  body { overflow: hidden; }
-  #app { height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
   .topbar { padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4); }
   /* The tools need the whole width at 360 px; document.title still names the app. */
   .topbar h1, .sim-tag { display: none; }
-  /* The spectrum keeps ≥ 40 % of the screen; on short phones the goniometer shrinks instead. */
-  .stage { grid-template-rows: minmax(0, 1fr) minmax(40dvh, 1fr) auto; gap: var(--space-2); padding: 0 var(--space-2); min-height: 0; }
-  .gonio { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
-  .gonio canvas { aspect-ratio: auto; height: 100%; min-height: 0; }
-  .view { border-radius: var(--radius-m); }
-  /* U and I side by side: the spectrum needs the height */
-  .sliders { grid-template-columns: 1fr 1fr; gap: 0 var(--space-3); padding: 0 var(--space-3) var(--space-1); }
+  .dock { left: var(--space-2); right: var(--space-2); translate: none; justify-content: space-between; bottom: calc(var(--space-2) + env(safe-area-inset-bottom)); }
+  .dock .tool { flex: 1 1 0; min-width: var(--touch); padding: 0 var(--space-1); font: var(--text-footnote); overflow: hidden; text-overflow: ellipsis; }
+  .gear { padding: 0 var(--space-3); }
+  .focus-card, .panel-card, .monitor-card, .chamber-card {
+    top: var(--space-2); left: var(--space-2); translate: none; width: calc(100cqw - 2 * var(--space-2));
+    max-height: calc(100cqh - 2 * var(--space-2)); border-radius: var(--radius-m);
+  }
+  .monitor-card { aspect-ratio: auto; height: min(70cqh, 32rem); }
+  /* the task's instruction strip stays readable above an open card */
+  .stage:has(.act-strip:not([hidden])) .focus-card { top: calc(var(--touch) + 2 * var(--space-2)); max-height: calc(100cqh - var(--touch) - 3 * var(--space-2)); }
+  /* U and I side by side */
+  .sliders { grid-template-columns: 1fr 1fr; gap: 0 var(--space-3); padding: 0 var(--space-3) var(--space-2); }
   .slider { font: var(--text-caption); }
   .slider > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .panel-sheet {
-    margin: 0 calc(-1 * var(--space-2)); border-radius: var(--radius-l) var(--radius-l) 0 0; box-shadow: var(--shadow-sheet);
-    max-height: 62dvh; overflow-y: auto; overscroll-behavior: contain;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  /* Open: float over the spectrum instead of squeezing it; the peek stays in the flow. */
-  .panel-sheet[data-open='true'] { position: fixed; inset: auto 0 0; margin: 0; z-index: var(--z-sheet); }
-  .panel { padding-top: 0; }
-  .grabber {
-    display: block; width: 100%; height: var(--space-5); border: none; background: none; cursor: pointer; touch-action: none;
-  }
-  .grabber::after {
-    content: ''; display: block; margin: auto; width: calc(var(--space-6) + var(--space-1)); height: 5px;
-    border-radius: var(--radius-full); background: var(--label-3);
-  }
-  .displays { touch-action: none; }
-  .more { grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows var(--dur-base) var(--ease-out), visibility 0s var(--dur-base); }
-  .panel-sheet[data-open='true'] .more { grid-template-rows: 1fr; visibility: visible; transition-delay: 0s; }
-  .more > div { overflow: hidden; }
+  .panel { padding: var(--space-2) var(--space-3) var(--space-3); }
   /* Keys: one 5-column grid, headings kept for screen readers */
   .controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-2); }
   .group, .keys { display: contents; }
@@ -264,6 +304,12 @@ button, select { font: inherit; color: inherit; }
   .key::before { left: 50%; top: var(--space-1); translate: -50% 0; }
   .group.adjust { display: grid; grid-column: 1 / -1; justify-items: center; }
   .group.adjust > .hint { display: none; }
+}
+
+/* ── Narrow phones: the gear alone (its name stays for screen readers), so the dock fits at 360 px ── */
+@media (max-width: 399px) {
+  .gear { padding: 0; width: var(--touch); justify-content: center; }
+  .gear [data-settings] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* ── Phone and tablet: Huygens is a bottom sheet over the instrument ── */
@@ -281,25 +327,20 @@ button, select { font: inherit; color: inherit; }
   .inspector { max-width: 40rem; margin-inline: auto; }
 }
 
-/* ── Tablet: goniometer | spectrum, the panel docked below ── */
-@media (min-width: 600px) {
-  .stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .panel-sheet { grid-column: 1 / -1; }
-  .gonio { display: grid; align-content: center; }
-  .plot { min-height: 18rem; }
-}
-
-/* ── Desktop: Huygens as an inspector on the right ── */
+/* ── Desktop: Learn and Huygens float as an inspector on the right; the cards make room ── */
 @media (min-width: 1024px) {
-  .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
-  .stage[data-inspector] { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(20rem, 26rem); }
-  .inspector[data-open='true'] { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
-  .stage[data-inspector] .panel-sheet { grid-column: 1 / 3; }
+  .inspector[data-open='true'] {
+    position: absolute; z-index: var(--z-sheet); top: var(--space-4); right: var(--space-4); width: 26rem;
+    max-height: calc(100% - 2 * var(--space-4)); overflow-y: auto; overscroll-behavior: contain;
+    background: var(--surface); border-radius: var(--radius-l); box-shadow: var(--shadow-sheet);
+  }
+  .stage[data-inspector] .focus-card { left: calc((100cqw - 28rem) / 2); max-width: calc(100cqw - 30rem); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* Keep the signal, drop the flashing: steady colour plus an outline. */
   .lamp.on, .led.blink, .group.alert .key:not([data-key='ZERO']), .done { animation: none; }
+  .focus-card:not([inert]), .stage:not([data-view='room'])::before { transition-delay: 0s; }
   .led.blink { outline: 2px solid var(--danger); }
   * { transition-duration: 0s !important; }
 }

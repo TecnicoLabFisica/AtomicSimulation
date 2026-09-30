@@ -1,13 +1,39 @@
 # Components
 
-## Layout
-- **Phone (< 600 px), portrait**: from the top down, a compact status bar (mode, time acceleration), the **goniometer**
-  (square, full width), the **spectrum** (~40 vh), and a bottom **control dock** (a segmented tab bar: Panel · Scan ·
-  Learn). Tapping a tab opens a bottom sheet. Landscape puts the goniometer and spectrum side by side.
-- **Tablet (600–1024)**: goniometer and spectrum side by side, with the panel as a docked strip below.
-- **Desktop (> 1024)**: a three-zone grid with the goniometer (left), the spectrum (right, wide), and the 554 800
-  panel (bottom, full width). The Huygens panel opens as an inspector on the right.
-- The app never scrolls horizontally, and the instrument views don't scroll vertically on phone either (sheets do).
+## Layout: the bench and its focus cards
+- **The room**: the whole stage below the topbar is a 3D bench (`views/bench.ts`, three.js, lazy chunk). It shows
+  the 554 800 on a table with a monitor beside it. The student can orbit a little (yaw ±40°, no pan) and zoom.
+  The topbar keeps the title, time acceleration, Learn, λ, theme and language.
+- **Focus**: tapping a part flies the camera to it (`--dur-camera`, ease-in-out). Its **focus card** then fades in
+  during the second half of the flight: the panel face → the 554 800 panel card, the monitor → the spectrum card
+  (16:10), and the goniometer or chamber window → the chamber card (the live count rate, the 2D goniometer, and the
+  Explore sliders). A
+  corner ×, Esc, or a tap on the scrim flies back out. The door toggles in place. If the interlock refuses it, the
+  door shakes and a toast explains why.
+- **Dock**: a floating pill at the bottom holding ⚙︎ Settings (the primary action; an accent badge plus an
+  `aria-description` when a guided task needs the panel, and icon-only below 400 px), Monitor, Goniometer, and
+  Open/Close door. It gives the same actions as tapping meshes, for
+  keyboard and screen-reader users and for the no-WebGL fallback. It is hidden while a card is open. Behind an open
+  card, a blurred `--bg` scrim quiets the room. Cards are `role="dialog"` and receive focus themselves, and the
+  task's act strip stays above them.
+- **When SCAN passes its self-test** (the positioning or scan phase) while the panel card is open, the view flies back
+  to the room, so the student sees the arms move and the monitor fill.
+- **Inspectors** (Learn, Huygens) are a right-hand floating column on desktop and bottom sheets below 1024 px.
+- **Phone**: cards fill the width, the dock spans it, and the portrait room frames the device with the monitor's edge.
+- The app never scrolls. Cards scroll inside themselves.
+
+## 3D bench
+- It is built procedurally from primitives, with proportions from the 554 800 manual (see `bragg-reference`), and
+  uses no LD imagery. Materials are matte. Object colours come from the `--bench-*` tokens, which stay the same in
+  both themes except the table. The canvas is transparent over `--bg`.
+- The panel face is a canvas texture that mirrors the device: LED displays, the HV lamp, key LEDs (`keySelected`),
+  blinking at about 1 Hz where the device blinks, plus a real ADJUST knob that turns with the HTML dial. The monitor
+  screen copies the uPlot canvas.
+- The arms use the same `armEaser` as the 2D view. The beam matches the 2D goniometer: dashes while emitting, and a
+  reflected opacity equal to the log rate in Explore mode. In Lab mode the reflected beam is a constant faint path,
+  because rate-following brightness would find the peaks for the student. Tapping the closed door's glass opens it.
+  While the door is open or locked, the glass lets taps through to the goniometer.
+- It redraws only when something changed. There are no real-time shadows, only a contact-shadow plane.
 
 ## Goniometer canvas (top-down schematic, not a photo)
 - Elements: tube (a rounded rectangle with a small anode glyph), collimator slit, the crystal on the target

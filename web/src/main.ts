@@ -1,10 +1,13 @@
 // Entry point: one apparatus, the views around it, and one frame loop driving the simulated clock.
+// The 3D bench is the room. The panel, the monitor's spectrum and the chamber's 2D goniometer are focus cards
+// the camera flies to; Learn and Huygens stay inspectors.
 import './styles/app.css'
 import { Apparatus } from './apparatus/apparatus'
 import { getLang, setLang, t, type Lang } from './i18n'
 import { mountLearn, pt } from './pedagogy/card'
 import { mountExplore } from './pedagogy/explore'
 import { getMode, setMode } from './pedagogy/mode'
+import type { Focus, mountBench, Pick } from './views/bench'
 import { readPalette } from './views/canvas'
 import { mountGoniometer } from './views/goniometer'
 import { mountHuygens } from './views/huygens'
@@ -15,7 +18,8 @@ import { mountSpectrum } from './views/spectrum'
 type Theme = 'auto' | 'light' | 'dark'
 const THEMES: Theme[] = ['auto', 'light', 'dark']
 const SCALES = [1, 10, 100, Infinity]
-const SWIPE_PX = 40
+const CARDS = ['panel', 'monitor', 'chamber'] as const
+const TOAST_MS = 2500
 const DESKTOP = matchMedia('(min-width: 1024px)') // as in app.css
 
 const app = document.querySelector<HTMLElement>('#app')!
@@ -32,12 +36,30 @@ app.innerHTML = `
       <button class="tool" data-lang></button>
     </div>
   </header>
-  <main class="stage">
-    <section class="view gonio">
-      <canvas role="img" data-gonio></canvas><div class="sliders explore" data-explore></div>
-      <button class="act-strip" data-act hidden></button>
+  <main class="stage" data-view="room">
+    <canvas class="bench" data-bench role="img"></canvas>
+    <p class="no3d" data-no3d hidden></p>
+    <button class="act-strip" data-act hidden></button>
+    <p class="toast" role="status" data-toast></p>
+    <div class="dock" role="group" data-dock>
+      <button class="gear" data-go="panel"><span aria-hidden="true">⚙︎</span><span data-settings></span></button>
+      <button class="tool" data-go="monitor"></button>
+      <button class="tool" data-go="chamber"></button>
+      <button class="tool" data-door></button>
+    </div>
+    <section class="focus-card panel-card" data-focus="panel" role="dialog" tabindex="-1" aria-labelledby="panel-title" inert>
+      <h2 class="card-title" id="panel-title" data-panel-title></h2><button class="tool close" data-back></button>
+      <div class="panel" data-panel></div>
     </section>
-    <section class="view spectrum" data-spectrum></section>
+    <section class="focus-card monitor-card" data-focus="monitor" role="dialog" tabindex="-1" inert>
+      <button class="tool close" data-back></button>
+      <div class="spectrum" data-spectrum></div>
+    </section>
+    <section class="focus-card chamber-card" data-focus="chamber" role="dialog" tabindex="-1" aria-labelledby="chamber-title" inert>
+      <h2 class="card-title" id="chamber-title" data-chamber-title></h2><button class="tool close" data-back></button>
+      <div class="led rate" role="group" data-rate-led><output data-rate></output><span class="unit" data-rate-unit></span></div>
+      <canvas role="img" data-gonio></canvas><div class="sliders explore" data-explore></div>
+    </section>
     <aside class="sheet inspector" id="learn" data-open="false">
       <button class="tool close" data-close aria-label="">×</button>
       <div class="learn" data-learn-body></div>
@@ -46,10 +68,6 @@ app.innerHTML = `
       <button class="tool close" data-close aria-label="">×</button>
       <div class="huygens" data-huygens-body></div>
     </aside>
-    <section class="sheet panel-sheet" data-open="false">
-      <button class="grabber" data-grab aria-expanded="false"></button>
-      <div class="panel" data-panel></div>
-    </section>
   </main>`
 const q = <T extends HTMLElement = HTMLElement>(sel: string) => app.querySelector<T>(sel)!
 
@@ -76,14 +94,21 @@ const panel = mountPanel(q('[data-panel]'), apparatus, sound.detent)
 const explore = mountExplore(q('[data-explore]'), apparatus)
 const learn = mountLearn(q('[data-learn-body]'), apparatus, {
   onMode: applyMode,
-  onFocus: (keys) => panel.focus(keys),
+  onFocus: (keys) => {
+    panel.focus(keys)
+    // the settings button leads there: a badge, and the same said to screen readers
+    const gear = q('[data-go="panel"]')
+    gear.toggleAttribute('data-task', !!keys?.length)
+    if (keys?.length) gear.setAttribute('aria-description', t().taskNeedsPanel)
+    else gear.removeAttribute('aria-description')
+  },
   // Below desktop the card is a bottom sheet over the instrument: step aside for the act step (the act
   // strip keeps the instruction, and the frame loop brings the card back once it is met).
   onAct: () => {
     if (!DESKTOP.matches) openSheet(learnSheet, false, false)
   },
 })
-const panelSheet = q('.panel-sheet')
+const stage = q('.stage')
 const huygensSheet = q('#huygens')
 const learnSheet = q('#learn')
 const actStrip = q<HTMLButtonElement>('[data-act]')
@@ -111,25 +136,80 @@ function labels() {
   q('[data-lang]').setAttribute('aria-label', s.language)
   q('[data-gonio]').setAttribute('aria-label', getMode() === 'explore' ? `${s.gonioLabel}. ${s.dragCrystal}` : s.gonioLabel)
   for (const b of app.querySelectorAll('[data-close]')) b.setAttribute('aria-label', s.close)
-  q('[data-grab]').setAttribute('aria-label', panelSheet.dataset.open === 'true' ? s.panelHide : s.panelShow)
+  for (const b of app.querySelectorAll('[data-back]')) (b.setAttribute('aria-label', s.back), (b.textContent = '×'))
+  q('[data-bench]').setAttribute('aria-label', s.benchLabel)
+  q('[data-no3d]').textContent = s.no3d
+  q('[data-settings]').textContent = s.settings
+  q('[data-go="monitor"]').textContent = s.monitor
+  q('[data-go="chamber"]').textContent = s.chamber
+  q('[data-go="chamber"]').title = s.chamberLabel
+  q('[data-panel-title]').textContent = s.panel
+  q('[data-chamber-title]').textContent = s.chamberLabel
+  q('[data-focus="monitor"]').setAttribute('aria-label', s.spectrum)
+  q('[data-dock]').setAttribute('aria-label', s.dock)
+  q('[data-rate-led]').setAttribute('aria-label', s.topDisplay)
+  doorLabel()
+}
+function doorLabel() {
+  const text = apparatus.doorsClosed ? t().doorOpen : t().doorClose
+  if (q('[data-door]').textContent !== text) q('[data-door]').textContent = text
 }
 labels()
 
 function openSheet(sheet: HTMLElement, open: boolean, moveFocus = true) {
   sheet.dataset.open = String(open)
-  if (sheet === panelSheet) q('[data-grab]').setAttribute('aria-expanded', String(open))
-  else {
-    // One inspector at a time: Learn and Huygens share the right-hand column (the bottom sheet on phones).
-    for (const o of inspectors) {
-      if (o !== sheet && open) o.dataset.open = 'false'
-      opener(o).setAttribute('aria-pressed', o.dataset.open!)
-    }
-    q('.stage').toggleAttribute('data-inspector', open)
-    // ponytail: focus moves in and back, no focus trap (the sheet is non-modal, Esc closes it)
-    if (moveFocus) (open ? sheet.querySelector<HTMLElement>('[data-close]')! : opener(sheet)).focus()
+  // One inspector at a time: Learn and Huygens share the right-hand column (the bottom sheet on phones).
+  for (const o of inspectors) {
+    if (o !== sheet && open) o.dataset.open = 'false'
+    opener(o).setAttribute('aria-pressed', o.dataset.open!)
   }
+  stage.toggleAttribute('data-inspector', open)
+  // ponytail: focus moves in and back, no focus trap (the sheet is non-modal, Esc closes it)
+  if (moveFocus) (open ? sheet.querySelector<HTMLElement>('[data-close]')! : opener(sheet)).focus()
   labels()
 }
+
+// The bench: the camera flies to a part, then its card fades in (CSS delays it by half the flight).
+let bench: ReturnType<typeof mountBench> | null = null
+let focus: Focus = 'room'
+function setFocus(f: Focus) {
+  if (f === focus) return
+  const prev = focus
+  focus = f
+  stage.dataset.view = f
+  for (const c of CARDS) q(`[data-focus="${c}"]`).inert = c !== f
+  q('[data-dock]').inert = f !== 'room'
+  bench?.fly(f)
+  if (f !== 'room') q(`[data-focus="${f}"]`).focus() // the card, not its ×: no focus ring after a tap
+  else if (prev !== 'room') q(`[data-go="${prev}"]`).focus()
+}
+function onPick(p: Pick | null) {
+  if (p === 'door') toggleDoor()
+  else if (p) setFocus(p)
+  else setFocus('room') // a tap on the empty room: back out
+}
+let toastTimer: ReturnType<typeof setTimeout> | undefined
+function toggleDoor() {
+  if (apparatus.setDoors(!apparatus.doorsClosed)) return
+  // Refused by the interlock: say why.
+  bench?.shake()
+  const el = q('[data-toast]')
+  el.textContent = '' // so a repeated refusal is announced again
+  el.textContent = t().doorLocked
+  el.dataset.show = 'true'
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => (el.dataset.show = 'false'), TOAST_MS)
+}
+import('./views/bench')
+  .then(({ mountBench }) => {
+    bench = mountBench(q<HTMLCanvasElement>('[data-bench]'), apparatus, { spectrum, dialDeg: panel.dialDeg }, onPick)
+    if (focus !== 'room') bench.fly(focus) // a card opened before the chunk arrived
+  })
+  .catch(() => {
+    // No WebGL (or the chunk failed): the dock still opens every card.
+    stage.toggleAttribute('data-no3d', true)
+    q('[data-no3d]').hidden = false
+  })
 
 /** Explore ↔ Lab: lab mode hides every reveal (λ panel, overlays, sliders, λ in the readout). */
 function applyMode() {
@@ -138,9 +218,12 @@ function applyMode() {
 }
 
 app.addEventListener('click', (e) => {
+  if (e.target === stage) return setFocus('room') // the scrim round an open card
   const b = (e.target as HTMLElement).closest<HTMLElement>('button')
   if (!b) return
-  if (b.dataset.grab !== undefined) openSheet(panelSheet, panelSheet.dataset.open !== 'true')
+  if (b.dataset.go) setFocus(b.dataset.go as Focus)
+  else if (b.dataset.back !== undefined) setFocus('room')
+  else if (b.dataset.door !== undefined) toggleDoor()
   else if (b.dataset.huygens !== undefined) openSheet(huygensSheet, huygensSheet.dataset.open !== 'true')
   else if (b.dataset.learn !== undefined) openSheet(learnSheet, learnSheet.dataset.open !== 'true')
   else if (b.dataset.close !== undefined) openSheet(b.closest<HTMLElement>('.inspector')!, false)
@@ -169,18 +252,7 @@ addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return
   const inspector = inspectors.find((o) => o.dataset.open === 'true')
   if (inspector) openSheet(inspector, false)
-  else if (panelSheet.dataset.open === 'true') openSheet(panelSheet, false)
-})
-// Swipe the grabber or the displays up to open the panel sheet, down to close it (phone layout).
-let swipeY: number | null = null
-panelSheet.addEventListener('pointerdown', (e) => {
-  if ((e.target as HTMLElement).closest('[data-grab], .displays')) swipeY = e.clientY
-})
-panelSheet.addEventListener('pointerup', (e) => {
-  if (swipeY === null) return
-  const dy = e.clientY - swipeY
-  swipeY = null
-  if (Math.abs(dy) >= SWIPE_PX) openSheet(panelSheet, dy < 0)
+  else setFocus('room')
 })
 
 // Keep the screen on while a program runs: a locked phone stops requestAnimationFrame, and a
@@ -201,12 +273,25 @@ function keepAwake(on: boolean) {
 }
 
 let last = performance.now()
+let counting = false
 function frame(now: number) {
   const dtS = Math.min((now - last) / 1000, 1) // cap: a background tab must not jump ahead
   last = now
   apparatus.tick(dtS)
   gonio(dtS)
-  spectrum.render()
+  spectrum.render() // before the bench: the monitor copies it
+  bench?.render(dtS)
+  doorLabel()
+  if (focus === 'chamber') {
+    // the counter's reading next to the goniometer, as the device's top display shows it
+    const d = apparatus.display()
+    if (q('[data-rate]').textContent !== d.top) q('[data-rate]').textContent = d.top
+    if (q('[data-rate-unit]').textContent !== d.topUnit) q('[data-rate-unit]').textContent = d.topUnit
+  }
+  // SCAN passed its self-test: step back from the panel to watch the arms move and the monitor fill.
+  const nowCounting = apparatus.phase === 'positioning' || apparatus.phase === 'scan'
+  if (nowCounting && !counting && focus === 'panel') setFocus('room')
+  counting = nowCounting
   if (huygensSheet.dataset.open === 'true') huygens.render(dtS)
   panel.render()
   if (getMode() === 'explore') explore.render()

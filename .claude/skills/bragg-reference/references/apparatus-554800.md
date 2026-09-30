@@ -10,6 +10,18 @@
 - Exposure-timer gate time 0.5–9999 s. A loudspeaker gives acoustic count clicks and can be toggled.
 - Accessories: collimator and a **Zr filter** (it plugs onto the collimator).
 
+## Housing and layout (manual §1, §4, §7 d–g)
+- Outer size 67 cm (W) × 48 cm (H) × 35 cm (D). Weight 41 kg. Carrying handles on the sides, and feet.
+- Front, from left to right: a column holding the **control panel** (top) and the **connection panel** (below,
+  with GM TUBE input, HV OUT, and BNC in/out), then the **tube chamber** (the Mo tube inside a lead-glass tube,
+  plus a ventilator and heat sink), then the **experiment chamber**, which is the largest and holds the goniometer on
+  mounting sockets and guide rails.
+- Each chamber has its own **lead-glass sliding door** on the front, and the experiment chamber has a
+  lead-glass window above its door. Both doors are part of the interlock. The **fluorescent screen**
+  (D = 15 cm) closes the experiment chamber on the side facing away from the tube. A labyrinth **free channel**
+  (60 mm × 20 mm) leads into the experiment chamber. The mains power panel is on the side.
+- The collimator plugs into the tube-side wall of the experiment chamber, in the beam axis.
+
 ## Displays (§7 b1)
 - **Top** display: the current counting rate, refreshed every 1 s regardless of Δt.
 - **Bottom** display: the quantity selected by the last parameter key.

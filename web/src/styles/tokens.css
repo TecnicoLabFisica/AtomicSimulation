@@ -35,6 +35,12 @@
 
   /* 554 800 LED displays: the one skeuomorphic element, identical in both themes. */
   --led-bg: #0b0b0c; --led-on: #ff3b30; --led-glow: 0 0 6px rgba(255, 59, 48, 0.55);
+
+  /* 3D bench: the objects keep their colours in both themes, only the table follows the room light. */
+  --bench-housing: #d4d6d9; --bench-trim: #3a3b3f; --bench-ink: #f2f2f4; --bench-metal: #9a9ea5;
+  --bench-glass: #b9c7bd; --bench-table: #e4ded3;
+  --bench-light: 1; /* scene light strength; dimmer in dark mode */
+  --dur-camera: 700ms; /* the camera flying to a part of the bench */
 }
 @media (min-resolution: 2dppx) { :root { --stroke-hair: 0.5px; } }
 /* Dark: follows the system unless the manual toggle forces a theme. The two blocks hold the same values
@@ -48,6 +54,7 @@
     --phys-kalpha: #ff8a3d; --phys-kbeta: #9d7bff; --phys-continuum: #8e8e93;
     --phys-beam: #3fe0e8; --phys-crystal: #c7c7cc; --phys-kalpha-text: #ff8a3d;
     --shadow-1: none; --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
+    --bench-table: #2b2926; --bench-light: 0.6;
   }
 }
 :root[data-theme='dark'] {
@@ -59,5 +66,6 @@
   --phys-kalpha: #ff8a3d; --phys-kbeta: #9d7bff; --phys-continuum: #8e8e93;
   --phys-beam: #3fe0e8; --phys-crystal: #c7c7cc; --phys-kalpha-text: #ff8a3d;
   --shadow-1: none; --shadow-sheet: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  --bench-table: #2b2926; --bench-light: 0.6;
 }
 :root[data-theme='light'] { color-scheme: light; }
