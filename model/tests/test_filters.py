@@ -1,9 +1,10 @@
 import numpy as np
+import pytest
 import xraylib
 from pytest import approx
 
 from braggsim.constants import HC_KEV_PM, MO_KA_PM, MO_KB_PM
-from braggsim.filters import transmission
+from braggsim.filters import ABSORBERS, check_filters, transmission
 
 LAM = np.array([40.0, MO_KB_PM, MO_KA_PM, 150.0])
 
@@ -38,3 +39,21 @@ def test_tabulated_attenuation_matches_xraylib_between_grid_points():
     for material in ("Air, Dry (near sea level)", "Glass, Pyrex"):
         exact = np.array([xraylib.CS_Total_CP(material, HC_KEV_PM / x) for x in lam])
         assert -np.log(transmission(lam, material, 1000.0)) == approx(exact, rel=1e-5)
+
+
+@pytest.mark.parametrize("density", [-1.0, float("nan"), float("inf")])
+def test_filter_areal_density_must_be_finite_and_non_negative(density):
+    with pytest.raises(ValueError):
+        check_filters((("Zr", 1.0), ("Cu", density)))
+    check_filters((("Zr", 0.0),))
+
+
+def test_every_absorber_is_known_to_xraylib_and_attenuates():
+    for m in ABSORBERS:
+        assert 0 < transmission(MO_KA_PM, m, 10.0) < 1
+
+
+def test_filter_without_an_exported_table_is_refused():
+    # The web app has μ/ρ tables only for ABSORBERS (and air and Pyrex, which are not filters).
+    with pytest.raises(ValueError):
+        check_filters((("Ni", 1.0),))

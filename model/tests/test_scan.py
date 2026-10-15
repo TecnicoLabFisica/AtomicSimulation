@@ -8,7 +8,7 @@ from pytest import approx
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import dead_time
-from braggsim.scan import DEFAULT, coupled_betas, expected_rate, tube_factor
+from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate, tube_factor
 from braggsim.source import lambda_min_pm
 
 LEAFLET_BETAS = coupled_betas(2.0, 25.0, 0.1)
@@ -68,15 +68,19 @@ def test_line_centroids_sit_at_leaflet_table_2_angles(n, lam):
     # Kα1/Kα2 (or Kβ) blend is at the Bragg angle of the leaflet's mean wavelength.
     theta = float(theta_from_lambda(lam, n))
     beta = np.arange(theta - 0.5, theta + 0.5, 0.002)
-    params = DEFAULT.replace(line_to_cont=1e4 * DEFAULT.line_to_cont, tau_s=0.0,
-                             leak_amp_per_s=0.0, scatter_per_s=0.0)  # fmt: skip
+    params = DEFAULT.replace(
+        line_to_cont=1e4 * DEFAULT.line_to_cont, tau_s=0.0,
+        leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0,
+    )  # fmt: skip
     rate = expected_rate(beta, 35.0, 1.0, params)
     assert np.sum(beta * rate) / np.sum(rate) == approx(theta, abs=0.01)
 
 
 def test_no_characteristic_lines_below_mo_k_edge():
     beta = np.arange(2.0, 25.0, 0.05)
-    bragg = DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0)  # S(U) counts the lines too
+    bragg = DEFAULT.replace(
+        leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0
+    )  # S(U) counts the lines too
     no_lines = bragg.replace(line_to_cont=0.0)
     for U in (19.0, MO_K_EDGE_KEV):  # lines switch on only above the edge itself
         assert expected_rate(beta, U, 1.0, bragg) == approx(expected_rate(beta, U, 1.0, no_lines))
@@ -87,7 +91,7 @@ def test_no_characteristic_lines_below_mo_k_edge():
 
 def test_continuum_onset_moves_with_voltage():
     beta = np.arange(3.0, 8.0, 0.01)
-    params = DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0)
+    params = DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0)
     onsets = []
     for U in (25.0, 30.0, 35.0):
         rate = expected_rate(beta, U, 1.0, params)
@@ -100,7 +104,9 @@ def test_continuum_starts_at_duane_hunt_angle():
     # continuum below θ_min, and some right above it.
     theta_min = float(theta_from_lambda(lambda_min_pm(35.0)))
     assert theta_min == approx(3.60, abs=0.005)
-    params = DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0, sigma_deg=1e-3)
+    params = DEFAULT.replace(
+        leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0, sigma_deg=1e-3
+    )
     below, above = expected_rate(np.array([theta_min - 0.02, theta_min + 0.05]), 35.0, 1.0, params)
     assert below == approx(0, abs=1e-6) and above > 1
 
@@ -114,16 +120,68 @@ def test_dead_time_acts_on_the_total_rate_at_the_ka_peak():
 
 
 def test_rate_is_linear_in_current_without_dead_time():
-    params = DEFAULT.replace(tau_s=0.0)
+    params = DEFAULT.replace(tau_s=0.0, background_per_s=0.0)
     r1 = expected_rate(LEAFLET_BETAS, 35.0, 0.5, params)
     r2 = expected_rate(LEAFLET_BETAS, 35.0, 1.0, params)
     assert r2 == approx(2 * r1, rel=1e-12)
 
 
-def test_tube_off_gives_zero_rate():
-    # Scatter and leak follow the tube; the GM natural background is neglected (scan.py).
-    assert np.all(expected_rate(LEAFLET_BETAS, 35.0, 0.0) == 0)
-    assert np.all(expected_rate(LEAFLET_BETAS, 0.0, 1.0) == 0)
+def test_tube_off_gives_only_the_natural_background():
+    # Scatter and leak follow the tube; the GM natural background does not.
+    bg = dead_time(DEFAULT.background_per_s, DEFAULT.tau_s)
+    assert expected_rate(LEAFLET_BETAS, 35.0, 0.0) == approx(bg, rel=1e-12)
+    assert expected_rate(LEAFLET_BETAS, 0.0, 1.0) == approx(bg, rel=1e-12)
+    assert direct_rate(0.0, 1.0) == approx(bg, rel=1e-12)
+
+
+def test_empty_filters_change_nothing_and_35kV_matches_the_unsplit_model():
+    assert np.array_equal(
+        expected_rate(LEAFLET_BETAS, 35.0, 1.0, filters=()), expected_rate(LEAFLET_BETAS, 35.0, 1.0)
+    )
+    # scatter 5.34 + background 0.2 is the fitted floor 5.54 at 35 kV, 1 mA (tube_factor = 1)
+    old = DEFAULT.replace(scatter_per_s=5.54, background_per_s=0.0)
+    assert expected_rate(LEAFLET_BETAS, 35.0, 1.0) == approx(
+        expected_rate(LEAFLET_BETAS, 35.0, 1.0, old), rel=1e-12
+    )
+
+
+def test_zr_foil_between_the_mo_lines_cuts_kb_far_more_than_ka():
+    zr = (("Zr", 32.6),)
+    kb, ka = float(theta_from_lambda(MO_KB_PM)), float(theta_from_lambda(MO_KA_PM))
+    beta = np.array([kb, ka])
+    open_, filtered = (expected_rate(beta, 35.0, 1.0, filters=f) for f in ((), zr))
+    assert (open_[0] / open_[1]) > 5 * (filtered[0] / filtered[1])
+
+
+def test_filter_order_does_not_matter_and_a_second_foil_attenuates_more():
+    p = DEFAULT.replace(tau_s=0.0, background_per_s=0.0)
+    zr, cu = ("Zr", 32.6), ("Cu", 358.4)
+    ab, ba = direct_rate(30.0, 1.0, (zr, cu), p), direct_rate(30.0, 1.0, (cu, zr), p)
+    assert ab == approx(ba, rel=1e-12)
+    # T multiplies per λ; for the whole spectrum a second foil can only lower the rate
+    assert ab < direct_rate(30.0, 1.0, (zr,), p) < direct_rate(30.0, 1.0, (), p)
+
+
+def test_direct_per_s_still_reproduces_its_epn_anchor():
+    # Guard, not a check: direct_per_s was derived from this very number (PARAMETERS.md).
+    assert direct_rate(21.0, 0.05) == approx(950, rel=1e-2)
+
+
+def test_direct_beam_falls_with_aluminium_thickness():
+    r = [direct_rate(21.0, 0.05, (("Al", 270.0 * mm),)) for mm in (0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0)]
+    assert np.all(np.diff(r) < 0)
+
+
+def test_direct_beam_is_linear_in_current_without_dead_time_or_background():
+    p = DEFAULT.replace(tau_s=0.0, background_per_s=0.0)
+    assert direct_rate(21.0, 0.1, (), p) == approx(2 * direct_rate(21.0, 0.05, (), p), rel=1e-12)
+
+
+def test_direct_beam_rejects_voltage_above_the_tube_limit_and_negative_filters():
+    with pytest.raises(ValueError):
+        direct_rate(35.1, 1.0)
+    with pytest.raises(ValueError):
+        expected_rate([5.0], 35.0, 1.0, filters=(("Zr", -1.0),))
 
 
 def test_small_angles_and_single_points_match_a_full_scan():
@@ -170,7 +228,7 @@ def test_leak_and_scatter_follow_the_photon_rate_leaving_the_tube():
     assert tube_factor(0.0, 1.0) == 0.0 and tube_factor(35.0, 0.0) == 0.0
     s = [tube_factor(U, 1.0) for U in np.arange(5.0, 35.01, 1.0)]
     assert np.all(np.diff(s) > 0)
-    no_bragg = DEFAULT.replace(scale=0.0, tau_s=0.0)
+    no_bragg = DEFAULT.replace(scale=0.0, tau_s=0.0, background_per_s=0.0)
     beta = np.array([1.0, 2.0, 3.0])
     assert expected_rate(beta, 20.0, 1.0, no_bragg) == approx(
         tube_factor(20.0, 1.0) * expected_rate(beta, 35.0, 1.0, no_bragg), rel=1e-12
@@ -188,7 +246,9 @@ def test_crystal_turned_half_a_turn_reflects_nothing():
     ka = float(theta_from_lambda(MO_KA_PM))
     p = DEFAULT
     leak = p.leak_amp_per_s * np.exp(-0.5 * (2 * ka / p.leak_width_deg) ** 2)
-    background = dead_time(tube_factor(35.0, 1.0) * (p.scatter_per_s + leak), p.tau_s)
+    background = dead_time(
+        p.background_per_s + tube_factor(35.0, 1.0) * (p.scatter_per_s + leak), p.tau_s
+    )
     rate = expected_rate([ka + 180.0], 35.0, 1.0, sensor_deg=[2 * ka])[0]
     assert rate == approx(background, rel=1e-12)
     assert expected_rate([ka], 35.0, 1.0)[0] > 100 * rate
@@ -217,7 +277,7 @@ def test_sensor_sweep_at_fixed_target_peaks_at_twice_the_bragg_angle():
 
 def test_target_off_half_the_sensor_angle_follows_the_rocking_curve():
     # Same sensor angle, so the same reflected spectrum; the target 3σ off weakens it by e^−4.5.
-    params = DEFAULT.replace(tau_s=0.0, leak_amp_per_s=0.0, scatter_per_s=0.0)
+    params = DEFAULT.replace(tau_s=0.0, leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0)
     sensor = np.array([10.0, 14.48, 30.0])
     on = expected_rate(sensor / 2, 35.0, 1.0, params, sensor_deg=sensor)
     off = expected_rate(sensor / 2 + 3 * params.sigma_deg, 35.0, 1.0, params, sensor_deg=sensor)
@@ -225,7 +285,7 @@ def test_target_off_half_the_sensor_angle_follows_the_rocking_curve():
 
 
 def test_leak_depends_on_the_sensor_angle_only():
-    no_bragg = DEFAULT.replace(scale=0.0)
+    no_bragg = DEFAULT.replace(scale=0.0, background_per_s=0.0)
     sensor = np.full(4, 2.0)
     rate = expected_rate(np.array([1.0, 20.0, -90.0, 181.0]), 35.0, 1.0, no_bragg, sensor)
     assert np.all(rate == rate[0]) and rate[0] > 100

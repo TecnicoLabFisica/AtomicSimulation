@@ -1,12 +1,15 @@
 // Every golden case in artifacts/fixtures/ must be reproduced by the port: relative 1e-9 with a
 // 1e-12/s absolute floor (web-physics-port rule). A failure means the port is wrong or the artifacts are stale.
-import { describe, expect, test } from 'vitest'
-import { transmission } from '../src/physics/filters'
-import { DEFAULT, coupledBetas, expectedRate, modelParams, type ModelParams } from '../src/physics/scan'
-import { MODEL_VERSION } from '../src/physics/tables'
+import { beforeAll, describe, expect, test } from 'vitest'
+import { deadTime } from '../src/physics/detector'
+import { ABSORBERS, transmission } from '../src/physics/filters'
+import { DEFAULT, coupledBetas, directRate, expectedRate, modelParams, type ModelParams } from '../src/physics/scan'
+import { MODEL_VERSION, loadAbsorbers } from '../src/physics/tables'
 
 type Case = { description?: string; function?: string; inputs: Record<string, any>; expected: Record<string, any> }
 type Fixture = Case & { name: string; function: string; model_version: string; cases?: Case[] }
+
+beforeAll(loadAbsorbers)
 
 const files = import.meta.glob<Fixture>('../../artifacts/fixtures/*.json', { eager: true, import: 'default' })
 
@@ -24,15 +27,19 @@ function run(fn: string, c: Case) {
   switch (fn) {
     case 'scan.expected_rate': {
       const params: ModelParams = x.params ? modelParams(x.params) : DEFAULT
-      const rate = expectedRate(x.beta_deg, x.U_kV, x.I_mA, params, x.sensor_deg)
+      const rate = expectedRate(x.beta_deg, x.U_kV, x.I_mA, params, x.sensor_deg, x.filters)
       expectClose(rate, c.expected.rate_per_s)
       // The live apparatus asks for one β at a time: it must give the batch values.
       const n = x.beta_deg.length
       for (const i of [0, 1, n >> 2, n >> 1, (3 * n) >> 2, n - 2, n - 1].filter((i) => i >= 0 && i < n)) {
-        const one = expectedRate([x.beta_deg[i]], x.U_kV, x.I_mA, params, x.sensor_deg && [x.sensor_deg[i]])
+        const one = expectedRate([x.beta_deg[i]], x.U_kV, x.I_mA, params, x.sensor_deg && [x.sensor_deg[i]], x.filters)
         expectClose(one, [c.expected.rate_per_s[i]])
       }
       return
+    }
+    case 'scan.direct_rate': {
+      const params: ModelParams = x.params ? modelParams(x.params) : DEFAULT
+      return expectClose([directRate(x.U_kV, x.I_mA, x.filters, params)], [c.expected.rate_per_s])
     }
     case 'scan.coupled_betas':
       return expectClose(coupledBetas(x.lo_deg, x.hi_deg, x.step_deg), c.expected.beta_deg)
@@ -58,9 +65,13 @@ describe('artifacts/fixtures', () => {
       for (const c of f.cases ?? [f]) run(f.function, c)
     })
   }
-  test('tube off gives exactly zero', () => {
-    for (const f of Object.values(files).filter((f) => f.name.startsWith('tube_off')))
-      expect(Array.from(expectedRate(f.inputs.beta_deg, f.inputs.U_kV, f.inputs.I_mA, modelParams(f.inputs.params))).every((r) => r === 0)).toBe(true)
+  test('tube off gives exactly the dead-time-corrected background', () => {
+    for (const f of Object.values(files).filter((f) => f.name.startsWith('tube_off'))) {
+      const p = modelParams(f.inputs.params)
+      const bg = deadTime(p.background_per_s, p.tau_s)
+      const rate = expectedRate(f.inputs.beta_deg, f.inputs.U_kV, f.inputs.I_mA, p)
+      expect(Array.from(rate).every((r) => r === bg)).toBe(true)
+    }
   })
 })
 
@@ -69,4 +80,9 @@ test('params must be validated: unknown keys and hand-made objects are refused',
   expect(() => modelParams({ ...p, bogus: 1 } as ModelParams)).toThrow(TypeError)
   expect(() => expectedRate([7.2], 35, 1, { ...p, sigma_deg: 0 })).toThrow(TypeError)
   expect(expectedRate([7.2], 35, 1, undefined, null)[0]).toBe(expectedRate([7.2], 35, 1)[0])
+})
+
+test('the port knows the same absorbers as the exported table', async () => {
+  const { default: t } = await import('../../artifacts/tables/mu_rho_absorbers.json')
+  expect(Object.keys(t.mu_rho_cm2_g).sort()).toEqual([...ABSORBERS].sort())
 })

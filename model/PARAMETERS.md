@@ -21,7 +21,9 @@ about 1.7× larger.
 | `leak_amp_per_s` | 1.18e5 | 29 % | counts/s | Direct-beam halo at 2θ = 0 at 35 kV, 1 mA. It follows the tube as I·S(U) (`scan.tube_factor`, below); Fig. 4 (35 kV only) cannot test this. The data see only the halo's tail at 2θ = 4–5.2°, where it is well constrained: 312/s ± 7 % at 2θ = 4°. The value at 2θ = 0 is a Gaussian extrapolation (×380), correlated −0.98 with the width, so the rate for β < 2° is not validated |
 | `leak_width_deg` | 1.161 | 2.0 % | ° (in 2θ) | Gaussian width of that halo, in sensor angle |
 | `absorber_mg_cm2` | 326 | 4.2 % | mg/cm² | Effective absorber (xraylib `"Glass, Pyrex"`) for the tube's glass wall and anode self-absorption ≈ 1.5 mm of glass. Without it the fit gives 0.21 dex and B = 5.4 Å² (r₂ = 0.18) |
-| `scatter_per_s` | 5.54 | 5.4 % | counts/s | Flat scattered radiation (air, crystal, housing) at 35 kV and 1 mA, seen at the ≈ 3° minimum. It follows the tube like the leak, so it is 0 with the tube off. The GM natural background (≲ 1/s) is neglected |
+| `scatter_per_s` | 5.34 | 5.6 % | counts/s | Flat scattered radiation (air, crystal, housing) at 35 kV and 1 mA, seen at the ≈ 3° minimum. It follows the tube like the leak, so it is 0 with the tube off. Since 2026-10-14 this is the fitted floor 5.54 minus `background_per_s` (0.2): a bookkeeping split, no refit, and the sum at 35 kV / 1 mA is unchanged |
+| `background_per_s` | 0.2 | assumed, 0.1–0.5 | counts/s | GM natural background, a true rate added before the dead time; independent of tube and filters. Anchored to LD instruction sheet 559 01 (end-window counter, background ≤ 7 pulses/min ≈ 0.12/s with 50 mm Pb + 3 mm Al shielding); inside the 554 800, less shielded, we assume 0.2. Lab staff could measure it with 0 kV / 0 mA for ≥ 100 s. Added 2026-10-14 |
+| `direct_per_s` | 2.97e5 | derived, no measurement | counts/s | Direct beam at 35 kV, 1 mA, no absorber, sensor at 0°, no crystal (`scan.direct_rate`). Anchored to EPN Práctica 1: 950/s is the guide's pass threshold for skipping calibration (21 kV, 0.05 mA, collimator, s1 = s2 = 5 cm, no wheel absorber or foil; the tube's Pyrex absorber and the 18 cm air path included), not an observation, so this is a lower bound and a healthy apparatus may read more. True rate 950/(1 − 950τ) = 1049.7/s, minus background, divided by `tube_factor(21, 0.05)` = 3.534e-3. It goes through the unverified τ = 100 µs: at the 559 01 sheet's ≤ 90 µs it would be 1.0 % lower. No EPN measurement exists. Plausible: same order as `leak_amp_per_s` (1.18e5). Added 2026-10-14 |
 
 Order strengths r_n (relative to n = 1, all orders up to `scan.MAX_ORDER` = 15) are
 \|F_n\|²/\|F₁\|² · exp(−2B(s_n² − s₁²)) with s_n = n/(2d). The 1st-order reflection is (200), order n is (2n 0 0).
@@ -36,6 +38,7 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 
 | Name | What | Why |
 |---|---|---|
+| Filters in `scan.expected_rate` | `filters` multiply the Bragg signal by T(λ) exactly; leak and scatter scale through the filtered `tube_factor` | Exact for the direct-beam halo, an assumption for scatter (scattered photons are not the filtered spectrum). Mo/Zr/Ag/In foils and the 554 834 wheel are all just `(material, mg/cm²)` entries. Added 2026-10-14 |
 | `scan.tube_factor` | I · S(U), S(U) = [∫N(λ, U)T(λ)dλ + Σ lines N_K T(λ_K)] / (same at 35 kV) | Leak and scatter follow the photon rate that leaves the tube through the absorber: the Kramers continuum (trapezoid rule on `filters.MU_RHO_GRID_PM`) plus the Mo K lines. S = 0.545, 0.223, 0.050, 0.005 at 30, 25, 20, 15 kV. (U/35)², used before, gave 0.73, 0.51, 0.33, 0.18. The absorber removes the soft spectrum that low voltages add. Only S(35 kV) = 1 is tested (Fig. 4) |
 | Rocking weight in `scan.expected_rate` | exp(−½ ((S/2 − β)/σ)²) for sensor S and target β | Uncoupled arms (SENSOR/TARGET scans). The spectrum follows the sensor (θ = \|S\|/2), and a target off S/2 only weakens it |
 
@@ -54,7 +57,7 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 
 | Name | Value | Why |
 |---|---|---|
-| `filters.MU_RHO_GRID_PM` | 1000 log-spaced points, 30–600 pm, rounded to 1e-9 pm (the same nodes on every CPU) | μ/ρ is tabulated here and interpolated log–log, so the web app reads the same numbers (`artifacts/tables/mu_rho.json`). Away from edges it agrees with xraylib to within 3e-6, and 500 points would already give 1e-5. Beyond 30–600 pm the end values are held. The range covers λ_min at 35 kV and 1st order at θ = 85° |
+| `filters.MU_RHO_GRID_PM` | 1000 log-spaced points, 30–600 pm, rounded to 1e-9 pm (the same nodes on every CPU) | μ/ρ is tabulated here and interpolated log–log, so the web app reads the same numbers (`artifacts/tables/mu_rho.json`). Away from edges it agrees with xraylib to within 3e-6, and 500 points would already give 1e-5. Beyond 30–600 pm the end values are held. An absorption edge is smeared over one grid step (0.3 % in λ): ≈ 0.05 keV at the Zr K edge (18.0 keV), ≈ 0.08 keV at In K (27.9 keV), ≈ 0.02° in θ (NaCl) at the Moseley edges (0.014–0.021°). Absorber μ/ρ tables: `artifacts/tables/mu_rho_absorbers.json`, same grid. The range covers λ_min at 35 kV and 1st order at θ = 85° |
 | `analysis.PEAK_HALF_WINDOW_DEG` | 0.7° | Half-width of the region marked around each line, the leaflet's "entire width" of a peak, cut halfway to its neighbours. It is set by an a-priori criterion: reach Kβ₂, 0.37° below Kβ₁,₃ in 3rd order, plus ≈ 2.7σ. It does not change R̄. On the noise-free leaflet scan the model's own blend mean is 63.0945 pm (Kβ) and 71.0768 pm (Kα). At 0.7° the single orders give Kβ 63.075 / 63.094 / 63.103 pm for n = 1/2/3. The 1st order sits 0.02 pm low from a straight baseline under the curved continuum, the 3rd 0.007 pm high from the clipped Kβ₂ tail. They partly cancel in the mean (63.091 pm). Each ±0.1° of window moves λ̄(Kβ) by 0.008–0.016 pm (0.6° → 63.107, 0.8° → 63.083), below its 1σ counting error of 0.040 pm at the leaflet settings. Narrower windows miss Kβ₂ (0.4° → 63.18 pm), and from 1.0° on the 1st-order continuum biases Kβ low (63.06 pm). Chosen on 2026-09-24 in notebook 04; numbers from the 2026-09-25 refit |
 | `analysis.MAX_LINE_FWHM_DEG`, `MIN_LINE_WIDTH_STEPS`, `MIN_PROMINENCE_SIGMA`, `MAX_STEP_DEG` | 0.8°, 1.2 steps, 5, 0.23° | A peak counts as a line if it is 1.2 Δβ steps to 0.8° wide and stands 5σ of Poisson noise above its surroundings. This excludes the 35 kV bremsstrahlung hump (≈ 1.2° wide) and lone noise spikes. A line with FWHM 0.28° needs ≥ 1.2 steps across it, so Δβ > 0.23° raises. Lowering the width limit cannot exclude the hump at 30 kV, which is 0.2–0.8° wide in noisy scans; `FIRST_LINE_DEG` handles that case |
 | `analysis.FIRST_LINE_DEG` | 6.02° | 1st-order Kβ₂ (6.32°) minus 0.3° (≈ 2.5σ). No Mo K line reflects lower, so any peak below this is the bremsstrahlung hump |
@@ -81,7 +84,7 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
   ≈ 27 % from 40 to 200 pm. Adding it (xraylib, no free parameter) improves the fit by only 0.0003 dex
   and moves the absorber by ≈ 6 %. The fitted absorber absorbs it. Extinction is folded
   into B.
-- **The ≈ 3° minimum is too shallow.** The model's floor is scatter (5.5/s) plus the leak tail: at β = 2.7°
+- **The ≈ 3° minimum is too shallow.** The model's floor is scatter plus background (5.54/s) plus the leak tail: at β = 2.7°
   it gives 7.9/s against 5.7/s in Fig. 4, and at 2.8° it gives 6.6/s where the figure dips below its axis
   (≲ 4.4/s, a point the digitizer omits). Before the refit it was 11/s and 8.7/s, mostly because scatter dropped from 6.8/s to 5.5/s. A steeper leak shape could fix this but is not justified by
   the data yet.
@@ -95,7 +98,7 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 - **Counts after dead time are drawn as Poisson.** A dead-time-limited GM counter is slightly
   sub-Poissonian (variance ≈ N(1 − Rτ)², 0.58× at the 1st-order Kα tip). `detector.sample_counts` ignores this.
 - **Leak and scatter are phenomenological.** They have no explicit dependence on the slits or the crystal,
-  and their I·S(U) scaling is assumed. In uncoupled geometry the leak ignores the crystal shadowing the direct beam. With the tube off the model reads exactly 0 counts/s.
+  and their I·S(U) scaling is assumed. In uncoupled geometry the leak ignores the crystal shadowing the direct beam. With the tube off the model reads only the natural background, dead_time(`background_per_s`).
 - **Rocking width = σ.** With target and sensor uncoupled, the Bragg signal falls off as a Gaussian of width σ in
   S/2 − β. The real rocking curve is the crystal's mosaic spread folded with the beam divergence, and only part of
   the coupled σ. The model lumps all of σ into it rather than adding a parameter no data constrain.
@@ -118,4 +121,7 @@ What the model is trustworthy for, beyond the 35 kV, 1 mA, 2°–25° scan it wa
   peak (Bragg-Simulation-Plan.md, Phase 9).
 - **Orders n ≥ 4 (β > 25°)** are extrapolation: r₄ = 0.089 and r₅ = 0.038 follow from the Debye–Waller factor
   fitted to orders 1–3, and no data beyond 25° test them.
+- **`direct_rate` while Rτ ≲ 0.3** (true rate ≲ 3000/s). Above that a real GM counter paralyses and reads far less
+  than the non-paralyzable R/(1 + Rτ): the open beam at 30 kV, 1 mA (1.6e5/s true) would read 9418/s here. Even polystyrene
+  0.4 mm at 30 kV, 0.02 mA loses 24 % to dead time. The apparatus should warn at such rates (L2).
 - **Still unverified:** `LINE_EXPONENT_M` (only 35 kV data) and τ of the 559 01 counter.

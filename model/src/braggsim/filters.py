@@ -6,11 +6,16 @@ compound name ("Air, Dry (near sea level)").
 """
 
 import functools
+import math
 
 import numpy as np
 import xraylib
 
 from braggsim.constants import HC_KEV_PM
+
+# Absorbers (xraylib names): the union of the LD foil set 554 832 and the absorption accessory
+# 554 834 (Al wheel, material wheel). "Polystyrene" is the NIST compound for the LD "C" absorber.
+ABSORBERS = ("Polystyrene", "Al", "Fe", "Cu", "Zr", "Mo", "Ag", "In")
 
 # μ/ρ is tabulated on this fixed grid and interpolated log–log, so the web app can load the very
 # same numbers (artifacts/tables/mu_rho.json) and match Python to 1e-9. It spans λ_min at 35 kV
@@ -33,3 +38,13 @@ def transmission(lambda_pm, material, areal_density_mg_cm2):
     log_lam = np.log(np.asarray(lambda_pm, dtype=float))
     log_mu = np.interp(log_lam, np.log(MU_RHO_GRID_PM), np.log(mu_rho_table(material)))
     return np.exp(-np.exp(log_mu) * areal_density_mg_cm2 / 1000)
+
+
+def check_filters(filters):
+    """Raise ValueError unless every ``(material, areal_density_mg_cm2)`` is one of ``ABSORBERS``
+    (the web app has μ/ρ tables for those only) with a finite density ≥ 0."""
+    for material, areal_density_mg_cm2 in filters:
+        if material not in ABSORBERS:
+            raise ValueError(f"no μ/ρ table for filter {material!r}: use one of {ABSORBERS}")
+        if not (math.isfinite(areal_density_mg_cm2) and areal_density_mg_cm2 >= 0):
+            raise ValueError(f"filter areal density must be finite and ≥ 0: {areal_density_mg_cm2}")

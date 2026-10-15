@@ -43,3 +43,10 @@ def test_committed_artifacts_are_fresh():
         if not _close(json.loads(on_disk[rel].read_text("utf-8")), json.loads(text))
     ]
     assert not stale, f"stale artifacts {stale}: run model/scripts/export_artifacts.py"
+
+
+def test_absorber_table_covers_every_absorber():
+    from braggsim.filters import ABSORBERS
+
+    table = json.loads(EXPORT["build"]()["tables/mu_rho_absorbers.json"])
+    assert sorted(table["mu_rho_cm2_g"]) == sorted(ABSORBERS)

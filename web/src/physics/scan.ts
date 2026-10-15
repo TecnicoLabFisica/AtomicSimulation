@@ -12,7 +12,7 @@ import {
   thetaFromLambda,
 } from './crystal'
 import { deadTime } from './detector'
-import { transmission } from './filters'
+import { checkFilters, transmission, type Filters } from './filters'
 import { convolveSame, interp, pyMod, roundHalfEven, trapezoid } from './numpy'
 import { continuum, lambdaMinPm, lineRates } from './source'
 import { DEFAULT_PARAMS_JSON, MU_RHO_GRID_PM } from './tables'
@@ -49,21 +49,31 @@ export type ModelParams = Readonly<{
   leak_width_deg: number // its Gaussian width in 2θ
   absorber_mg_cm2: number // effective absorber areal density
   scatter_per_s: number // flat scattered radiation at 35 kV, 1 mA
+  background_per_s: number // GM natural background, true rate, independent of the tube
+  direct_per_s: number // direct beam at 35 kV, 1 mA, no absorber, sensor at 0°, no crystal
 }>
 
 const PARAM_KEYS = [
   'scale', 'line_to_cont', 'debye_waller_pm2', 'sigma_deg', 'tau_s',
-  'leak_amp_per_s', 'leak_width_deg', 'absorber_mg_cm2', 'scatter_per_s',
+  'leak_amp_per_s', 'leak_width_deg', 'absorber_mg_cm2', 'scatter_per_s', 'background_per_s', 'direct_per_s',
 ] as const
 
 const validated = new WeakSet<ModelParams>()
 
-/** Validated, frozen ModelParams (port of ModelParams.__post_init__); scatter_per_s defaults to 0.
+/** Validated, frozen ModelParams (port of ModelParams.__post_init__); the last three keys default to 0.
  * Only objects made here are accepted by expectedRate, as only the dataclass is in Python. */
-export function modelParams(p: Omit<ModelParams, 'scatter_per_s'> & { scatter_per_s?: number }): ModelParams {
+export function modelParams(
+  p: Omit<ModelParams, 'scatter_per_s' | 'background_per_s' | 'direct_per_s'> &
+    Partial<Pick<ModelParams, 'scatter_per_s' | 'background_per_s' | 'direct_per_s'>>,
+): ModelParams {
   const unknown = Object.keys(p).filter((k) => !(PARAM_KEYS as readonly string[]).includes(k))
   if (unknown.length) throw new TypeError(`unknown model parameters: ${unknown.join(', ')}`)
-  const out = Object.freeze({ ...p, scatter_per_s: p.scatter_per_s ?? 0 }) as ModelParams
+  const out = Object.freeze({
+    ...p,
+    scatter_per_s: p.scatter_per_s ?? 0,
+    background_per_s: p.background_per_s ?? 0,
+    direct_per_s: p.direct_per_s ?? 0,
+  }) as ModelParams
   for (const k of PARAM_KEYS) {
     if (!(Number.isFinite(out[k]) && out[k] >= 0)) throw new RangeError(`model parameters must be finite and ≥ 0: ${k}`)
   }
@@ -91,8 +101,10 @@ export function coupledBetas(loDeg: number, hiDeg: number, stepDeg: number): Flo
   return Float64Array.from({ length: n }, (_, i) => Math.min(roundHalfEven(loDeg + stepDeg * i, 10), hiDeg))
 }
 
-function transmissionTotal(lambdaPm: number, params: ModelParams): number {
-  return transmission(lambdaPm, AIR, AIR_MG_CM2) * transmission(lambdaPm, ABSORBER, params.absorber_mg_cm2)
+function transmissionTotal(lambdaPm: number, params: ModelParams, filters: Filters = []): number {
+  let t = transmission(lambdaPm, AIR, AIR_MG_CM2) * transmission(lambdaPm, ABSORBER, params.absorber_mg_cm2)
+  for (const [material, arealDensityMgCm2] of filters) t = t * transmission(lambdaPm, material, arealDensityMgCm2)
+  return t
 }
 
 function gaussian(xDeg: number, sigmaDeg: number): number {
@@ -107,7 +119,7 @@ function moLines(UkV: number, ImA: number, params: ModelParams): [number, number
   ]
 }
 
-// Everything R̄ needs that depends on (U, I, params) but not on β, computed once. Python builds the
+// Everything R̄ needs that depends on (U, I, params, filters) but not on β, computed once. Python builds the
 // convolution grid per query from βmin − half to βmax + half (clamped at node 1); every node a query
 // interpolates between is then fully covered by the kernel, so the smoothed values equal those on
 // this one grid over the whole range. That makes live single-β steps cheap (plan, Phase 5 notes).
@@ -115,6 +127,7 @@ type Tube = {
   params: ModelParams
   U: number
   I: number
+  filtersKey: string // JSON of the filters: callers pass fresh arrays, so identity cannot key the cache
   tube: number
   thetaGrid: Float64Array
   smoothed: Float64Array
@@ -123,8 +136,9 @@ type Tube = {
 let cache: Tube | undefined
 const photonsOutRef = new WeakMap<ModelParams, number>()
 
-function tubeState(UkV: number, ImA: number, params: ModelParams): Tube {
-  if (cache && cache.params === params && cache.U === UkV && cache.I === ImA) return cache
+function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filters): Tube {
+  const filtersKey = JSON.stringify(filters)
+  if (cache && cache.params === params && cache.U === UkV && cache.I === ImA && cache.filtersKey === filtersKey) return cache
   if (!validated.has(params)) throw new TypeError('params must come from modelParams()')
   const orders = orderReflectivity(params)
   const half = Math.ceil((KERNEL_HALF_WIDTH_SIGMA * params.sigma_deg) / THETA_STEP_DEG)
@@ -139,7 +153,7 @@ function tubeState(UkV: number, ImA: number, params: ModelParams): Tube {
         const lam = lambdaFromTheta(th, n)
         const spec = continuum(lam, UkV, ImA)
         if (spec > 0)
-          density[j] += r * spec * transmissionTotal(lam, params) * dlambdaDthetaPmPerDeg(th, n) * lorentzPolarization(th)
+          density[j] += r * spec * transmissionTotal(lam, params, filters) * dlambdaDthetaPmPerDeg(th, n) * lorentzPolarization(th)
       }
     })
   }
@@ -153,47 +167,54 @@ function tubeState(UkV: number, ImA: number, params: ModelParams): Tube {
     for (const [lam, rate] of moLineList) {
       const theta = thetaFromLambda(lam, i + 1)
       if (rate === 0 || Number.isNaN(theta)) continue
-      lines.push({ theta, weight: r * rate * transmissionTotal(lam, params) * lorentzPolarization(theta) })
+      lines.push({ theta, weight: r * rate * transmissionTotal(lam, params, filters) * lorentzPolarization(theta) })
     }
   })
   cache = {
-    params, U: UkV, I: ImA, tube: tubeFactor(UkV, ImA, params), thetaGrid,
+    params, U: UkV, I: ImA, filtersKey, tube: tubeFactor(UkV, ImA, params, filters), thetaGrid,
     smoothed: convolveSame(density, kernel.map((k) => k / kSum)), lines,
   } // prettier-ignore
   return cache
 }
 
-function photonsOut(UkV: number, params: ModelParams): number {
+function photonsOut(UkV: number, params: ModelParams, filters: Filters = []): number {
   const lam = MU_RHO_GRID_PM
   let total = trapezoid(
-    lam.map((l) => continuum(l, UkV, 1.0) * transmissionTotal(l, params)),
+    lam.map((l) => continuum(l, UkV, 1.0) * transmissionTotal(l, params, filters)),
     lam,
   )
   const [ka, kb] = lineRates(UkV, 1.0, params.line_to_cont)
   for (const [rate, components] of [[ka, MO_KA_COMPONENTS], [kb, MO_KB_COMPONENTS]] as const) {
-    for (const [lamPm, fraction] of components) total += rate * fraction * transmissionTotal(lamPm, params)
+    for (const [lamPm, fraction] of components) total += rate * fraction * transmissionTotal(lamPm, params, filters)
   }
   return total
 }
 
-/** port of braggsim.scan.tube_factor: I · S(U), how leak and scatter follow the tube (1 at 35 kV, 1 mA). */
-export function tubeFactor(UkV: number, ImA: number, params: ModelParams = DEFAULT): number {
+/** port of braggsim.scan.tube_factor: I · S(U), how leak and scatter follow the tube (1 at 35 kV, 1 mA).
+ * `filters` attenuate the photons leaving the tube; the 35 kV reference stays unfiltered. */
+export function tubeFactor(UkV: number, ImA: number, params: ModelParams = DEFAULT, filters: Filters = []): number {
   if (ImA === 0 || UkV === 0) return 0
   let ref = photonsOutRef.get(params)
   if (ref === undefined) photonsOutRef.set(params, (ref = photonsOut(U_REF_KV, params)))
-  return ImA * (photonsOut(UkV, params) / ref)
+  return ImA * (photonsOut(UkV, params, filters) / ref)
+}
+
+function checkTube(UkV: number, ImA: number): void {
+  if (!(UkV >= 0 && UkV <= U_MAX_KV && ImA >= 0 && ImA <= I_MAX_MA))
+    throw new RangeError(`U_kV must be in 0 … ${U_MAX_KV}, I_mA in 0 … ${I_MAX_MA} (LD 554 800)`)
 }
 
 /** port of braggsim.scan.expected_rate: expected observed rate R̄ in counts/s (deterministic).
  * `betaDeg`: target angles; `sensorDeg`: sensor angles, same length, or null/undefined for the 2:1
  * coupled scan (sensor at 2β). Throws on the same invalid inputs as Python. A crystal turned half a
- * turn (β = S/2 + 180°) reflects nothing: its holder blocks the beam. */
+ * turn (β = S/2 + 180°) reflects nothing: its holder blocks the beam. `filters`: absorbers in the beam. */
 export function expectedRate(
   betaDeg: ArrayLike<number>,
   UkV: number,
   ImA: number,
   params: ModelParams = DEFAULT,
   sensorDeg?: ArrayLike<number> | null,
+  filters: Filters = [],
 ): Float64Array {
   const beta = Float64Array.from(betaDeg)
   let sensor: Float64Array
@@ -209,15 +230,17 @@ export function expectedRate(
       throw new RangeError(`sensor outside its range ${SENSOR_MIN_DEG}° … ${SENSOR_MAX_DEG}°`)
     for (let i = 0; i < beta.length; i++) beta[i] = pyMod(beta[i] + 180, 360) - 180 // target turns without limit
   }
-  if (!(UkV >= 0 && UkV <= U_MAX_KV && ImA >= 0 && ImA <= I_MAX_MA))
-    throw new RangeError(`U_kV must be in 0 … ${U_MAX_KV}, I_mA in 0 … ${I_MAX_MA} (LD 554 800)`)
+  checkTube(UkV, ImA)
+  checkFilters(filters)
   const out = new Float64Array(beta.length)
   if (beta.length === 0) return out
-  const t = tubeState(UkV, ImA, params)
+  const t = tubeState(UkV, ImA, params, filters)
   const on = ImA > 0 && UkV > 0
   for (let i = 0; i < beta.length; i++) {
     const s = sensor[i]
-    let rate = t.tube * (params.scatter_per_s + params.leak_amp_per_s * Math.exp(-0.5 * (s / params.leak_width_deg) ** 2))
+    let rate =
+      params.background_per_s +
+      t.tube * (params.scatter_per_s + params.leak_amp_per_s * Math.exp(-0.5 * (s / params.leak_width_deg) ** 2))
     if (on) {
       const theta = Math.abs(s) / 2
       const rocking = Math.exp(-0.5 * ((s / 2 - beta[i]) / params.sigma_deg) ** 2)
@@ -228,4 +251,13 @@ export function expectedRate(
     out[i] = deadTime(rate, params.tau_s)
   }
   return out
+}
+
+/** port of braggsim.scan.direct_rate: observed rate in counts/s with the counter in the direct beam
+ * (no crystal, sensor at 0°; EPN Práctica 1). Wheel absorbers and Moseley foils are both `filters`. */
+export function directRate(UkV: number, ImA: number, filters: Filters = [], params: ModelParams = DEFAULT): number {
+  checkTube(UkV, ImA)
+  checkFilters(filters)
+  if (!validated.has(params)) throw new TypeError('params must come from modelParams()')
+  return deadTime(params.direct_per_s * tubeFactor(UkV, ImA, params, filters) + params.background_per_s, params.tau_s)
 }

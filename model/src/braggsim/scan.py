@@ -10,8 +10,11 @@ R̄(β) = dead_time( scale · Σ_n r_n [continuum_n + lines_n](β) + leak(β) + 
 - leak: tail of the direct beam reaching the counter at small 2θ;
 - scatter: flat scattered radiation (air, crystal, housing).
 Leak and scatter both follow the tube as I·S(U), the photon rate leaving it (``tube_factor``);
-Fig. 4 (35 kV only) cannot test that. With the tube off R̄ = 0; the GM natural background
-(≲ 1/s) is neglected.
+Fig. 4 (35 kV only) cannot test that. The GM natural background is added to the true rate
+before the dead time and does not depend on the tube: with the tube off R̄ = dead_time(background).
+``filters`` (absorber wheel, Moseley foils: tuples ``(material, areal_density_mg_cm2)``) attenuate
+the Bragg signal exactly, and leak and scatter through the filtered ``tube_factor``.
+``direct_rate`` is the attenuation practice: no crystal, the counter in the direct beam.
 Every fitted value in ``DEFAULT`` is documented in model/PARAMETERS.md.
 """
 
@@ -29,7 +32,7 @@ from braggsim.crystal import (
     theta_from_lambda,
 )
 from braggsim.detector import dead_time
-from braggsim.filters import MU_RHO_GRID_PM, transmission
+from braggsim.filters import MU_RHO_GRID_PM, check_filters, transmission
 from braggsim.source import continuum, lambda_min_pm, line_rates
 
 # Air between anode and counter: path length is an assumption (≈ 12 cm anode → crystal plus
@@ -67,6 +70,8 @@ class ModelParams:
     leak_width_deg: float  # its Gaussian width in 2θ
     absorber_mg_cm2: float  # effective absorber areal density
     scatter_per_s: float = 0.0  # flat scattered radiation at 35 kV and 1 mA
+    background_per_s: float = 0.0  # GM natural background, true rate, independent of the tube
+    direct_per_s: float = 0.0  # direct beam at 35 kV, 1 mA, no absorber, sensor at 0°, no crystal
 
     def __post_init__(self):
         values = dataclasses.asdict(self)
@@ -90,6 +95,8 @@ class ModelParams:
 
 
 # Fitted to leaflet Fig. 4 on 2026-09-25 (notebooks/03_full_spectrum_vs_fig4.ipynb); tau_s fixed.
+# 2026-10-14: the fitted floor 5.54/s is split into scatter 5.34 + background 0.2 (bookkeeping, no
+# refit); direct_per_s is anchored to EPN Práctica 1 (model/PARAMETERS.md).
 DEFAULT = ModelParams(
     scale=1.676e5,
     line_to_cont=7.43e-3,
@@ -99,7 +106,9 @@ DEFAULT = ModelParams(
     leak_amp_per_s=1.18e5,
     leak_width_deg=1.161,
     absorber_mg_cm2=326.0,
-    scatter_per_s=5.54,
+    scatter_per_s=5.34,
+    background_per_s=0.2,
+    direct_per_s=2.97e5,
 )
 
 
@@ -115,17 +124,20 @@ def coupled_betas(lo_deg, hi_deg, step_deg):
     return np.minimum(np.round(lo_deg + step_deg * np.arange(n), 10), hi_deg)
 
 
-def _transmission(lambda_pm, params):
-    return transmission(lambda_pm, AIR, AIR_MG_CM2) * transmission(
+def _transmission(lambda_pm, params, filters=()):
+    t = transmission(lambda_pm, AIR, AIR_MG_CM2) * transmission(
         lambda_pm, ABSORBER, params.absorber_mg_cm2
     )
+    for material, areal_density_mg_cm2 in filters:
+        t = t * transmission(lambda_pm, material, areal_density_mg_cm2)
+    return t
 
 
 def _gaussian(x_deg, sigma_deg):
     return np.exp(-0.5 * (x_deg / sigma_deg) ** 2) / (sigma_deg * np.sqrt(2 * np.pi))
 
 
-def _continuum_density(beta_deg, U_kV, I_mA, params):
+def _continuum_density(beta_deg, U_kV, I_mA, params, filters=()):
     """Σ_n r_n × continuum per degree of θ, convolved with the instrument Gaussian, at β."""
     # Grid on the fixed lattice θ = i·step, so R̄(β) does not depend on which βs are queried
     # together; at least one kernel long, because "same" mode assumes that.
@@ -141,7 +153,7 @@ def _continuum_density(beta_deg, U_kV, I_mA, params):
         on = spec > 0
         if on.any():
             density[on] += (
-                r_n * spec[on] * _transmission(lam[on], params)
+                r_n * spec[on] * _transmission(lam[on], params, filters)
                 * dlambda_dtheta_pm_per_deg(theta[on], n) * lorentz_polarization(theta[on])
             )  # fmt: skip
     k = THETA_STEP_DEG * np.arange(-half, half + 1)
@@ -150,7 +162,7 @@ def _continuum_density(beta_deg, U_kV, I_mA, params):
     return np.interp(beta_deg, theta, smoothed)
 
 
-def _line_density(beta_deg, U_kV, I_mA, params):
+def _line_density(beta_deg, U_kV, I_mA, params, filters=()):
     """Σ_n r_n × Mo K line components as Gaussians at their Bragg angles, at β."""
     ka, kb = line_rates(U_kV, I_mA, params.line_to_cont)
     lines = [(lam, ka * f) for lam, f in MO_KA_COMPONENTS] + [
@@ -162,35 +174,42 @@ def _line_density(beta_deg, U_kV, I_mA, params):
             theta = theta_from_lambda(lam, n)
             if rate == 0 or np.isnan(theta):
                 continue
-            weight = r_n * rate * _transmission(lam, params) * lorentz_polarization(theta)
+            weight = r_n * rate * _transmission(lam, params, filters) * lorentz_polarization(theta)
             out += weight * _gaussian(beta_deg - theta, params.sigma_deg)
     return out
 
 
-def _photons_out(U_kV, params):
+def _photons_out(U_kV, params, filters=()):
     """Kramers continuum plus Mo K lines leaving the tube through the absorber, per mA."""
     lam = MU_RHO_GRID_PM
-    total = np.trapezoid(continuum(lam, U_kV, 1.0) * _transmission(lam, params), lam)
+    total = np.trapezoid(continuum(lam, U_kV, 1.0) * _transmission(lam, params, filters), lam)
     ka, kb = line_rates(U_kV, 1.0, params.line_to_cont)
     for rate, components in ((ka, MO_KA_COMPONENTS), (kb, MO_KB_COMPONENTS)):
         for lam_pm, fraction in components:
-            total += rate * fraction * float(_transmission(lam_pm, params))
+            total += rate * fraction * float(_transmission(lam_pm, params, filters))
     return total
 
 
-def tube_factor(U_kV, I_mA, params=DEFAULT):
+def tube_factor(U_kV, I_mA, params=DEFAULT, filters=()):
     """I · S(U): how leak and scatter follow the tube, 1 at 35 kV and 1 mA.
 
     S(U) is the photon rate leaving the tube through the absorber, Kramers continuum
     (trapezoid rule on the fixed μ/ρ grid) plus Mo K lines, relative to 35 kV. No free
-    parameter; only its 35 kV value is tested by Fig. 4 (model/PARAMETERS.md).
+    parameter; only its 35 kV value is tested by Fig. 4 (model/PARAMETERS.md). ``filters`` are
+    added to the photon rate leaving the tube; the 35 kV reference stays unfiltered, so a filter
+    gives a factor below 1 even at 35 kV and 1 mA.
     """
     if I_mA == 0 or U_kV == 0:
         return 0.0
-    return I_mA * float(_photons_out(U_kV, params) / _photons_out(U_REF_KV, params))
+    return I_mA * float(_photons_out(U_kV, params, filters) / _photons_out(U_REF_KV, params, ()))
 
 
-def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None):
+def _check_tube(U_kV, I_mA):
+    if not (0 <= U_kV <= U_MAX_KV and 0 <= I_mA <= I_MAX_MA):  # NaN fails too
+        raise ValueError(f"U_kV must be in 0 … {U_MAX_KV}, I_mA in 0 … {I_MAX_MA} (LD 554 800)")
+
+
+def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters=()):
     """Expected observed counting rate R̄ in counts/s (deterministic).
 
     ``beta_deg``: target (crystal) angles; ``U_kV``: tube voltage; ``I_mA``: emission current.
@@ -204,6 +223,11 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None):
     depends on the sensor alone and scatter on neither. The rocking weight is centred on S/2
     only, so a crystal turned half a turn (β = S/2 + 180°) reflects nothing: its holder blocks
     the beam (confirmed by the lab staff, 2026-09-25).
+
+    ``filters``: absorbers in the beam, ``(material, areal_density_mg_cm2)`` each. They attenuate
+    the Bragg signal exactly; leak and scatter follow the filtered ``tube_factor`` (exact for the
+    direct-beam halo, an assumption for scatter). The natural background is added before the
+    dead time and ignores the tube and the filters.
     """
     beta = np.asarray(beta_deg, dtype=float)
     if sensor_deg is None:
@@ -217,18 +241,35 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None):
         if not np.all((sensor >= SENSOR_MIN_DEG) & (sensor <= SENSOR_MAX_DEG)):
             raise ValueError(f"sensor outside its range {SENSOR_MIN_DEG}° … {SENSOR_MAX_DEG}°")
         beta = (beta + 180) % 360 - 180  # the target arm turns without limit
-    if not (0 <= U_kV <= U_MAX_KV and 0 <= I_mA <= I_MAX_MA):  # NaN fails too
-        raise ValueError(f"U_kV must be in 0 … {U_MAX_KV}, I_mA in 0 … {I_MAX_MA} (LD 554 800)")
+    _check_tube(U_kV, I_mA)
+    check_filters(filters)
     if beta.size == 0:
         return beta
     theta = np.abs(sensor) / 2
-    true_rate = tube_factor(U_kV, I_mA, params) * (
+    true_rate = params.background_per_s + tube_factor(U_kV, I_mA, params, filters) * (
         params.scatter_per_s
         + params.leak_amp_per_s * np.exp(-0.5 * (sensor / params.leak_width_deg) ** 2)
     )
     if I_mA > 0 and U_kV > 0:
         rocking = np.exp(-0.5 * ((sensor / 2 - beta) / params.sigma_deg) ** 2)
         true_rate = true_rate + params.scale * rocking * (
-            _continuum_density(theta, U_kV, I_mA, params) + _line_density(theta, U_kV, I_mA, params)
+            _continuum_density(theta, U_kV, I_mA, params, filters)
+            + _line_density(theta, U_kV, I_mA, params, filters)
         )
     return dead_time(true_rate, params.tau_s)
+
+
+def direct_rate(U_kV, I_mA, filters=(), params=DEFAULT):
+    """Observed counting rate in counts/s with the counter in the direct beam: no crystal,
+    sensor at 0°. EPN Práctica 1 (attenuation; collimator, s1 = s2 = 5 cm, GM counter).
+
+    ``direct_per_s`` is anchored to the guide's ≥ 950/s at 21 kV and 0.05 mA, and the tube
+    dependence is ``tube_factor``. The absorber wheel and the Moseley foils are both just entries
+    in ``filters``, ``(material, areal_density_mg_cm2)`` each.
+    """
+    _check_tube(U_kV, I_mA)
+    check_filters(filters)
+    true_rate = (
+        params.direct_per_s * tube_factor(U_kV, I_mA, params, filters) + params.background_per_s
+    )
+    return float(dead_time(true_rate, params.tau_s))

@@ -123,6 +123,57 @@
    }
   },
   {
+   "description": "negative filter areal density",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "scan.expected_rate",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "beta_deg": [
+     7.2
+    ],
+    "filters": [
+     [
+      "Zr",
+      -1.0
+     ]
+    ]
+   }
+  },
+  {
+   "description": "filter material without a table",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "scan.expected_rate",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "beta_deg": [
+     7.2
+    ],
+    "filters": [
+     [
+      "Ni",
+      1.0
+     ]
+    ]
+   }
+  },
+  {
+   "description": "U above 35 kV (direct beam)",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "scan.direct_rate",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.000000001
+   }
+  },
+  {
    "description": "upper limit below lower",
    "expected": {
     "error": "ValueError"
@@ -161,6 +212,6 @@
  ],
  "description": "Inputs the model refuses",
  "function": "rejected",
- "model_version": "0.3.0",
+ "model_version": "0.4.0",
  "name": "rejected_inputs"
 }

@@ -22,7 +22,7 @@ import braggsim
 from braggsim import scan
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM
 from braggsim.crystal import structure_factor_sq_rel, theta_from_lambda
-from braggsim.filters import MU_RHO_GRID_PM, mu_rho_table, transmission
+from braggsim.filters import ABSORBERS, MU_RHO_GRID_PM, mu_rho_table, transmission
 from braggsim.source import lambda_min_pm
 
 ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
@@ -38,21 +38,32 @@ def _dump(obj):
     return json.dumps(obj, sort_keys=True, indent=1, ensure_ascii=False, allow_nan=False) + "\n"
 
 
-def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT, sensor_deg=None):
+def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT, sensor_deg=None, filters=()):
     beta = np.asarray(beta_deg, dtype=float)
     inputs = {"beta_deg": _floats(beta), "U_kV": U_kV, "I_mA": I_mA,
               "params": dataclasses.asdict(params)}  # fmt: skip
     if sensor_deg is not None:
         sensor_deg = np.asarray(sensor_deg, dtype=float)
         inputs["sensor_deg"] = _floats(sensor_deg)
+    if filters:
+        inputs["filters"] = [[m, d] for m, d in filters]
     return {
         "function": "scan.expected_rate",
         "description": description,
         "inputs": inputs,
         "expected": {
-            "rate_per_s": _floats(scan.expected_rate(beta, U_kV, I_mA, params, sensor_deg))
+            "rate_per_s": _floats(scan.expected_rate(beta, U_kV, I_mA, params, sensor_deg, filters))
         },
     }
+
+
+def _direct_case(description, U_kV, I_mA, filters=()):
+    return {
+        "description": description,
+        "inputs": {"U_kV": U_kV, "I_mA": I_mA, "filters": [[m, d] for m, d in filters],
+                   "params": dataclasses.asdict(scan.DEFAULT)},
+        "expected": {"rate_per_s": scan.direct_rate(U_kV, I_mA, filters)},
+    }  # fmt: skip
 
 
 def _transmission_case():
@@ -67,6 +78,12 @@ def _transmission_case():
             {"inputs": {"lambda_pm": _floats(lam), "material": m, "areal_density_mg_cm2": 10.0},
              "expected": {"transmission": _floats(transmission(lam, m, 10.0))}}
             for m in (scan.AIR, scan.ABSORBER)
+        ]
+        + [  # absorbers: 1 mg/cm² of metal, 10 of polystyrene (min T stays far above underflow)
+            {"inputs": {"lambda_pm": _floats(lam), "material": m, "areal_density_mg_cm2": d},
+             "expected": {"transmission": _floats(transmission(lam, m, d))}}
+            for m in ABSORBERS
+            for d in (10.0 if m == "Polystyrene" else 1.0,)
         ],
     }  # fmt: skip
 
@@ -85,6 +102,17 @@ def _rejected_case():
         (rate, "sensor above +170°", {"beta_deg": [7.2], **tube, "sensor_deg": [170 + 1e-9]}),
         (rate, "sensor below −10°", {"beta_deg": [7.2], **tube, "sensor_deg": [-10 - 1e-9]}),
         (rate, "lengths differ", {"beta_deg": [7.2, 7.3], **tube, "sensor_deg": [14]}),
+        (
+            rate,
+            "negative filter areal density",
+            {"beta_deg": [7.2], **tube, "filters": [("Zr", -1.0)]},
+        ),
+        (
+            rate,
+            "filter material without a table",
+            {"beta_deg": [7.2], **tube, "filters": [("Ni", 1.0)]},
+        ),
+        ("direct_rate", "U above 35 kV (direct beam)", {"U_kV": 35 + 1e-9, "I_mA": 1.0}),
         (betas, "upper limit below lower", {"lo_deg": 25.0, "hi_deg": 2.0, "step_deg": 0.1}),
         (betas, "Δβ = 0", {"lo_deg": 2.0, "hi_deg": 25.0, "step_deg": 0.0}),
         (betas, "too many steps", {"lo_deg": -5.0, "hi_deg": 85.0, "step_deg": 1e-4}),
@@ -179,8 +207,29 @@ def _fixtures():
             sensor_deg=np.full_like(rocking, 2 * ka_deg),
         ),
         "transmission": _transmission_case(),
-        "tube_off_I0": _rate_case("Emission current 0: exactly zero", LEAFLET_BETAS, 35.0, 0.0),
-        "tube_off_U0": _rate_case("Tube voltage 0: exactly zero", LEAFLET_BETAS, 0.0, 1.0),
+        "zr_filter_35kV": _rate_case(
+            "Zr foil 0.05 mm (32.6 mg/cm²) between the Mo lines: Kβ cut far more than Kα",
+            LEAFLET_BETAS,
+            35.0,
+            1.0,
+            filters=(("Zr", 32.6),),
+        ),
+        "direct_beam": {
+            "function": "scan.direct_rate",
+            "description": "EPN Práctica 1: counter in the direct beam, no crystal, with absorbers",
+            "cases": [
+                _direct_case("21 kV, 0.05 mA, open (EPN anchor ≥ 950/s)", 21.0, 0.05),
+                _direct_case("Al 1.0 mm", 21.0, 0.05, (("Al", 270.0),)),
+                _direct_case("Zr 0.05 mm + Cu 0.4 mm", 30.0, 1.0, (("Zr", 32.6), ("Cu", 358.4))),
+                _direct_case("Tube off: natural background only", 0.0, 0.05),
+            ],
+        },
+        "tube_off_I0": _rate_case(
+            "Emission current 0: natural background only", LEAFLET_BETAS, 35.0, 0.0
+        ),
+        "tube_off_U0": _rate_case(
+            "Tube voltage 0: natural background only", LEAFLET_BETAS, 0.0, 1.0
+        ),
         "sigma_narrow": _rate_case(
             "Sharper resolution σ = 0.05° (short convolution kernel)",
             LEAFLET_BETAS,
@@ -227,6 +276,14 @@ def build():
                 "source": f"xraylib {xraylib.__version__} CS_Total_CP",
                 "lambda_pm": _floats(MU_RHO_GRID_PM),
                 "mu_rho_cm2_g": {m: _floats(mu_rho_table(m)) for m in (scan.AIR, scan.ABSORBER)},
+            }
+        ),
+        "tables/mu_rho_absorbers.json": _dump(
+            {
+                "description": "Mass attenuation μ/ρ (cm²/g) of the absorbers on the grid "
+                "of mu_rho.json; same interpolation (braggsim.filters.transmission)",
+                "source": f"xraylib {xraylib.__version__} CS_Total_CP",
+                "mu_rho_cm2_g": {m: _floats(mu_rho_table(m)) for m in ABSORBERS},
             }
         ),
         "tables/structure_factor.json": _dump(

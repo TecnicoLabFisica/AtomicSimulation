@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-14
 current_phase: G1
-next_task: G1.1
+next_task: G1.7
 last_session: 2026-10-14
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,13 +54,13 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G1.1` (add the absorber elements to `mu_rho.json`). Brief G1 S1 to a `sonnet` subagent with `add-physics-feature`.
+> **Next:** `G1.7` (the `setup` state in `apparatus.ts`; it must call `loadAbsorbers()` before using a filter). Then `apparatus-reviewer` (G1.8).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
 | G0 | Reference facts and scope | ✅ done | 1 | — |
-| G1 | Accessories and shared physics | ⬜ todo | 2–3 | G0 |
+| G1 | Accessories and shared physics | 🟨 in progress | 2–3 | G0 |
 | L1 | Práctica 5: Moseley's law | ⬜ todo | 2 | G1 |
 | L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
@@ -184,21 +184,29 @@ flowchart LR
 ```
 
 #### S1 — Python
-- [ ] **G1.1** `filters.py`: add the elements C, Al, Fe, Cu, Zr, Mo, Ag, In to `mu_rho.json` (still the same 1000-point λ grid).
+- [x] **G1.1** `filters.py`: add the elements C, Al, Fe, Cu, Zr, Mo, Ag, In to `mu_rho.json` (still the same 1000-point λ grid).
       Note in `PARAMETERS.md` how far the grid smears each K edge (as already planned for Zr in Phase 11).
-- [ ] **G1.2** `scan.expected_rate(..., filters=())`: a tuple of `(material, areal_density_mg_cm2)` multiplying T(λ) before
+- [x] **G1.2** `scan.expected_rate(..., filters=())`: a tuple of `(material, areal_density_mg_cm2)` multiplying T(λ) before
       the detector. Placement (collimator or sensor) doesn't change T, so it's one argument. Default `()` keeps every
       existing fixture identical.
-- [ ] **G1.3** `scan.direct_rate(U_kV, I_mA, absorbers=(), filters=(), params)`: no crystal, sensor at 0°. It equals
+- [x] **G1.3** `scan.direct_rate(U_kV, I_mA, absorbers=(), filters=(), params)`: no crystal, sensor at 0°. It equals
       K_direct · ∫ S_U(λ) T_air T_abs(λ) dλ, then dead time. K_direct is a new empirical parameter. There is no EPN data
       (user, 2026-10-14), so the anchor is the guide's ≥ 950 /s at 21 kV / 0.05 mA (see [[#Calibration anchors]]).
-- [ ] **G1.4** `ModelParams.background_per_s` (natural GM background; value in [[#Calibration anchors]]). The `tube_off_*`
+- [x] **G1.4** `ModelParams.background_per_s` (natural GM background; value in [[#Calibration anchors]]). The `tube_off_*`
       fixtures then equal the background, not 0.
       Bump the model version and explain it in `PARAMETERS.md`.
-- [ ] **G1.5** Fixtures: one filter case, two direct-beam cases (with and without absorber), background.
+- [x] **G1.5** Fixtures: one filter case, two direct-beam cases (with and without absorber), background.
+
+> [!note] As built (2026-10-14), refining G1.1–G1.4
+> - The absorbers live in their own lazy table `artifacts/tables/mu_rho_absorbers.json` (78 kB gzip; `tables.loadAbsorbers()` in TS).
+>   `filters.ABSORBERS` = Polystyrene (the "C" absorber), Al, Fe, Cu, Zr, Mo, Ag, In; `check_filters` refuses any other material.
+> - One argument for both: `direct_rate(U_kV, I_mA, filters=(), params)`. Wheel absorbers and foils are all `(material, mg/cm²)` filters.
+> - Filters scale leak and scatter through the filtered `tube_factor` (an assumption for scatter).
+> - Background 0.2/s is added before dead time. Scatter was re-split 5.54 → 5.34, so 35 kV / 1 mA is unchanged (1e-16).
+> - `direct_per_s` = 2.97e5. It is valid only while Rτ ≲ 0.3; above that a real GM paralyses, so G1.7/L2 should warn.
 
 #### S2 — Port and apparatus
-- [ ] **G1.6** TS port of the above. Vitest passes with every fixture.
+- [x] **G1.6** TS port of the above. Vitest passes with every fixture.
 - [ ] **G1.7** `apparatus.ts`: a `setup` state: `holder` (crystal | absorberWheel | xrfSample | empty), `collimatorFilter`,
       `sensorFilter`, `detector` (gm | energy). Changing the setup requires the door to be open (interlock).
       With the absorber wheel, the target angle selects the absorber position (10° pitch; between positions the beam
@@ -215,7 +223,7 @@ suppresses Kβ, and sensor at 0° with the wheel gives plausible direct-beam rat
 
 **Files:** `model/src/braggsim/{filters,scan}.py`, `model/PARAMETERS.md`, `artifacts/`, `web/src/physics/{filters,scan}.ts`, `web/src/apparatus/apparatus.ts`, `web/src/views/bench.ts` + a setup view, `web/src/pedagogy/i18n/`
 
-**Verify:** [[#Verify|standard]] + `pytest model -k "filter or direct or background"`; `git diff --stat artifacts/fixtures` touches only the new fixtures and the planned `tube_off_*` bump; in the app a Zr foil suppresses Kβ
+**Verify:** [[#Verify|standard]] + `pytest model -k "filter or direct or background"`; `git diff --stat artifacts/fixtures` touches only the new fixtures, `tube_off_*` and the sub-35 kV fixtures (by ≈ 0.2·(1 − S(U))/s, the background); 35 kV / 1 mA unchanged to 1e-12; in the app a Zr foil suppresses Kβ
 
 ---
 
@@ -241,6 +249,9 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
 #### S1 — Python
 - [ ] **L1.1** Foil areal densities in `PARAMETERS.md` from the 554 832 thicknesses above × bulk density (cite the LD catalog).
 - [ ] **L1.2** `analysis.k_edge_deg(betas, R_open, R_foil)`: edge position from the steepest descent of T, with uncertainty.
+      Test: the noise-free edge sits at θ(λ_K) within ≈ 0.03° (the grid smears it by ≤ 0.009°, physics review 2026-10-14).
+      Known deviation for `PARAMETERS.md`: foil K fluorescence (≈ 1–2 % of the absorbed flux) makes the foil look more transparent
+      just above the edge (Zr ≈ 0.065 instead of 0.046). The edge position is unchanged, the depth is not. Near Mo, Kβ sits 0.11° above the edge.
 - [ ] **L1.3** `analysis.moseley_fit(Z, lambda_K_pm)` → R∞ and σ with errors.
 - [ ] **L1.4** Notebook `05_moseley.ipynb`: four foil scans with noise → edges → fit. Compare with (a) a fit of the tabulated
       xraylib edges and (b) LD's published example (R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7; literature R∞ = 1.0974 × 10⁷ m⁻¹, σ_K ≈ 3.6).
@@ -276,6 +287,8 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
 - [ ] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,
       ln T vs d with and without Zr, μ vs Z (log-log), compared with xraylib μ at Mo Kα.
 - [ ] **L2.4** Check whether constant GM efficiency ε biases μ_eff. `physics-reviewer` decides whether ε(λ) is needed now.
+      Preliminary (2026-10-14): not needed. ε(λ) is folded into the fitted Pyrex over 40–120 pm; the residual bias is ≈ 1.5–2 %.
+      Add a test that μ_eff falls with d at 21 kV without a filter (6.91 → 5.38 cm²/g, 0.5 → 3 mm).
 
 #### S2 — Web
 - [ ] **L2.5** Exposure-timer workflow with the wheel: TARGET mode, ADJUST to each position, Δβ = 0, SCAN, REPLAY.
@@ -283,7 +296,11 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
 - [ ] **L2.6** Tasks: `attenuation-thickness` (predict whether ln T vs d is straight), `attenuation-material` (μ vs Z), `background`.
 - [ ] **L2.7** CSV export of exposure-mode results (one row per position).
 
-**Done when:** the key's μ(Al) with the Zr filter is close to the tabulated μ at Mo Kα, and without the filter it is visibly lower and depends on d.
+**Done when:** ln T vs d is visibly curved without the Zr filter (beam hardening: μ_eff falls with d) and much straighter with it; the key's
+μ(Al) with Zr is compared with the tabulated μ at Mo Kα (5.11 cm²/g) and the gap is explained, not hidden. The physics reviewer (2026-10-14) found
+μ_eff/ρ with 0.05 mm Zr = 6.97 → 5.91 at 21 kV (lines ≈ 93× weaker than at 35 kV, so the passband is the soft 69–90 pm continuum) and
+4.21 → 2.92 at 35 kV (hard continuum above the Zr edge leaks through). Which U gets closest is a teaching point. Verify the thickness of the
+run-1b collimator Zr filter (0.05 mm is the 554 832 foil value). Keep the Pyrex ±20 % sensitivity (μ_eff ∓5–7 %) in notebook 06.
 
 **Files:** `model/src/braggsim/{scan,analysis}.py`, `model/notebooks/06_attenuation.ipynb`, `web/src/pedagogy/tasks/attenuation-*.ts`, `web/src/pedagogy/csv.ts`
 
@@ -586,6 +603,19 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-14 · G1 · tasks G1.1–G1.6
+- Done: S1 (Python) and the S2 port. `filters.py` (`ABSORBERS`, `check_filters`), `scan.py` (`filters=` everywhere, `direct_rate`,
+  `background_per_s`, `direct_per_s`, `_check_tube`), model 0.4.0, `PARAMETERS.md`, new fixtures `zr_filter_35kV`, `direct_beam`,
+  more `transmission` and `rejected_inputs` cases, lazy `mu_rho_absorbers.json`. TS: `filters.ts`, `scan.ts`, `tables.ts` (`loadAbsorbers`),
+  `fixtures.test.ts`. `docs/teacher-key.md` regenerated (last digits only, U_K 20.13 ± 0.43 kV).
+- Verify: pytest 139 passed · ruff clean · export byte-stable · Vitest 85 passed · build OK (main 75.4 kB gzip, unchanged).
+  The absorber chunk doesn't appear in the build yet, because nothing in the app imports `loadAbsorbers`. It should once G1.7 does.
+- Physics review: no blockers. Applied: the material check (Python and TS), the `direct_per_s` anchor wording (a lower bound; τ sensitivity 1 %),
+  the GM paralysis validity bullet, and the L2 "Done when" rewrite. Its L1/L2 notes went into L1.2 and L2.4.
+- Uncommitted: yes, all of G1 S1 + G1.6
+- Surprises / decisions: see the "As built" note in G1. The Verify line now expects the sub-35 kV fixtures to move by the background.
+- Next: G1.7, the `setup` state in `apparatus.ts`. Call `loadAbsorbers()` and warn when the true direct rate makes Rτ > 0.3.
 
 ### 2026-10-14 · G0 · tasks G0.2, G0.5
 - Done: `CLAUDE.md` heading is now "X-Ray Lab" and its scope paragraph points to this note. README title and intro,

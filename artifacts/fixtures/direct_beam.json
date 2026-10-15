@@ -1,0 +1,118 @@
+{
+ "cases": [
+  {
+   "description": "21 kV, 0.05 mA, open (EPN anchor ≥ 950/s)",
+   "expected": {
+    "rate_per_s": 950.1176438672139
+   },
+   "inputs": {
+    "I_mA": 0.05,
+    "U_kV": 21.0,
+    "filters": [],
+    "params": {
+     "absorber_mg_cm2": 326.0,
+     "background_per_s": 0.2,
+     "debye_waller_pm2": 6260.0,
+     "direct_per_s": 297000.0,
+     "leak_amp_per_s": 118000.0,
+     "leak_width_deg": 1.161,
+     "line_to_cont": 0.00743,
+     "scale": 167600.0,
+     "scatter_per_s": 5.34,
+     "sigma_deg": 0.1228,
+     "tau_s": 0.0001
+    }
+   }
+  },
+  {
+   "description": "Al 1.0 mm",
+   "expected": {
+    "rate_per_s": 183.53981593159332
+   },
+   "inputs": {
+    "I_mA": 0.05,
+    "U_kV": 21.0,
+    "filters": [
+     [
+      "Al",
+      270.0
+     ]
+    ],
+    "params": {
+     "absorber_mg_cm2": 326.0,
+     "background_per_s": 0.2,
+     "debye_waller_pm2": 6260.0,
+     "direct_per_s": 297000.0,
+     "leak_amp_per_s": 118000.0,
+     "leak_width_deg": 1.161,
+     "line_to_cont": 0.00743,
+     "scale": 167600.0,
+     "scatter_per_s": 5.34,
+     "sigma_deg": 0.1228,
+     "tau_s": 0.0001
+    }
+   }
+  },
+  {
+   "description": "Zr 0.05 mm + Cu 0.4 mm",
+   "expected": {
+    "rate_per_s": 26.681590356062998
+   },
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 30.0,
+    "filters": [
+     [
+      "Zr",
+      32.6
+     ],
+     [
+      "Cu",
+      358.4
+     ]
+    ],
+    "params": {
+     "absorber_mg_cm2": 326.0,
+     "background_per_s": 0.2,
+     "debye_waller_pm2": 6260.0,
+     "direct_per_s": 297000.0,
+     "leak_amp_per_s": 118000.0,
+     "leak_width_deg": 1.161,
+     "line_to_cont": 0.00743,
+     "scale": 167600.0,
+     "scatter_per_s": 5.34,
+     "sigma_deg": 0.1228,
+     "tau_s": 0.0001
+    }
+   }
+  },
+  {
+   "description": "Tube off: natural background only",
+   "expected": {
+    "rate_per_s": 0.19999600007999843
+   },
+   "inputs": {
+    "I_mA": 0.05,
+    "U_kV": 0.0,
+    "filters": [],
+    "params": {
+     "absorber_mg_cm2": 326.0,
+     "background_per_s": 0.2,
+     "debye_waller_pm2": 6260.0,
+     "direct_per_s": 297000.0,
+     "leak_amp_per_s": 118000.0,
+     "leak_width_deg": 1.161,
+     "line_to_cont": 0.00743,
+     "scale": 167600.0,
+     "scatter_per_s": 5.34,
+     "sigma_deg": 0.1228,
+     "tau_s": 0.0001
+    }
+   }
+  }
+ ],
+ "description": "EPN Práctica 1: counter in the direct beam, no crystal, with absorbers",
+ "function": "scan.direct_rate",
+ "model_version": "0.4.0",
+ "name": "direct_beam"
+}
