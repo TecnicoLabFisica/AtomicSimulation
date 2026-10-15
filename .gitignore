@@ -7,6 +7,7 @@ refs/
 .remember/
 .claude/settings.local.json
 .claude/.headroom*
+.claude/*.graphify-bak
 graphify-out/
 .vscode/
 .idea/
