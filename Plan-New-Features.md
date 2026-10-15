@@ -9,10 +9,10 @@ tags:
   - plan
 status: planning
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-10-15
 current_phase: G1
-next_task: G1.9
-last_session: 2026-10-14
+next_task: G1.10
+last_session: 2026-10-15
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
   - "EPN guide Práctica 1: X-ray attenuation vs absorber material and thickness (refs/atenuacion_RX.pdf)"
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G1.9` (the "Montaje / Setup" tray: it awaits `loadAbsorbers()`, calls `Apparatus.mount()`, and shows `saturated`). Load `bragg-ui` first.
+> **Next:** `G1.10` (the 3D bench and the 2D goniometer show the mounted holder, foils and wheel; today both still draw the crystal). Load `bragg-ui` first.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -226,8 +226,12 @@ flowchart LR
 > - `Apparatus.saturated`: Rτ > 0.3 (a simulation aid). The guide's own polystyrene reading in run 2a trips it (Rτ ≈ 0.32), which is kept as a teaching point.
 
 #### S3 — Setup UI
-- [ ] **G1.9** A "Montaje / Setup" tray (bench card + 2D fallback) to place accessories. i18n ES/EN. Load `bragg-ui` first.
-- [ ] **G1.10** The 3D bench shows the wheel, foils and detector type (simple shapes; no LD drawings).
+- [x] **G1.9** A "Montaje / Setup" tray (bench card + 2D fallback) to place accessories. i18n ES/EN. Load `bragg-ui` first.
+      As built: a native `<details>` section in the chamber card (`views/setup.ts`, reached by a 3D tap or the dock), holder +
+      collimator/sensor filter selects, disabled while the door is closed; `loadAbsorbers()` runs on first open. A `saturated`
+      line (a simulation aid) shows in the chamber and panel cards.
+- [ ] **G1.10** The 3D bench shows the wheel, foils and detector type (simple shapes; no LD drawings). The 2D goniometer
+      (`views/goniometer.ts`) must stop drawing the crystal when the holder is a wheel or empty.
 - [ ] **G1.11** `design-reviewer` pass.
 
 **Done when:** pytest, artifact freshness, Vitest and the build are green. A Bragg scan with a Zr foil visibly
@@ -617,6 +621,18 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-15 · G1 · task G1.9
+- Done: `web/src/views/setup.ts` (`mountSetup`, the explore.ts shape), the chamber card markup and frame hook in `main.ts`, a `saturated`
+  line in `panel.ts` and the chamber card, i18n keys (es/en), and `.setup` CSS (tokens only, a chevron on the summary).
+- Verify: pytest 143 · ruff clean · Vitest 95 · build OK. `mu_rho_absorbers` is now its own chunk (72.6 kB gzip) and main is 76.8 kB gzip.
+  Headless Firefox at 390 px (light) and 1440 px (dark): the Al/material plates mount with the door open, the selects lock with it closed,
+  and the material plate at slot 0 (polystyrene) at 30 kV / 1 mA reads ≈ 9300/s with the saturated line in both cards.
+- Not checked in the app: the "Zr foil suppresses Kβ" scan (the `zr_filter_35kV` fixture covers the physics). The design-reviewer pass is G1.11.
+- Uncommitted: yes, G1.9.
+- Surprises / decisions: the review caught `q('[data-saturated]')` resolving to the panel card's element (it comes first in the markup).
+  The topbar still says "Reflexión de Bragg" (`titleShort`); G0.5 left it as the experiment's name.
+- Next: G1.10. Draw the holder (crystal / plate with 7 slots / nothing) in the 2D goniometer and the 3D bench, and the foils at the collimator and sensor.
 
 ### 2026-10-14 · G1 · tasks G1.7, G1.8
 - Done: Python `filters.FOILS_MM`/`WHEELS_MM`/`areal_density_mg_cm2`, `scan.direct_rate(..., sensor_deg)` (Gaussian profile, leak width),

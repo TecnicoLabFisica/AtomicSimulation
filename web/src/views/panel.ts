@@ -113,6 +113,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
         <div class="led" role="group" aria-label="${s.bottomDisplay}"><output data-bottom></output><span class="unit" data-bottom-unit></span><span class="sym" data-sym></span></div>
       </div>
       <p class="alert-msg" role="status" data-alert></p>
+      <p class="hint" role="status" data-saturated></p>
       <div class="controls">
         ${GROUPS.map(([g, keys]) => `
           <div class="group" role="group" aria-label="${s[g]}" data-group="${g}">
@@ -164,6 +165,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
     setAttr(q('[data-sym]'), 'title', d.symbol ? s[({ lower: 'symLower', upper: 'symUpper', exposure: 'symExposure' } as const)[d.symbol]] : null)
     q('[data-top]').parentElement!.classList.toggle('blink', d.blinkTop)
     setText(q('[data-alert]'), d.alert ? s[({ mode: 'alertMode', limits: 'alertLimits', doors: 'alertDoors' } as const)[d.alert]] : '')
+    setText(q('[data-saturated]'), a.saturated ? s.saturated : '')
     q('[data-group="groupMode"]').classList.toggle('alert', d.alert === 'mode') // the keys that are missing
     q('[data-bottom]').parentElement!.classList.toggle('blink', d.flashBottom)
     const dial = q('[data-dial]')

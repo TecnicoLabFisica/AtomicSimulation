@@ -12,6 +12,7 @@ import { readPalette } from './views/canvas'
 import { mountGoniometer } from './views/goniometer'
 import { mountHuygens } from './views/huygens'
 import { mountPanel } from './views/panel'
+import { mountSetup } from './views/setup'
 import { mountSound } from './views/sound'
 import { mountSpectrum } from './views/spectrum'
 
@@ -58,7 +59,9 @@ app.innerHTML = `
     <section class="focus-card chamber-card" data-focus="chamber" role="dialog" tabindex="-1" aria-labelledby="chamber-title" inert>
       <h2 class="card-title" id="chamber-title" data-chamber-title></h2><button class="tool close" data-back></button>
       <div class="led rate" role="group" data-rate-led><output data-rate></output><span class="unit" data-rate-unit></span></div>
+      <p class="hint" role="status" data-saturated></p>
       <canvas role="img" data-gonio></canvas><div class="sliders explore" data-explore></div>
+      <details class="setup" data-setup></details>
     </section>
     <aside class="sheet inspector" id="learn" data-open="false">
       <button class="tool close" data-close aria-label="">×</button>
@@ -92,6 +95,7 @@ const spectrum = mountSpectrum(q('[data-spectrum]'), apparatus)
 const huygens = mountHuygens(q('[data-huygens-body]'), apparatus)
 const panel = mountPanel(q('[data-panel]'), apparatus, sound.detent)
 const explore = mountExplore(q('[data-explore]'), apparatus)
+const setup = mountSetup(q<HTMLDetailsElement>('[data-setup]'), apparatus)
 const learn = mountLearn(q('[data-learn-body]'), apparatus, {
   onMode: applyMode,
   onFocus: (keys) => {
@@ -242,6 +246,7 @@ app.addEventListener('click', (e) => {
     spectrum.build()
     huygens.build()
     explore.build()
+    setup.build()
     learn.build()
   }
 })
@@ -287,6 +292,10 @@ function frame(now: number) {
     const d = apparatus.display()
     if (q('[data-rate]').textContent !== d.top) q('[data-rate]').textContent = d.top
     if (q('[data-rate-unit]').textContent !== d.topUnit) q('[data-rate-unit]').textContent = d.topUnit
+    const sat = apparatus.saturated ? t().saturated : ''
+    const satEl = q('.chamber-card [data-saturated]') // the panel card has its own, earlier in the markup
+    if (satEl.textContent !== sat) satEl.textContent = sat
+    setup.render()
   }
   // SCAN passed its self-test: step back from the panel to watch the arms move and the monitor fill.
   const nowCounting = apparatus.phase === 'positioning' || apparatus.phase === 'scan'

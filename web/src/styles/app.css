@@ -88,6 +88,7 @@ button, select { font: inherit; color: inherit; }
 .chamber-card canvas { display: block; width: calc(100% - 2 * var(--space-4)); margin-inline: var(--space-4); aspect-ratio: 16 / 9; }
 .led.rate { flex: none; margin: var(--space-2) var(--space-4) 0; min-height: var(--touch); padding: var(--space-1) var(--space-3); }
 .led.rate output { font-size: 1.5rem; }
+.chamber-card > .hint { margin: var(--space-1) var(--space-4) 0; }
 .card-title {
   display: flex; align-items: center; min-height: var(--touch); margin: var(--space-2) calc(var(--touch) + var(--space-3)) 0 var(--space-4);
   font: var(--text-headline); color: var(--label);
@@ -217,6 +218,14 @@ button, select { font: inherit; color: inherit; }
 }
 .slider output { color: var(--label); font-variant-numeric: tabular-nums; }
 .slider input { grid-column: 1 / -1; width: 100%; min-height: var(--touch); margin: 0; accent-color: var(--accent); }
+/* Setup tray: native <details>, one labelled select per row. */
+.setup { padding: 0 var(--space-4) var(--space-3); font: var(--text-footnote); color: var(--label-2); }
+.setup summary { min-height: var(--touch); display: flex; align-items: center; cursor: pointer; }
+.setup summary::after { content: '›'; margin-inline-start: auto; transition: rotate var(--dur-fast) var(--ease-out); }
+.setup[open] summary::after { rotate: 90deg; }
+.setup label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: var(--touch); border-top: 1px solid var(--separator); }
+.setup select { min-height: var(--touch); max-width: 60%; border: none; border-radius: var(--radius-full); background: var(--fill); color: var(--label); padding: 0 var(--space-3); font: inherit; }
+.setup select:disabled { color: var(--label-3); }
 /* A guided task's act instruction while its card is closed; tap to reopen the card. */
 .act-strip {
   position: absolute; z-index: var(--z-sheet); top: var(--space-2); /* over an open card: the task's instruction */ inset-inline: var(--space-2); min-height: var(--touch);
@@ -294,6 +303,7 @@ button, select { font: inherit; color: inherit; }
   /* U and I side by side */
   .sliders { grid-template-columns: 1fr 1fr; gap: 0 var(--space-3); padding: 0 var(--space-3) var(--space-2); }
   .slider { font: var(--text-caption); }
+  .setup { padding: 0 var(--space-3) var(--space-2); }
   .slider > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .panel { padding: var(--space-2) var(--space-3) var(--space-3); }
   /* Keys: one 5-column grid, headings kept for screen readers */
