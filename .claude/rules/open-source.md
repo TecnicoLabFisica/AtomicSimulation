@@ -1,4 +1,4 @@
-# Open-source hygiene (always applies — this repo will be published)
+# Open-source hygiene (always applies — this repo is public)
 
 - **Never commit LD Didactic material**: PDFs, page renders/screenshots, copied figures, or verbatim
   paragraphs. `refs/` is gitignored. Paraphrased facts, numerical values, and digitized *data points*
@@ -7,7 +7,7 @@
   xraylib, and literature values.
 - No secrets, tokens, local absolute paths (`/home/...`), or machine-specific settings in committed
   files. `.claude/settings.local.json` stays local.
-- Planned licensing: **MIT** for code and **CC BY 4.0** for educational content (texts, tasks,
+- Licensing: **MIT** for code (`LICENSE`) and **CC BY 4.0** for educational content (`LICENSE-CONTENT`; texts, tasks,
   figures we create). New dependencies must be license-compatible (MIT/BSD/Apache/ISC); ask
   before adding GPL/AGPL or anything with unclear licensing.
 - Prefer few, small, well-maintained dependencies. Every web dependency ships to students' phones.

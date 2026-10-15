@@ -11,27 +11,25 @@ tasks in class. Each task has to teach one idea, be checkable by the simulation,
 ## Pedagogical shape: predict → act → observe → explain
 1. **Predict**: the student commits to a guess before touching anything (multiple choice or a number).
    This is what turns playing around into learning.
-2. **Act**: only the controls the task needs are enabled. The rest are dimmed, not hidden.
+2. **Act**: the controls the task needs are highlighted. The rest are dimmed but still work.
 3. **Observe**: the view gives feedback (the peak appears, the Huygens panel lights up, the spectrum changes).
 4. **Explain**: 2–4 sentences that connect what they saw to Bragg's law, then show the prediction again.
 
-## Task file shape (`web/src/pedagogy/tasks/<id>.ts`)
+## Task file shape (`web/src/pedagogy/tasks/<id>.ts`, type `GuidedTask` in `pedagogy/task.ts`)
 ```ts
 export const task: GuidedTask = {
-  id: 'kalpha-vanish-voltage',
+  id: 'line-threshold',                 // also the key of its strings: task['line-threshold'] in i18n
   mode: 'explore',                      // 'explore' | 'lab'
-  concept: 'characteristic-threshold',  // one concept per task
-  level: 1,                             // 1 intro · 2 core · 3 challenge
-  controls: ['U'],                      // enabled controls
-  initial: { U_kV: 35, I_mA: 1, coupled: true, limits_deg: [5, 9] },
-  predict: { kind: 'number', unit: 'kV', key: 'task.kalpha.predict' },
-  success: (s) => s.lastScan?.hasPeak('Kalpha', 1) === false && s.U_kV > 0, // asks the model, no magic thresholds
-  explain: 'task.kalpha.explain',
-  teacherNote: 'task.kalpha.teacher',   // expected answer, common mistakes, what to discuss
+  level: 2,                             // 1 intro · 2 core · 3 challenge
+  controls: ['U', 'SCAN'],              // panel keys the task needs ('U'/'I' also cover the sliders)
+  initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED', dt_s: 1, dBeta_deg: 0.1, limits_deg: [5, 9] },
+  predict: { kind: 'choice', answer: 1 }, // or { kind: 'number', unit: 'kV' }
+  success: (a) => /* read a.lastScan / a.replay and src/physics; no magic thresholds */ false,
 };
 ```
-All strings go in `web/src/pedagogy/i18n/{es,en}.ts` under the same keys. Spanish is written first, and it has to be natural
-Spanish, not a translation.
+All strings go in `web/src/pedagogy/i18n/{es,en}.ts` under `task.<id>`: `title`, `concept`, `predict`, `options`
+(choice tasks), `act`, `observe`, `explain`, `teacher`. Spanish is written first, and it has to be natural Spanish,
+not a translation.
 
 ## Checklist
 - [ ] One concept, one success condition, finishable in under 5 minutes.

@@ -11,7 +11,7 @@ X-ray apparatus 554 800).
 
 ## Ground truth
 Read `.claude/skills/bragg-reference/SKILL.md` and whichever reference file applies (`constants.md`, `leaflet.md`)
-before judging any number. Also read `CLAUDE.md` and, if it exists, `model/PARAMETERS.md`. Don't open the PDFs in `refs/` unless a
+before judging any number. Also read `CLAUDE.md` and `model/PARAMETERS.md`. Don't open the PDFs in `refs/` unless a
 fact is missing from the reference files.
 
 ## What to check
@@ -32,7 +32,7 @@ fact is missing from the reference files.
 7. **Tests**: they assert physics (leaflet Tables 2–5, limits, scaling laws), not snapshot numbers.
 
 ## How to work
-- Run the tests if the environment allows: `micromamba run -n atom-sim pytest model -q`, and `micromamba run -n atom-sim npm --prefix web test` if `web/` exists.
+- Run the tests if the environment allows: `micromamba run -n atom-sim pytest model -q` and `micromamba run -n atom-sim npm --prefix web test`.
 - Recompute key numbers yourself (a short `micromamba run -n atom-sim python -c ...`) rather than trusting comments.
 - Do not modify files.
 

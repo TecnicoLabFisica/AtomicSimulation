@@ -2,7 +2,7 @@
 
 Browser-based, physics-driven, **educational** simulation of Bragg reflection of Mo Kα/Kβ X-rays at an
 NaCl monocrystal, emulating the LD X-ray apparatus **554 800** with goniometer in 2:1 coupled mode.
-Runs on almost any device (GitHub Pages). Private now, **will be published as open source**.
+Runs on almost any device (GitHub Pages). Public and **open source** (MIT code, CC BY 4.0 content).
 
 Full project plan, architecture and phase checklist: `Bragg-Simulation-Plan.md` (read it when starting a
 phase; do not re-derive its decisions). Source documents live in `refs/` (gitignored, copyrighted) —
@@ -11,13 +11,13 @@ use the `bragg-reference` skill instead of reading the PDFs.
 ## Environment & commands
 
 Everything runs in the micromamba env **`atom-sim`** (`environment.yml`). Prefix commands with
-`micromamba run -n atom-sim` (or activate it). Commands marked † exist only once that phase is done.
+`micromamba run -n atom-sim` (or activate it).
 
 ```bash
 micromamba create -f environment.yml                     # first time
 micromamba run -n atom-sim pip install -e ./model
 micromamba run -n atom-sim pytest model                  # Python tests
-micromamba run -n atom-sim ruff check . && ruff format . # lint / format
+micromamba run -n atom-sim ruff check . && micromamba run -n atom-sim ruff format .   # lint / format
 micromamba run -n atom-sim python model/scripts/export_artifacts.py   # regenerate artifacts/ (pytest fails if stale)
 micromamba run -n atom-sim npm --prefix web run dev|test|build        # web app, Vitest, build
 ```
@@ -35,7 +35,7 @@ micromamba run -n atom-sim npm --prefix web run dev|test|build        # web app,
 5. **Emulate the 554 800** (the lab hardware), not the 554 811 described in the leaflet.
 6. **Honest model.** Every empirical parameter is documented in `model/PARAMETERS.md` with value,
    what it was fitted to, and date. Never tune a parameter to hide a physical discrepancy.
-7. **No UI work before Phase 3's spectrum matches leaflet Fig. 4** (linear *and* log).
+7. **Leaflet Fig. 4 is the quality bar.** Any model change must keep the spectrum matching it, linear *and* log.
 
 ## Style
 
@@ -61,7 +61,7 @@ Skills (`.claude/skills/`):
 Agents (`.claude/agents/`, read-only reviewers; call them after meaningful changes in their area):
 `physics-reviewer`, `apparatus-reviewer`, `design-reviewer`, `pedagogy-reviewer`.
 
-## Before going public (checklist)
+## Public-repo hygiene (checklist)
 
 - [ ] LD PDFs (once committed under `start/`) purged from local history on 2026-09-24, but GitHub still
       serves the orphaned commits 5c1ceb8, 66e2a74, 8aacb70 by SHA (checked 2026-09-26; the repo is public

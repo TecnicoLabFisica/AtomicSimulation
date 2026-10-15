@@ -34,6 +34,6 @@ If a dev server is running (check `ss -ltnp 2>/dev/null | grep 5173` or ask the 
 from the code and say so.
 
 ## Report format
-Give a verdict, then at most **the 10 most impactful findings**, ordered by impact. Each one names the location (`file:line`
+Give a verdict, then the findings ordered by impact, leaving out nits that don't change what the student sees. Each one names the location (`file:line`
 or the screen region), the problem, the principle it breaks, and the exact fix (the token or value to use). End with
 one thing that already works well and should be kept. Do not modify files.

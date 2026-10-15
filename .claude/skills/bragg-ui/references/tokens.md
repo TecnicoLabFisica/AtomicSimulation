@@ -11,7 +11,6 @@ These are implemented as CSS custom properties in `web/src/styles/tokens.css`. C
 
 | Token | Size / line-height | Weight | Use |
 |---|---|---|---|
-| `--text-display` | 34/40 | 700 | Mode title (rare) |
 | `--text-title` | 22/28 | 600 | Section / sheet titles |
 | `--text-headline` | 17/22 | 600 | Card headers, task titles |
 | `--text-body` | 17/24 | 400 | Explanations |
