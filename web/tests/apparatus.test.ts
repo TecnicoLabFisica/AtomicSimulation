@@ -555,4 +555,21 @@ describe('setup (G1.7)', () => {
     expect(a.expectedRate()).toBe(directRate(0, 0))
     expect(a.specularRate()).toBe(0)
   })
+
+  test('transmittedRate: the direct beam the views draw', () => {
+    expect(running(35, 1).transmittedRate()).toBe(0) // crystal: the reflected beam instead
+    const off = running(35, 1, { holder: 'empty' })
+    expect(off.transmittedRate()).toBeCloseTo(directRate(35, 1, [], DEFAULT, 0), 12)
+    off.press('HV')
+    expect(off.transmittedRate()).toBe(0)
+    const a = running(35, 1, { holder: 'alWheel' })
+    a.press('TARGET')
+    const open = a.transmittedRate()
+    expect(open).toBeCloseTo(directRate(35, 1, [], DEFAULT, 0), 12) // slot 0 is open
+    a.moveArm(100)
+    expect(a.transmittedRate()).toBeGreaterThan(0)
+    expect(a.transmittedRate()).toBeLessThan(open)
+    a.moveArm(-50)
+    expect(a.transmittedRate()).toBe(0) // 5°: the frame
+  })
 })

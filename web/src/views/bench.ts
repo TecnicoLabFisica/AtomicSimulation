@@ -5,9 +5,10 @@
 // s₂ = 6 cm). Built from primitives in code, no LD images or models. Scene units: cm.
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import type { Apparatus, Key } from '../apparatus/apparatus'
+import { WHEEL_WINDOW_DEG, type Apparatus, type Key, type Setup } from '../apparatus/apparatus'
 import { getLang, t } from '../i18n'
 import { getMode } from '../pedagogy/mode'
+import { WHEELS_MG_CM2 } from '../physics/tables'
 import { armEaser, dpr, palette, paletteVersion, reducedMotion, type Palette } from './canvas'
 import { S1_CM, S2_CM } from './goniometer'
 import { GROUPS, keySelected } from './panel'
@@ -195,7 +196,7 @@ export function mountBench(
   coll.position.set((SLIT_X + WALL_X - 2) / 2, BEAM_Y, 0)
   dev.add(coll)
 
-  // Goniometer 554 831: base, turntable, target arm with the NaCl crystal, sensor arm with the GM counter.
+  // Goniometer 554 831: base, turntable, target arm with the NaCl crystal or an absorber plate, sensor arm with the GM counter.
   const gonio = new THREE.Group()
   gonio.position.set(AXIS_X, FLOOR, 0)
   dev.add(gonio)
@@ -208,7 +209,16 @@ export function mountBench(
   const post = cyl(0.4, beamH - 10, metal, 'y', 12)
   post.position.y = 9 + (beamH - 10) / 2
   const crystal = box(2, 2, 0.5, matte('phys-crystal', { roughness: 0.3 }), 0, beamH, 0.25) // face through the axis
-  targetArm.add(post, crystal)
+  const plate = new THREE.Group() // absorber plate: slot k is on the beam line at β = 10k°
+  targetArm.add(post, crystal, plate)
+  const foilAt = (x: number) => {
+    const f = cyl(0.8, 0.1, metal, 'x', 24)
+    f.position.set(x, beamH, 0)
+    return f
+  }
+  const collFoil = foilAt(SLIT_X + 0.5) // just past the slit, in the device frame
+  collFoil.position.y = BEAM_Y
+  dev.add(collFoil)
   const sensorArm = new THREE.Group()
   // ponytail: short enough to clear the back wall at 2θ = 90°; past ~160° the counter still clips the chamber wall
   const ARM_LEN = S2_CM + 9
@@ -219,12 +229,13 @@ export function mountBench(
   windowDisc.position.set(S2_CM - 0.05, beamH, 0)
   const holder = cyl(0.35, beamH - 10, metal, 'y', 12)
   holder.position.set(S2_CM + 4, 9.5 + (beamH - 10) / 2, 0)
-  sensorArm.add(counter, windowDisc, holder)
+  const sensorFoil = foilAt(S2_CM - 0.3)
+  sensorArm.add(counter, windowDisc, holder, sensorFoil)
   gonio.add(targetArm, sensorArm)
   pick(gonio, 'chamber')
 
-  // Beam: dashes travelling from the anode to the crystal, and the specular reflection at 2β whose opacity
-  // is the model's expected rate there (log scale), exactly as in the 2D goniometer.
+  // Beam: dashes travelling from the anode to the target, and the specular reflection at 2β (the direct beam at 0°
+  // without the crystal) whose opacity is the model's expected rate there (log scale), as in the 2D goniometer.
   const dashCanvas = document.createElement('canvas')
   dashCanvas.width = 2
   dashCanvas.height = 16
@@ -482,6 +493,29 @@ export function mountBench(
   const arms = armEaser(a)
   let rate = 0
   let rateKey = ''
+  // What is mounted (door open only): crystal, plate or nothing, and the foils.
+  const plateMats = [matte('bench-trim', { side: THREE.DoubleSide }), matte('bench-metal', { roughness: 0.4, metalness: 0.6, side: THREE.DoubleSide })]
+  let mounted: Setup | null = null
+  const mount = ({ holder, collimatorFilter, sensorFilter }: Setup) => {
+    mounted = a.setup
+    for (const m of plate.children) (m as THREE.Mesh).geometry.dispose()
+    plate.clear()
+    if (holder.endsWith('Wheel')) {
+      const tiles = WHEELS_MG_CM2[holder === 'alWheel' ? 'al' : 'material']
+      const w = WHEEL_WINDOW_DEG * RAD
+      // CylinderGeometry puts θ at (sin θ, cos θ), and the arm turns θ → θ + β, so slot k centres on θ = 90° − 10k°.
+      const seg = (n: number, from: number, to: number, m: THREE.Material) => {
+        const o = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 2.5, 8, 1, true, Math.PI / 2 - n * 10 * RAD + from, to - from), m)
+        o.position.y = beamH
+        plate.add(o)
+      }
+      for (let n = -1; n < 7; n++) seg(n, w, 10 * RAD - w, plateMats[0]) // frame after slot n
+      tiles.forEach((tile, n) => tile && seg(n, -w, w, plateMats[1]))
+    }
+    crystal.visible = holder === 'crystal'
+    collFoil.visible = !!collimatorFilter
+    sensorFoil.visible = !!sensorFilter
+  }
   let doorOffset = a.doorsClosed ? 0 : DOOR_SLIDE
   let shakeT = 0
   let drawn = ''
@@ -509,15 +543,18 @@ export function mountBench(
     arms.step(dtS)
     targetArm.rotation.y = (arms.t / 10) * RAD
     sensorArm.rotation.y = (arms.s / 10) * RAD
-    reflectedArm.rotation.y = 2 * targetArm.rotation.y
+    const changed = a.setup !== mounted
+    if (changed) (mount(a.setup), (dirty = true))
+    const crystalOn = a.setup.holder === 'crystal'
+    reflectedArm.rotation.y = crystalOn ? 2 * targetArm.rotation.y : 0
     knob.rotation.z = -views.dialDeg() * RAD
     const key = `${a.target} ${a.u} ${a.i} ${a.hvOn}`
-    if (key !== rateKey) [rate, rateKey] = [a.specularRate(), key]
+    if (key !== rateKey || changed) [rate, rateKey] = [crystalOn ? a.specularRate() : a.transmittedRate(), key]
     const emitting = a.emitting
     const g = a.hvOn && a.i > 0 ? 0.3 + (0.7 * a.i) / 100 : 0
     ;(cathodeGlow.material as THREE.MeshBasicMaterial).opacity = g
     incident.visible = emitting
-    reflected.visible = emitting && (rate > 0 || getMode() === 'lab')
+    reflected.visible = emitting && (rate > 0 || (crystalOn && getMode() === 'lab'))
     // Lab mode: a faint constant path, since a brightness that follows the rate would find the peaks for the student
     reflectedMat.opacity = getMode() === 'lab' ? 0.2 : Math.min(1, Math.max(0.2, Math.log10(1 + rate) / 4))
     incidentMat.opacity = 0.9

@@ -164,12 +164,17 @@ export class Apparatus {
   expectedRate(): number {
     const { u, i, sensor, target, params } = this
     if (!this.hvOn) return directRate(0, 0, [], params)
-    const filters = this.foils()
-    if (this._setup.holder === 'crystal') return expectedRate([target / 10], u / 10, i / 100, params, [sensor / 10], filters)[0]
-    // No crystal: the counter sees the direct beam through the wheel slot in the beam, else the frame blocks it.
+    if (this._setup.holder === 'crystal') return expectedRate([target / 10], u / 10, i / 100, params, [sensor / 10], this.foils())[0]
+    return this.direct(sensor / 10) ?? directRate(0, 0, [], params)
+  }
+
+  /** The no-crystal beam seen by a counter at `sensorDeg`: through the wheel slot in the beam, undefined
+   * when the wheel frame blocks it. */
+  private direct(sensorDeg: number): number | undefined {
     const slot = this._setup.holder === 'empty' ? null : this.wheelSlot()
-    if (slot === undefined) return directRate(0, 0, [], params)
-    return directRate(u / 10, i / 100, slot ? [...filters, slot] : filters, params, sensor / 10)
+    if (slot === undefined) return undefined
+    const filters = this.foils()
+    return directRate(this.u / 10, this.i / 100, slot ? [...filters, slot] : filters, this.params, sensorDeg)
   }
 
   /** Expected rate a counter at the specular angle 2β would see, in counts/s: the reflected beam the
@@ -178,6 +183,12 @@ export class Apparatus {
     const beta = wrapTarget(this.target) / 10
     if (!this.hvOn || this._setup.holder !== 'crystal' || beta < BETA_MIN_DEG || beta > BETA_MAX_DEG) return 0
     return expectedRate([beta], this.u / 10, this.i / 100, this.params, undefined, this.foils())[0]
+  }
+
+  /** Expected rate straight through the target position (sensor at 0°) without the crystal, in counts/s:
+   * the direct beam the views draw. 0 with the crystal, HV off, or the plate frame in the beam. */
+  transmittedRate(): number {
+    return !this.hvOn || this._setup.holder === 'crystal' ? 0 : (this.direct(0) ?? 0)
   }
 
   /** The true rate R is past Rτ = 0.3: dead-time losses exceed 23 % and the choice of dead-time model

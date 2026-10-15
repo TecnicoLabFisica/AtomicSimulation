@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-15
 current_phase: G1
-next_task: G1.10
+next_task: G1.11
 last_session: 2026-10-15
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G1.10` (the 3D bench and the 2D goniometer show the mounted holder, foils and wheel; today both still draw the crystal). Load `bragg-ui` first.
+> **Next:** `G1.11` (the `design-reviewer` pass on the setup tray and the holder drawings; send it the G1.10 screenshots). Load `bragg-ui` first.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -230,8 +230,11 @@ flowchart LR
       As built: a native `<details>` section in the chamber card (`views/setup.ts`, reached by a 3D tap or the dock), holder +
       collimator/sensor filter selects, disabled while the door is closed; `loadAbsorbers()` runs on first open. A `saturated`
       line (a simulation aid) shows in the chamber and panel cards.
-- [ ] **G1.10** The 3D bench shows the wheel, foils and detector type (simple shapes; no LD drawings). The 2D goniometer
+- [x] **G1.10** The 3D bench shows the wheel, foils and detector type (simple shapes; no LD drawings). The 2D goniometer
       (`views/goniometer.ts`) must stop drawing the crystal when the holder is a wheel or empty.
+      As built: both views switch on `setup.holder` (crystal / 7-slot arc plate, slot k on the beam at β = 10k° / nothing) and draw
+      foil bars at the collimator and the counter. Without the crystal the out-beam is the direct beam at 0°, from the new
+      `Apparatus.transmittedRate()` (0 when the plate frame blocks). The detector type is deferred to L3 (only the GM exists).
 - [ ] **G1.11** `design-reviewer` pass.
 
 **Done when:** pytest, artifact freshness, Vitest and the build are green. A Bragg scan with a Zr foil visibly
@@ -621,6 +624,16 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-15 · G1 · task G1.10
+- Done: `Apparatus.transmittedRate()` (and a private `direct()` shared with `expectedRate`), the holder and foil drawings in
+  `views/goniometer.ts` and `views/bench.ts`, one new Vitest case.
+- Verify: Vitest 96 · build OK (main 77.1 kB gzip, +0.3; `mu_rho_absorbers` 72.6 kB; bench 142.5 kB). No Python changed.
+  Headless Firefox at 1440 px light and 390 px dark: crystal unchanged; Al plate at 0° passes the open slot, at ≈5° the frame blocks,
+  at 30° the beam passes through slot 3; empty + Zr shows a straight beam and both foils. The 3D slot placement was checked with `localToWorld`.
+- Uncommitted: yes, G1.10.
+- Surprises / decisions: the plate is small and faint (2D r ≈ 1.4u; 3D r = 2.5 cm, faint in dark mode). That is for G1.11.
+- Next: G1.11, the `design-reviewer` pass (plate contrast, the disabled select in dark mode).
 
 ### 2026-10-15 · G1 · task G1.9
 - Done: `web/src/views/setup.ts` (`mountSetup`, the explore.ts shape), the chamber card markup and frame hook in `main.ts`, a `saturated`

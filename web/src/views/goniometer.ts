@@ -1,10 +1,12 @@
-// Goniometer 554 831 seen from above (a schematic, not a photo): X-ray tube, collimator, the NaCl crystal
-// on the target arm at β and the GM counter on the sensor arm. It draws the apparatus state. The beam
-// brightness comes from the apparatus (the physics model), never from the view.
-import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
+// Goniometer 554 831 seen from above (a schematic, not a photo): X-ray tube, collimator, what is mounted on
+// the target arm at β (the NaCl crystal, an absorber plate or nothing), the GM counter on the sensor arm and
+// any foils at the collimator and the counter. It draws the apparatus state. The beam brightness comes from
+// the apparatus (the physics model), never from the view.
+import { WHEEL_WINDOW_DEG, wrapTarget, type Apparatus } from '../apparatus/apparatus'
 import { getMode, showHints } from '../pedagogy/mode'
 import { MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { thetaFromLambda } from '../physics/crystal'
+import { WHEELS_MG_CM2 } from '../physics/tables'
 import { armEaser, dpr, palette, paletteVersion, reducedMotion, scaledFont, watchSize } from './canvas'
 
 export const S1_CM = 5 // collimator–crystal distance, LD P6.3.3.1
@@ -36,13 +38,24 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
   let drawnHints = showHints()
   let drawnTurn = false
   let drawnMode = getMode()
+  let drawnSetup = a.setup
   // Explore mode: the crystal can be dragged round (below) in TARGET or COUPLED, arms at rest, no program.
   const canTurn = () => getMode() === 'explore' && (a.mode === 'TARGET' || a.mode === 'COUPLED') && !a.busy && !a.moving
   let grab: { last: number; acc: number; t0: number } | null = null
   const handle = () => grab !== null || canTurn()
-  // The specular rate changes only with the target, U, I or HV.
+  // The beam rate (specular, or direct without the crystal) changes only with the target, U, I, HV or setup.
   let rate = 0
   let rateKey = ''
+
+  // A foil: a short thick bar across the beam at (x, y).
+  const foil = (x: number, y: number, half: number) => {
+    ctx.beginPath()
+    ctx.moveTo(x, y - half)
+    ctx.lineTo(x, y + half)
+    ctx.strokeStyle = palette['label-2']
+    ctx.lineWidth = 3 * dpr()
+    ctx.stroke()
+  }
 
   const draw = (glow: number, emitting: boolean) => {
     const P = palette
@@ -97,7 +110,9 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     ctx.strokeStyle = P.separator
     ctx.stroke()
 
-    // Beams: the incident one while the tube emits, the reflected one at 2β with log-rate opacity.
+    // Beams: the incident one while the tube emits, the reflected one at 2β (the direct one at 0° without
+    // the crystal) with log-rate opacity.
+    const crystal = a.setup.holder === 'crystal'
     const xTube = cx - (S1_CM + 0.5) * u
     if (emitting) {
       ctx.save()
@@ -115,11 +130,12 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
       // Lab mode: a faint constant path, since a brightness that follows the rate would find the peaks
       const lab = getMode() === 'lab'
       ctx.globalAlpha = lab ? 0.2 : Math.min(1, Math.max(0.2, Math.log10(1 + rate) / 4))
-      if (rate > 0 || lab) {
+      if (rate > 0 || (lab && crystal)) {
         const r = (S2_CM + 1.8) * u
+        const out = crystal ? 2 * beta * RAD : 0
         ctx.beginPath()
         ctx.moveTo(cx, cy)
-        ctx.lineTo(cx + r * Math.cos(2 * beta * RAD), cy - r * Math.sin(2 * beta * RAD))
+        ctx.lineTo(cx + r * Math.cos(out), cy - r * Math.sin(out))
         ctx.stroke()
       }
       ctx.restore()
@@ -157,25 +173,55 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     const xc = cx - S1_CM * u
     ctx.fillRect(xc - 0.12 * u, cy - 0.6 * u, 0.24 * u, 0.5 * u)
     ctx.fillRect(xc - 0.12 * u, cy + 0.1 * u, 0.24 * u, 0.5 * u)
+    if (a.setup.collimatorFilter) foil(xc + 0.35 * u, cy, 0.45 * u)
 
-    // Crystal on the target arm: its surface passes through the axis, lattice planes parallel to it.
+    // Target arm: the crystal (its surface passes through the axis, lattice planes parallel to it), an
+    // absorber plate (slot k at local angle −10k°, so at β = 10k it lies on the beam line) or nothing.
     ctx.save()
     ctx.translate(cx, cy)
     ctx.rotate(-beta * RAD)
-    ctx.beginPath()
-    ctx.rect(-0.9 * u, 0, 1.8 * u, 0.45 * u)
-    ctx.fillStyle = P['surface-2']
-    ctx.fill()
-    ctx.strokeStyle = P['phys-crystal']
-    ctx.lineWidth = k
-    ctx.stroke()
-    ctx.beginPath()
-    for (const y of [0.12, 0.23, 0.34]) {
-      ctx.moveTo(-0.85 * u, y * u)
-      ctx.lineTo(0.85 * u, y * u)
+    if (crystal) {
+      ctx.beginPath()
+      ctx.rect(-0.9 * u, 0, 1.8 * u, 0.45 * u)
+      ctx.fillStyle = P['surface-2']
+      ctx.fill()
+      ctx.strokeStyle = P['phys-crystal']
+      ctx.lineWidth = k
+      ctx.stroke()
+      ctx.beginPath()
+      for (const y of [0.12, 0.23, 0.34]) {
+        ctx.moveTo(-0.85 * u, y * u)
+        ctx.lineTo(0.85 * u, y * u)
+      }
+      ctx.globalAlpha = 0.5
+      ctx.stroke()
+    } else if (a.setup.holder !== 'empty') {
+      const tiles = WHEELS_MG_CM2[a.setup.holder === 'alWheel' ? 'al' : 'material']
+      const sector = (from: number, to: number) => {
+        ctx.beginPath()
+        ctx.arc(0, 0, 1.55 * u, from * RAD, to * RAD)
+        ctx.arc(0, 0, 1.25 * u, to * RAD, from * RAD, true)
+        ctx.closePath()
+      }
+      ctx.lineWidth = k
+      for (let n = 0; n < 7; n++) {
+        const c = 10 * n
+        sector(c + WHEEL_WINDOW_DEG, c + 10 - WHEEL_WINDOW_DEG) // frame after slot n
+        ctx.strokeStyle = P['label-2']
+        ctx.stroke()
+        if (n === 0) {
+          sector(-10 + WHEEL_WINDOW_DEG, -WHEEL_WINDOW_DEG) // frame before slot 0
+          ctx.stroke()
+        }
+        if (tiles[n]) {
+          sector(c - WHEEL_WINDOW_DEG, c + WHEEL_WINDOW_DEG)
+          ctx.fillStyle = P['surface-2']
+          ctx.fill()
+          ctx.strokeStyle = P['label-3']
+          ctx.stroke()
+        }
+      }
     }
-    ctx.globalAlpha = 0.5
-    ctx.stroke()
     if (handle()) {
       // Explore: a grab handle at the crystal's end, the one accent on the canvas (touch has no hover cursor)
       ctx.globalAlpha = 1
@@ -208,6 +254,7 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     ctx.strokeStyle = P.label
     ctx.lineWidth = 2 * k
     ctx.stroke()
+    if (a.setup.sensorFilter) foil((S2_CM - 0.3) * u, 0, 0.25 * u)
     ctx.restore()
 
     // θ and 2θ arcs
@@ -229,14 +276,14 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     arms.step(dtS)
     const { t, s } = arms
     const key = `${a.target} ${a.u} ${a.i} ${a.hvOn}`
-    if (key !== rateKey) [rate, rateKey] = [a.specularRate(), key]
+    if (key !== rateKey || a.setup !== drawnSetup) [rate, rateKey] = [a.setup.holder === 'crystal' ? a.specularRate() : a.transmittedRate(), key]
     const glow = a.hvOn && a.i > 0 ? 0.3 + (0.7 * a.i) / 100 : 0
     const animate = a.emitting && !reducedMotion()
     if (animate) dash = (dash + DASH_PX_PER_S * dtS) % 1100
-    const still = t === drawnT && s === drawnS && glow === drawnGlow && rate === drawnRate
+    const still = t === drawnT && s === drawnS && glow === drawnGlow && rate === drawnRate && a.setup === drawnSetup
     if (!resized && !animate && still && paletteVersion === drawnPalette && showHints() === drawnHints && handle() === drawnTurn && getMode() === drawnMode) return
     ;[drawnT, drawnS, drawnGlow, drawnRate, drawnPalette, drawnHints, drawnTurn, resized] = [t, s, glow, rate, paletteVersion, showHints(), handle(), false]
-    drawnMode = getMode()
+    ;[drawnMode, drawnSetup] = [getMode(), a.setup]
     draw(glow, a.emitting)
   }
   // Explore mode: drag the crystal round the axis. It turns the arm through Apparatus.moveArm, so the 2:1
