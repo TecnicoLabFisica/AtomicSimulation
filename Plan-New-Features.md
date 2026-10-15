@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-14
-current_phase: G0
-next_task: G0.2
+current_phase: G1
+next_task: G1.1
 last_session: 2026-10-14
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,12 +54,12 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G0.2` + `G0.5` together (the `CLAUDE.md` scope lines and the rename to X-Ray Lab), then G1.
+> **Next:** `G1.1` (add the absorber elements to `mu_rho.json`). Brief G1 S1 to a `sonnet` subagent with `add-physics-feature`.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
-| G0 | Reference facts and scope | 🟨 in progress | 1 | — |
+| G0 | Reference facts and scope | ✅ done | 1 | — |
 | G1 | Accessories and shared physics | ⬜ todo | 2–3 | G0 |
 | L1 | Práctica 5: Moseley's law | ⬜ todo | 2 | G1 |
 | L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
@@ -158,11 +158,11 @@ flowchart TD
   - **P6 XRF:** X-ray energy detector on the sensor arm at 90°, target at 45°, s₁ = s₂ = 6 cm, 35 kV, 1 mA, MCA with 512
     channels and 180 s. Two-point energy calibration with Cu Kα (8.04 keV) and Pb Lα (10.55 keV).
     Samples: Cu, Zn, Pb, leaded brass, a coin. Analysis: identify the lines, Gaussian fits or deconvolution, mass fractions.
-- [ ] **G0.2** Add these lines to `CLAUDE.md` (scope paragraph): the project now covers the X-ray apparatus lab suite,
+- [x] **G0.2** Add these lines to `CLAUDE.md` (scope paragraph): the project now covers the X-ray apparatus lab suite,
       and the new plan is this note.
 - [x] **G0.3** Ask the lab staff the [[#Open questions]] and record the answers here.
 - [x] **G0.4** Credit the EPN guides in the README to "Técnicos de Laboratorio del Departamento de Física de la EPN" (user, 2026-10-14).
-- [ ] **G0.5** Rename the app to **X-Ray Lab** (user, 2026-10-14): README title and intro, `web/index.html` `<title>`,
+- [x] **G0.5** Rename the app to **X-Ray Lab** (user, 2026-10-14): README title and intro, `web/index.html` `<title>`,
       `web/package.json` name (then `npm install` to refresh the lock), `CLAUDE.md` heading, app name in the i18n dictionaries if shown.
       The repo stays `TecnicoLabFisica/AtomicSimulation` (renaming it would break the Pages URL). The 554 800 suffix stays,
       e.g. `X-Ray Lab · 554 800`. Load `bragg-ui` if the change reaches a view.
@@ -172,7 +172,7 @@ flowchart TD
 **Files:** `.claude/skills/bragg-reference/references/practicas.md`, `CLAUDE.md`, `README.md`, `web/index.html`, `web/package.json`, this note
 
 **Verify:** the file exists and holds no verbatim sentence from the guides; brief G1 in a fresh session without opening `refs/`;
-after G0.5 `git grep -n 'Bragg reflection simulation\|bragg-sim-web'` finds only history docs, and `npm --prefix web run build` passes
+after G0.5 `git grep -n 'Bragg reflection simulation\|bragg-sim-web'` finds only history docs (and this line), and `npm --prefix web run build` passes
 
 ### G1 — Accessories and shared physics
 
@@ -586,6 +586,14 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-14 · G0 · tasks G0.2, G0.5
+- Done: `CLAUDE.md` heading is now "X-Ray Lab" and its scope paragraph points to this note. README title and intro,
+  `web/index.html` title (`X-Ray Lab · 554 800`), `web/package.json` + lock name `xray-lab-web`. The app name is not in
+  the i18n dictionaries, so nothing changed there. Kept `model/pyproject.toml`'s description: `braggsim` really is the P6.3.3.1 model.
+- Verify: the rename grep finds only this note and pyproject (intended); lock diff = 2 name lines; `npm run build` OK (main 75 kB gzip).
+- Uncommitted: no (committed as `[G0] docs: rename app to X-Ray Lab and widen CLAUDE.md scope`, not pushed)
+- Next: G1.1. Add C, Al, Fe, Cu, Zr, Mo, Ag, In to `mu_rho.json` (`filters.py`, same 1000-point grid).
 
 ### 2026-10-14 · G0 · tasks G0.3, G0.4
 - Done: Q5–9 answered (no EPN data, so published anchors; credit to the EPN lab technicians; rename to X-Ray Lab; 2003 centavo).

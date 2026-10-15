@@ -1,10 +1,14 @@
-# Bragg reflection simulation (LD P6.3.3.1 · X-ray apparatus 554 800)
+# X-Ray Lab (LD X-ray apparatus 554 800)
 
 Browser-based, physics-driven, **educational** simulation of Bragg reflection of Mo Kα/Kβ X-rays at an
 NaCl monocrystal, emulating the LD X-ray apparatus **554 800** with goniometer in 2:1 coupled mode.
 Runs on almost any device (GitHub Pages). Public and **open source** (MIT code, CC BY 4.0 content).
 
-Full project plan, architecture and phase checklist: `Bragg-Simulation-Plan.md` (read it when starting a
+The project is growing into an X-ray lab suite on the same 554 800: the EPN lab practices (attenuation,
+Moseley's law, XRF of brass), a crystal library and a Materials Forge. That work is planned in
+`Plan-New-Features.md` (its status board says where to resume).
+
+Core Bragg experiment plan, architecture and phase checklist: `Bragg-Simulation-Plan.md` (read it when starting a
 phase; do not re-derive its decisions). Source documents live in `refs/` (gitignored, copyrighted) —
 use the `bragg-reference` skill instead of reading the PDFs.
 

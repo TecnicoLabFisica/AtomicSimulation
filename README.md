@@ -1,10 +1,11 @@
-# Bragg reflection simulation
+# X-Ray Lab
 
 [![test](https://github.com/TecnicoLabFisica/AtomicSimulation/actions/workflows/test.yml/badge.svg)](https://github.com/TecnicoLabFisica/AtomicSimulation/actions/workflows/test.yml)
 
-A browser-based, physics-driven and educational simulation of **Bragg reflection of Mo Kα/Kβ X-rays
-at an NaCl monocrystal**. It follows the experiment LD P6.3.3.1 on the LD X-ray apparatus **554 800**,
-with the goniometer in 2:1 coupled mode. It is meant to run on almost any device through GitHub Pages.
+X-Ray Lab is a browser-based, physics-driven and educational simulation of the LD X-ray apparatus
+**554 800**. Its first experiment is **Bragg reflection of Mo Kα/Kβ X-rays
+at an NaCl monocrystal**. It follows the experiment LD P6.3.3.1, with the goniometer in 2:1 coupled mode.
+Lab practices, a crystal library and a crystal designer are on the way ([plan](Plan-New-Features.md)). It is meant to run on almost any device through GitHub Pages.
 
 > **Status:** in development. The Python reference model is calibrated against the leaflet's
 > measured spectrum. The web app emulates the 554 800 and has guided tasks.
