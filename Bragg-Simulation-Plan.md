@@ -595,9 +595,9 @@ Decisions (2026-09-26):
       (68.89 pm) over one 0.3 % step (≈ 0.02° in 1st order, far below σ), so note that in PARAMETERS.md
 - [x] $K_{\alpha 1}/K_{\alpha 2}$ doublet, resolvable at third order (Δθ ≈ 0.14°) → in the model since Phase 3
 - [ ] Other anodes: Cu, Fe, Ag, W
-- [ ] Other crystals: LiF, KBr
+- [ ] Other crystals: LiF, KBr → planned in [[Plan-New-Features#Part II — Crystal library]] (plus the Materials Forge, Part III)
 - [ ] Duane–Hunt experiment (Planck's constant from $\lambda_\text{min}$)
-- [ ] Moseley's law experiment
+- [ ] Moseley's law experiment → planned in [[Plan-New-Features#L1 — Práctica 5: Moseley's law and the Rydberg constant]] (with the attenuation and XRF practices)
 
 ---
 

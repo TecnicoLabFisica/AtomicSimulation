@@ -1,0 +1,573 @@
+---
+title: New Features — Lab Practices, Crystal Library, Materials Forge
+aliases:
+  - New features plan
+  - Plan nuevas funciones
+tags:
+  - project/bragg-sim
+  - physics/x-ray
+  - plan
+status: planning
+created: 2026-10-14
+updated: 2026-10-14
+current_phase: G0
+next_task: G0.2
+last_session: 2026-10-14
+parent: "[[Bragg-Simulation-Plan]]"
+sources:
+  - "EPN guide Práctica 1: X-ray attenuation vs absorber material and thickness (refs/atenuacion_RX.pdf)"
+  - "EPN guide Práctica 5: Moseley's law and the Rydberg constant (refs/moseley_RX.pdf)"
+  - "EPN guide Práctica 6: brass composition by X-ray fluorescence (refs/fluorescencia_RX.pdf, pp. 1–3)"
+---
+
+# New Features: Lab Practices, Crystal Library, Materials Forge
+
+> [!abstract] Goal
+> Grow the simulation from a single experiment (P6.3.3.1, Bragg at NaCl) into a small **X-ray lab** on the same
+> emulated 554 800:
+> 1. **Three new lab practices** from the EPN guides: attenuation (P1), Moseley's law (P5) and XRF of brass (P6).
+> 2. A **crystal library**: pick NaCl, LiF, Si, calcite or mica (the crystals the lab uses) as the target.
+> 3. A **Materials Forge**: design a lattice (cell, basis, cut plane) and get the spectrum it would produce.
+
+**Contents:** [[#If you were sent here]] · [[#Status board]] · [[#How to work across sessions]] · [[#Ground rules]] ·
+[[#Roadmap]] · [[#Part 0 — Groundwork]] · [[#Part I — Lab practices]] · [[#Part II — Crystal library]] ·
+[[#Part III — Materials Forge]] · [[#Open questions]] · [[#Risks]] · [[#Session log]]
+
+---
+
+## If you were sent here
+
+> [!important] Claude: read this first when the user says "continue with Plan-New-Features" or "check what's done"
+> This note is the **single source of truth** for this work. Don't rely on chat history.
+> 1. **Where are we?** Check the frontmatter (`current_phase`, `next_task`), the [[#Status board]] and the newest entry in [[#Session log]].
+> 2. **Check the claims against the repo** before building on them (ticks can drift):
+>    - `git log --oneline --grep='\[<phase>\]'` lists the commits for a phase (every commit carries its phase ID, e.g. `[L1]`).
+>    - Run the phase's **Verify** commands. If a ticked task fails them, untick it and note that in the log.
+>    - `git status` shows uncommitted work from an interrupted session. The log's last entry says what it was.
+> 3. **Continue** with `next_task`. If the user asked only to *check*, report: done ✅ / partial 🟨 / broken ❌ per task, and stop.
+> 4. **Before you stop**, run the [[#How to work across sessions|end-of-session protocol]]. A session that leaves this note stale has not finished.
+
+Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` notes all use them.
+
+---
+
+## Status board
+
+> [!todo] Resume here
+> **Next:** `G0.2`, add the scope lines to `CLAUDE.md`; then G0.3 (the remaining [[#Open questions]] 5–8).
+> (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
+
+| Phase | Title | Status | Sessions | Depends on |
+|---|---|---|---|---|
+| G0 | Reference facts and scope | 🟨 in progress | 1 | — |
+| G1 | Accessories and shared physics | ⬜ todo | 2–3 | G0 |
+| L1 | Práctica 5: Moseley's law | ⬜ todo | 2 | G1 |
+| L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
+| L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
+| C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
+| C2 | Crystal selector (port and UI) | ⬜ todo | 2 | C1 |
+| F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
+| F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
+| F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
+
+Legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸ blocked (say on what in the [[#Session log]]).
+
+---
+
+## How to work across sessions
+
+> [!info] Session protocol (long tasks survive `/clear` and new sessions)
+> **Start:** read [[#Status board]] → read the phase you resume (tasks, **Files**, **Verify**) and the newest [[#Session log]] entry → `.remember/now.md` is
+> injected automatically → `graphify query "<topic>"` before reading code.
+> **During:** one session = one **S#** block. Tick boxes as tasks finish, not at the end.
+> **End:**
+> 1. Tick the finished task IDs. Add an entry to [[#Session log]] using the template there.
+> 2. Update the frontmatter (`current_phase`, `next_task`, `last_session`, `updated`) and the status table.
+> 3. Run the phase's **Verify** commands and `graphify update .`. Record the result in the log entry.
+> 4. Run `/remember` so the next session starts with the state.
+> 5. Commit only when the user asks. Commit messages start with the phase ID: `[L1] feat: …`.
+
+> [!tip] Who does what (from `CLAUDE.md`)
+> Opus plans, reviews and orchestrates. Each **S#** block is briefed to a `sonnet` subagent with the goal, files,
+> invariants and tests. After every physics change, run `physics-reviewer`. After apparatus changes run
+> `apparatus-reviewer`, after UI changes `design-reviewer`, after tasks or copy `pedagogy-reviewer`.
+> Skills: `add-physics-feature` (every physics change), `write-guided-task`, `bragg-ui` + `frontend-design`, `run-app`.
+
+---
+
+## Ground rules
+
+These are the project invariants applied to the new work. Don't re-decide them per phase.
+
+- **Python first.** Every new formula lands in `model/src/braggsim`, then fixtures, then the TS port (rel. tol 1e-9).
+- **Expectation ≠ noise.** New detectors (GM direct beam, MCA channels) return expected rates. Poisson is a final step.
+- **NaCl stays the calibrated anchor.** Existing fixtures for NaCl must stay unchanged (or change only by an explained
+  model-version bump), and Fig. 4 must still match, linear *and* log.
+- **Honest model.** Every new empirical number (foil thicknesses, detector resolution, background, direct-beam scale,
+  Debye–Waller B per crystal) goes in `model/PARAMETERS.md` with value, source and date. If there is no data,
+  say "assumption" and name who can measure it (lab staff).
+- **Emulate the 554 800 and its accessories.** We do not emulate CASSY Lab or the PC software. We emulate a
+  *minimal* MCA, only as far as the guide's procedure needs it.
+- **Licensing.** The EPN guides stay in `refs/` (gitignored). In committed files we paraphrase and keep only numbers.
+  We copy no figures (Fig. 1.1, 5.1 and 6.1 are LD drawings).
+- **Phone budget.** Tables that only one feature needs (XRF kernels, Forge element tables) are lazy-loaded chunks.
+
+---
+
+## Roadmap
+
+```mermaid
+flowchart TD
+    G0["G0 · Reference facts and scope"] --> G1["G1 · Accessories and shared physics"]
+    G1 --> L1["L1 · Moseley (P5)"]
+    G1 --> L2["L2 · Attenuation (P1)"]
+    G1 --> L3["L3 · XRF of brass (P6)"]
+    G0 --> C1["C1 · Crystal engine and presets"]
+    C1 --> C2["C2 · Crystal selector"]
+    C1 --> F1["F1 · Forge engine"]
+    F1 --> F2["F2 · Forge UI"]
+    C2 --> F2
+    F2 --> F3["F3 · Forge pedagogy"]
+    L1 -.uses.-> C2
+```
+
+> [!note] Recommended order
+> G0 → G1 → L1 → L2 → C1 → C2 → F1 → F2 → F3 → L3.
+> L1 and L2 reuse most of what exists, so they come first. **L3 (XRF)** is the biggest and fully independent
+> (new detector, new physics), so it can move anywhere after G1 without blocking anything.
+
+---
+
+## Part 0 — Groundwork
+
+### G0 — Reference facts and scope
+
+**Why:** future sessions must not reread the PDFs. Store the facts once, paraphrased, where the skills can find them.
+
+#### S1
+- [x] **G0.1** Add `references/practicas.md` to the `bragg-reference` skill: for each practice, paraphrase the settings and
+      steps. Numbers only, no verbatim text. Facts to capture:
+  - **P1 attenuation:** collimator and GM counter; s₁ = s₂ = 5 cm.
+    - Al absorbers 0.5 → 3.0 mm in 0.5 mm steps on the absorption accessory (554 834), selected by turning the target arm to ≈ 0°, 10° … 60°.
+    - Δβ = 0 (exposure-timer mode); 21 kV, 0.05 mA (0.15 mA and 200 s with the Zr filter).
+    - Material set polystyrene (the guide calls it C), Al, Fe, Cu, Zr, Ag, **0.4 mm** each (user decision 2026-10-14; the LD catalog says 0.5 mm), at 30 kV: 0.02 mA for the first three, 1 mA for the rest.
+    - Background run at 0 kV / 0 mA for ≥ 100 s. Calibration hint: ≥ 950 /s unattenuated.
+    - Analysis: T vs d, ln T vs d → μ, T and μ per material, μ vs Z.
+  - **P5 Moseley:** NaCl, COUPLED, Δβ = 0.1°, β 3.7° → 7.5°, 35 kV, 1 mA, Δt = 5 s; Zr, Mo, Ag, In foils at the
+    sensor, one scan per foil. Analysis: transmission spectra, K-edge λ vs Z, Rydberg constant and screening.
+  - **P6 XRF:** X-ray energy detector on the sensor arm at 90°, target at 45°, s₁ = s₂ = 6 cm, 35 kV, 1 mA, MCA with 512
+    channels and 180 s. Two-point energy calibration with Cu Kα (8.04 keV) and Pb Lα (10.55 keV).
+    Samples: Cu, Zn, Pb, leaded brass, a coin. Analysis: identify the lines, Gaussian fits or deconvolution, mass fractions.
+- [ ] **G0.2** Add these lines to `CLAUDE.md` (scope paragraph): the project now covers the X-ray apparatus lab suite,
+      and the new plan is this note.
+- [ ] **G0.3** Ask the lab staff the [[#Open questions]] and record the answers here.
+
+**Done when:** a fresh session can brief any phase below without opening `refs/`.
+
+**Files:** `.claude/skills/bragg-reference/references/practicas.md`, `CLAUDE.md`, this note
+
+**Verify:** the file exists and holds no verbatim sentence from the guides; brief G1 in a fresh session without opening `refs/`
+
+### G1 — Accessories and shared physics
+
+**Why:** all three practices change *what sits in the beam*, not the crystal physics. Build that once.
+
+```mermaid
+flowchart LR
+    T["Mo tube"] --> COL["Collimator<br/>+ filter slot"] --> TH["Target holder:<br/>crystal · absorber wheel · XRF sample"] --> SA["Sensor arm:<br/>+ filter slot"] --> D["Detector:<br/>GM counter · energy detector"]
+```
+
+#### S1 — Python
+- [ ] **G1.1** `filters.py`: add the elements C, Al, Fe, Cu, Zr, Mo, Ag, In to `mu_rho.json` (still the same 1000-point λ grid).
+      Note in `PARAMETERS.md` how far the grid smears each K edge (as already planned for Zr in Phase 11).
+- [ ] **G1.2** `scan.expected_rate(..., filters=())`: a tuple of `(material, areal_density_mg_cm2)` multiplying T(λ) before
+      the detector. Placement (collimator or sensor) doesn't change T, so it's one argument. Default `()` keeps every
+      existing fixture identical.
+- [ ] **G1.3** `scan.direct_rate(U_kV, I_mA, absorbers=(), filters=(), params)`: no crystal, sensor at 0°. It equals
+      K_direct · ∫ S_U(λ) T_air T_abs(λ) dλ, then dead time. K_direct is a new empirical parameter (anchor: the guide's
+      ≥ 950 /s at 21 kV / 0.05 mA, or better, a lab measurement).
+- [ ] **G1.4** `ModelParams.background_per_s` (natural GM background). The `tube_off_*` fixtures then equal the background, not 0.
+      Bump the model version and explain it in `PARAMETERS.md`.
+- [ ] **G1.5** Fixtures: one filter case, two direct-beam cases (with and without absorber), background.
+
+#### S2 — Port and apparatus
+- [ ] **G1.6** TS port of the above. Vitest passes with every fixture.
+- [ ] **G1.7** `apparatus.ts`: a `setup` state: `holder` (crystal | absorberWheel | xrfSample | empty), `collimatorFilter`,
+      `sensorFilter`, `detector` (gm | energy). Changing the setup requires the door to be open (interlock).
+      With the absorber wheel, the target angle selects the absorber position (10° pitch; between positions the beam
+      is partly blocked, as an assumption to confirm).
+- [ ] **G1.8** `apparatus-reviewer` pass.
+
+#### S3 — Setup UI
+- [ ] **G1.9** A "Montaje / Setup" tray (bench card + 2D fallback) to place accessories. i18n ES/EN. Load `bragg-ui` first.
+- [ ] **G1.10** The 3D bench shows the wheel, foils and detector type (simple shapes; no LD drawings).
+- [ ] **G1.11** `design-reviewer` pass.
+
+**Done when:** pytest, artifact freshness, Vitest and the build are green. A Bragg scan with a Zr foil visibly
+suppresses Kβ, and sensor at 0° with the wheel gives plausible direct-beam rates.
+
+**Files:** `model/src/braggsim/{filters,scan}.py`, `model/PARAMETERS.md`, `artifacts/`, `web/src/physics/{filters,scan}.ts`, `web/src/apparatus/apparatus.ts`, `web/src/views/bench.ts` + a setup view, `web/src/pedagogy/i18n/`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k "filter or direct or background"`; `git diff --stat artifacts/fixtures` touches only the new fixtures and the planned `tube_off_*` bump; in the app a Zr foil suppresses Kβ
+
+---
+
+## Part I — Lab practices
+
+### L1 — Práctica 5: Moseley's law and the Rydberg constant
+
+**Physics:** each foil's K edge appears as a step in T(λ) = R_foil/R_open. For an absorption edge,
+$1/\lambda_K = R_\infty (Z-\sigma)^2$, so $\sqrt{1/\lambda_K}$ vs Z is a line whose slope gives $R_\infty$ and whose intercept gives σ.
+
+| Foil | Z | Thickness (mm) | K edge (keV) | λ_K (pm) | θ in NaCl, n = 1 |
+|---|---|---|---|---|---|
+| Zr | 40 | 0.05 | 17.998 | 68.89 | 7.02° |
+| Mo | 42 | 0.1 | 20.000 | 62.00 | 6.31° |
+| Ag | 47 | 0.05 | 25.514 | 48.59 | 4.94° |
+| In | 49 | 0.3 | 27.940 | 44.37 | 4.51° |
+
+Thicknesses: LD set of absorber foils 554 832 (answered 2026-10-14). LD's own version of this experiment scans 3° → 8°;
+the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
+
+%% values to verify with xraylib EdgeEnergy in S1; all edges fall inside the 3.7°–7.5° window %%
+
+#### S1 — Python
+- [ ] **L1.1** Foil areal densities in `PARAMETERS.md` from the 554 832 thicknesses above × bulk density (cite the LD catalog).
+- [ ] **L1.2** `analysis.k_edge_deg(betas, R_open, R_foil)`: edge position from the steepest descent of T, with uncertainty.
+- [ ] **L1.3** `analysis.moseley_fit(Z, lambda_K_pm)` → R∞ and σ with errors.
+- [ ] **L1.4** Notebook `05_moseley.ipynb`: four foil scans with noise → edges → fit. The fit should recover R∞ within a few %.
+- [ ] **L1.5** Teacher key section in `docs/teacher-key.md` (`teacher_key.py`, seeded).
+
+#### S2 — Web
+- [ ] **L1.6** Lab task `moseley-k-edges` (`write-guided-task`). Predict where the Ag edge falls relative to Zr, then scan
+      open + 4 foils, export CSV. The success check is on the scans (window, Δβ, foils used), never on the student's R∞.
+- [ ] **L1.7** Explore overlay: edge markers per foil (hidden until the act step, as in Phase 9).
+- [ ] **L1.8** `pedagogy-reviewer`.
+
+**Done when:** a student can do the whole practice on a phone and the key reproduces R∞ ≈ 1.097 × 10⁷ m⁻¹ within the model's error.
+
+**Files:** `model/src/braggsim/analysis.py`, `model/notebooks/05_moseley.ipynb`, `model/scripts/teacher_key.py`, `docs/teacher-key.md`, `web/src/pedagogy/tasks/moseley-k-edges.ts`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k moseley`; run `05_moseley.ipynb` (R∞ within a few %); finish the task at 390 px (`run-app`)
+
+### L2 — Práctica 1: attenuation vs thickness and material
+
+**Physics:** Lambert's law $T = e^{-\mu d}$ holds for monochromatic X-rays. The tube beam is polychromatic, so at 21 kV
+(mostly continuum, lines barely above U_K) ln T vs d **curves** (beam hardening). With the Zr filter the beam is
+nearly Mo Kα and the line straightens. This is the main teaching point, and the model gives it for free by integrating over λ.
+Dead time at ~1000 /s also bends the data a little, which is real and worth a note.
+
+#### S1 — Python
+- [ ] **L2.1** Absorber sets as data: the Al wheel (0, 0.5 … 3.0 mm) and the material wheel (polystyrene, Al, Fe, Cu, Zr, Ag,
+      0.4 mm each). At 0.4 mm the Fe … Ag absorbers transmit far below 1 %, so background and dead time dominate their
+      readings. That is real (it's why the guide raises I to 1 mA for them) and a teaching point, so don't hide it.
+- [ ] **L2.2** Calibrate `K_direct` and `background_per_s` (documented. If there's no lab data, use the guide's 950 /s hint, marked as such).
+- [ ] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,
+      ln T vs d with and without Zr, μ vs Z (log-log), compared with xraylib μ at Mo Kα.
+- [ ] **L2.4** Check whether constant GM efficiency ε biases μ_eff. `physics-reviewer` decides whether ε(λ) is needed now.
+
+#### S2 — Web
+- [ ] **L2.5** Exposure-timer workflow with the wheel: TARGET mode, ADJUST to each position, Δβ = 0, SCAN, REPLAY.
+      Check that the existing 554 800 behaviour covers it, then fill the gaps.
+- [ ] **L2.6** Tasks: `attenuation-thickness` (predict whether ln T vs d is straight), `attenuation-material` (μ vs Z), `background`.
+- [ ] **L2.7** CSV export of exposure-mode results (one row per position).
+
+**Done when:** the key's μ(Al) with the Zr filter is close to the tabulated μ at Mo Kα, and without the filter it is visibly lower and depends on d.
+
+**Files:** `model/src/braggsim/{scan,analysis}.py`, `model/notebooks/06_attenuation.ipynb`, `web/src/pedagogy/tasks/attenuation-*.ts`, `web/src/pedagogy/csv.ts`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k attenuation`; run `06_attenuation.ipynb` (ln T vs d curved without Zr, straight with it)
+
+### L3 — Práctica 6: brass composition by X-ray fluorescence
+
+**Why it's big:** a new detector (energy-resolving), a new readout (MCA spectrum vs channel), and new physics
+(fluorescence of the sample).
+
+**Physics model (fundamental parameters, primary fluorescence):**
+$$
+I_{i,\text{line}} \propto w_i \int S_U(E)\,\frac{\tau_i(E)\,\omega_i\,p_\text{line}\,(1-1/J_i)}{\mu_s(E)/\sin\psi_1 + \mu_s(E_\text{line})/\sin\psi_2}\,dE
+$$
+with ψ₁ = ψ₂ = 45° (target at 45°, detector at 90°).
+- Mass fractions w_i. Photo cross-section, yield and line fractions come from xraylib.
+- Self-absorption in the bulk sample. Air between sample and detector.
+- Detector: LD **559 938** Si-PIN (see [[#Open questions|answers]]): 150 µm Si, 0.8 mm dia., plastic window ≈ 40 µm
+  graphite. Gaussian resolution $\text{FWHM}(E) = 2\sqrt{2\ln 2}\,\sqrt{\sigma_\text{el}^2 + F\varepsilon E}$ with
+  σ_el ≈ 160 eV, F ≈ 0.15, ε = 3.8 eV (0.40 keV at 6.4 keV). **Dead time ≈ 250 µs per pulse**, so live time matters at 1 mA.
+  The housing can fluoresce (Au L lines most often): an optional small term.
+- Samples: pure Cu, Zn, Pb; leaded brass **CuZn39Pb3** (58 Cu / 39 Zn / 3 Pb, LD target-alloy set 554 848); optional CuZn36
+  (64/36). Coins: the **US cent** (1982 on, circulates in Ecuador), a *layered* sample with ≈ 8 µm Cu on a Zn core
+  (0.8 % Cu); and the **Ecuador 1 centavo 2003**, Cu-plated steel (plating thickness is an assumption).
+- Rayleigh and Compton scatter of the Mo lines (Compton at 90° ≈ 16.9 keV).
+
+Lines in play: Cu Kα 8.04 / Kβ 8.90, Zn Kα 8.63 / Kβ 9.57, Pb Lα 10.55 / Lβ 12.61 keV (Fe Kα 6.40 for the steel coin). At 0.4 keV
+FWHM, Cu Kα and Zn Kα are only 0.59 keV apart and Cu Kβ sits on Zn Kα, which is why the guide asks for Gaussian fits or a deconvolution.
+
+**Port strategy:** compute in Python an **excitation kernel** $K_{s,\text{line}}(E)$ per sample and per line (plus the
+scatter kernels) on the source energy grid. Export it as a lazy table. TS multiplies by the already-ported
+S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
+
+#### S1 — Python: sample physics
+- [ ] **L3.1** `fluorescence.py`: kernels for the pure Cu, Zn and Pb samples, CuZn39Pb3, CuZn36 and the two coins
+      (compositions in `PARAMETERS.md` with sources). The coins need a two-layer sample: the plating attenuates the
+      excitation and the core's lines, and it adds its own lines. Primary fluorescence only. Secondary fluorescence (Zn Kβ → Cu) is
+      documented as neglected, with an estimate of its size.
+- [ ] **L3.2** Tests: line ratios vs xraylib, zero below the edge, linear in I.
+
+#### S2 — Python: detector and MCA
+- [ ] **L3.3** `detector.py`: 559 938 efficiency (window + 150 µm Si) and FWHM(E) from its instruction sheet, dead time (250 µs, live-time correction),
+      channel mapping from the gain (512 channels), expected counts per channel. Escape peaks are optional: skip them unless visible.
+- [ ] **L3.4** `analysis.gauss_fit_lines` and `analysis.composition(...)` with the pure-element standards
+      ($w_i \approx A_i^\text{alloy}/A_i^\text{pure}$, first order). The notebook `07_xrf_brass.ipynb` shows the matrix-effect bias of this method.
+
+#### S3 — Export and port
+- [ ] **L3.5** `artifacts/tables/xrf_kernels.json` (lazy) and fixtures for 3 samples × 2 voltages. TS port and Vitest.
+
+#### S4 — MCA view
+- [ ] **L3.6** New view `web/src/views/mca.ts`: counts vs channel, live accumulation, settings (channels, gain, time),
+      two-point energy calibration that switches the axis to keV, log toggle. Lab mode shows channels until the student calibrates.
+      Load `bragg-ui` and use uPlot (already installed).
+- [ ] **L3.7** Apparatus: with `detector = energy`, the 554 800 rate display is idle and the MCA counts. The sensor arm must be set
+      to 90° *before* mounting (the guide's warning), so refuse the mount otherwise.
+
+#### S5 — Tasks
+- [ ] **L3.8** `xrf-calibration` (Cu, Pb → calibrate), `xrf-brass` (identify the lines, fit, composition; the check is on the
+      data taken, never on the student's %), `xrf-coin`.
+- [ ] **L3.9** Reviews: physics, apparatus, design, pedagogy.
+
+**Done when:** the brass key composition is close to the true w_i within the known bias of the first-order method, and the
+Cu/Zn/Pb spectra look like typical Si-PIN XRF spectra (line positions exact, Cu Kβ/Zn Kα blend visible).
+
+**Files:** `model/src/braggsim/{fluorescence,detector,analysis}.py`, `model/notebooks/07_xrf_brass.ipynb`, `artifacts/tables/xrf_kernels.json`, `web/src/physics/fluorescence.ts`, `web/src/views/mca.ts`, `web/src/pedagogy/tasks/xrf-*.ts`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k "fluorescence or xrf"`; run `07_xrf_brass.ipynb`; `npm run build` shows the XRF kernels in a lazy chunk, main bundle unchanged
+
+---
+
+## Part II — Crystal library
+
+### C1 — Crystal engine and presets (Python)
+
+**Why:** today `crystal.py` hard-codes NaCl: `D_NACL_PM`, F = 4(f_Na + f_Cl), and the B fitted for NaCl. Generalize
+it to *data* (cell, basis, cut plane) so the presets and the Forge share one engine.
+
+**Model:**
+- `Crystal` dataclass: `name`, cell `a_pm, b_pm, c_pm, alpha_deg, beta_deg, gamma_deg`, basis
+  `[(Z, x, y, z, B_A2)]` (the B in Å² stays inside the function), cut plane `(h, k, l)`, `source` citation.
+- $d_{hkl}$ from the reciprocal metric tensor (any crystal system; cubic is just a = b = c, 90°).
+- $F(nh, nk, nl) = \sum_j f_j(q)\, e^{-B_j q^2}\, e^{2\pi i n(hx_j+ky_j+lz_j)}$, with $q = n/(2d)$.
+- Order reflectivity across crystals: NaCl keeps its fitted scale. Other crystals scale by the kinematic mosaic-crystal
+  ratio $\frac{|F|^2/(V^2\mu)}{(|F|^2/(V^2\mu))_\text{NaCl}}$ at the same λ (λ³ and LP are per-θ already). This is computed,
+  not fitted, and documented as "assumes NaCl-like mosaicity".
+- `MAX_ORDER` and the angular limits become per-crystal.
+
+| Preset | Structure | Cut | Cell (pm) | d (pm) | θ(Mo Kα), n = 1 | Note |
+|---|---|---|---|---|---|---|
+| NaCl | rock salt | (100) | a = 564.02 | 282.01 | 7.24° | calibrated anchor (leaflet) |
+| LiF | rock salt | (100) | a ≈ 402.7 | ≈ 201.4 | ≈ 10.2° | wider spread in θ |
+| Si | diamond | (111) | a ≈ 543.1 | ≈ 313.6 | ≈ 6.5° | (222) almost forbidden |
+| Calcite | rhombohedral (hex. setting) | (104) | a ≈ 499, c ≈ 1706 | ≈ 303.5 | ≈ 6.7° | cleavage plane; first non-cubic preset |
+| Mica (muscovite 2M1) | monoclinic | (002) | a ≈ 520, b ≈ 903, c ≈ 2011, β ≈ 95.8° | ≈ 995 | ≈ 2.05° | many orders; n = 1 sits in the direct-beam leak region |
+
+Crystal list: the lab's usual crystals (user, 2026-10-14). The LD catalog gives d = 282 pm for NaCl (554 78) and 201 pm for LiF.
+KCl and KBr are no longer presets, but the Forge can still build them (F3).
+
+%% ≈ values are from memory: S1 must fetch and cite each a and B (room temperature) from a primary source or a handbook. %%
+
+#### S1
+- [ ] **C1.1** Research and cite the cell, the basis (calcite: Ca, C, O positions; muscovite: full 2M1 basis), B per atom
+      and the cut plane of the five presets (WebFetch; record the sources in `PARAMETERS.md`).
+- [ ] **C1.2** Refactor `crystal.py` and `scan.py` to take a `crystal=NACL` argument. **Every existing fixture stays byte-identical.**
+- [ ] **C1.3** Test: NaCl built through the generic engine equals the old `structure_factor_sq_rel` to 1e-12. Si(200) and
+      Si(222) are near zero. Rock salt (111) cut: odd orders ∝ (f_A − f_B)².
+
+#### S2
+- [ ] **C1.4** Export `artifacts/tables/crystals.json` and per-crystal structure-factor tables. Fixtures: one scan per preset.
+- [ ] **C1.5** Notebook `08_crystals.ipynb`: the same tube, the five presets, first three orders, linear and log.
+- [ ] **C1.6** `physics-reviewer`.
+
+**Done when:** pytest green, NaCl unchanged, and every preset scan is physically sensible (peaks at the table angles, plausible relative heights).
+
+**Files:** `model/src/braggsim/{crystal,scan,constants}.py`, `model/PARAMETERS.md`, `artifacts/tables/crystals.json`, `model/notebooks/08_crystals.ipynb`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k crystal`; `git diff --stat artifacts/fixtures` shows **no** change to existing files, only new preset fixtures
+
+### C2 — Crystal selector (port and UI)
+
+#### S1 — Port
+- [ ] **C2.1** TS port of the generic engine (`crystal.ts`). `D_NACL_PM` becomes an anchor constant, not the only d.
+      Vitest on all preset fixtures.
+
+#### S2 — UI and knock-on effects
+- [ ] **C2.2** Crystal picker on the target holder (setup tray from G1). The door must be open to swap.
+- [ ] **C2.3** Huygens panel, Explore overlays, the spectrum λ axis and the goniometer label all read the current crystal.
+- [ ] **C2.4** Existing tasks declare `crystal: 'NaCl'` and lock the picker. New task: "predict θ(Kα) for LiF before scanning".
+- [ ] **C2.5** L1 Moseley gains an optional "use LiF" variant (the guide notes that the angular window changes with the crystal).
+- [ ] **C2.6** Design, apparatus and pedagogy reviews.
+
+**Done when:** switching crystals updates everything consistently, and Lab mode shows only what a real bench shows (the crystal's name, not its d).
+
+**Files:** `web/src/physics/{crystal,constants}.ts`, `web/src/views/{huygens,spectrum,goniometer,bench}.ts`, `web/src/pedagogy/`
+
+**Verify:** [[#Verify|standard]]; in the app switch NaCl → LiF and check the peaks, the Huygens panel and the overlays move together; Lab mode shows the name only
+
+---
+
+## Part III — Materials Forge
+
+> [!example] What the user does
+> Start from a preset (or from scratch) → choose the lattice (cubic P/I/F, rock salt, CsCl, diamond, zincblende,
+> hexagonal, general) → set a (b, c, angles if the system allows) → place atoms (element + fractional position) →
+> choose the cut plane (hkl) → see d, the allowed and forbidden orders, density, and **the spectrum this crystal would give
+> on the 554 800**, overlaid on NaCl.
+
+### F1 — Forge engine (any element)
+
+The engine already exists after C1. What's missing is **data for any element** in the browser.
+
+#### S1 — Python
+- [ ] **F1.1** Export `form_factors.json`: f₀(q) for Z = 1…92 on a fixed q grid (0 to ~6 Å⁻¹). Python reads the same table
+      for forged crystals (the parity rule from Phase 5). Python may still use xraylib for presets until we verify that
+      the table reproduces them to 1e-9.
+- [ ] **F1.2** Export element μ/ρ for the reflectivity ratio. Budget **≤ 300 kB gzip for all Forge tables**, lazy-loaded.
+      Consider an edge-aware coarse grid; the reflectivity ratio is less sensitive than the filter transmission.
+- [ ] **F1.3** Derived quantities: density from the cell contents, μ of the crystal from the mixture rule, warnings
+      (atoms closer than ~100 pm, nλ > 2d for every line, a cut plane with F ≈ 0 in every order).
+- [ ] **F1.4** Tests: forging NaCl, LiF and Si from scratch equals the presets. Random forged crystals give fixtures for the port.
+
+#### S2 — Port
+- [ ] **F1.5** TS port and Vitest (presets plus ~5 random forged crystals, including a non-cubic one).
+
+**Files:** `model/src/braggsim/crystal.py` (forge helpers), `artifacts/tables/form_factors.json`, `web/src/physics/crystal.ts`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k forge`; `gzip -c artifacts/tables/form_factors.json | wc -c` keeps the Forge tables ≤ 300 kB together
+
+### F2 — Forge UI
+
+#### S1
+- [ ] **F2.1** `web/src/views/forge.ts` (lazy chunk): lattice picker, parameter sliders with numeric fields, basis table
+      (element picker plus x, y, z), (hkl) picker, live d and orders table (allowed/forbidden, relative |F|²).
+- [ ] **F2.2** Live "would-be spectrum" (uPlot, linear/log), overlaid on NaCl, plus a "Use on the bench" button that mounts the
+      forged crystal (labelled *hypothetical* everywhere).
+
+#### S2
+- [ ] **F2.3** Optional unit-cell 3D view, reusing the three.js chunk of the bench (atoms as spheres, the cut plane as a translucent plane).
+- [ ] **F2.4** Persistence: `localStorage` plus a share link (crystal encoded in the URL query) so teachers can hand out a crystal.
+- [ ] **F2.5** Design and pedagogy reviews, checked on a phone at 390 px.
+
+**Files:** `web/src/views/forge.ts`, `web/src/styles/`, `web/src/pedagogy/i18n/`
+
+**Verify:** [[#Verify|standard]]; `npm run build` lists `forge` as its own chunk; a share link reopens the same crystal; check at 390 px (`run-app`)
+
+### F3 — Forge pedagogy
+
+- [ ] **F3.1** Explore tasks (`write-guided-task`):
+  - "Design a crystal that puts Mo Kα (n = 1) at 10°": they discover d ≈ 204 pm, close to LiF.
+  - "Why is Si (200) missing?" (diamond extinction).
+  - "Cut KCl along (111): where did the odd orders go?" (f_K ≈ f_Cl).
+  - "Make the Kα doublet resolvable in first order" (smaller d spreads θ).
+- [ ] **F3.2** `pedagogy-reviewer`.
+
+**Done when:** the four tasks can be completed on a phone and the reviewer finds no misconception risk.
+
+**Files:** `web/src/pedagogy/tasks/forge-*.ts`
+
+**Verify:** [[#Verify|standard]]; each task can be finished on a phone; `pedagogy-reviewer` reports no blocking finding
+
+---
+
+## Open questions
+
+> [!question] Still open (for the user or the lab staff; record answers below with a date)
+> 5. **Real data:** are there past student datasets for P1, P5 and P6 from the EPN apparatus? They would replace the guide's hints as
+>    calibration anchors.
+> 6. **GM background** rate measured with the tube off.
+> 7. **Attribution:** may the README cite the EPN guides by name (course, lab)? Are they EPN-authored?
+> 8. **Naming:** keep "Bragg simulation" as the app name, or rename it to an X-ray lab with Bragg as one experiment?
+> 9. **Ecuador centavo:** the 2000 issue is brass-plated steel and the 2003 issue Cu-plated steel. If the lab uses one, which issue, and is the plating thickness known?
+
+> [!success]- Answered 2026-10-14 (user + web research)
+> 1. **Thicknesses.**
+>    - Material wheel (absorption accessory 554 834): **0.4 mm** each (user). The LD catalog says 0.5 mm; we use the user's value
+>      and note the catalog value in `PARAMETERS.md`. The "C" absorber is **polystyrene** (LD catalog), not graphite.
+>    - Al wheel: 0.5 … 3.0 mm in 0.5 mm steps.
+>    - Moseley foils (set of absorber foils 554 832): Zr 0.05, Mo 0.1, Ag 0.05, In 0.3 mm (the set also has Al 0.5, Fe 0.5 and Cu 0.07 mm).
+> 2. **Crystals:** NaCl, LiF, Si, calcite, mica (user) → [[#C1 — Crystal engine and presets (Python)|C1 presets]].
+> 3. **Energy detector:** LD **559 938**, Si-PIN, Peltier-cooled. Active area 0.8 mm dia., Si ≈ 150 µm, plastic window ≈ 40 µm graphite
+>    equivalent, range 2–60 keV, FWHM(E) = 2√(2 ln 2)·√(σ_el² + F·ε·E) with σ_el ≈ 160 eV, F ≈ 0.15, ε = 3.8 eV (0.40 keV at Fe Kα).
+>    Non-linearity < 1 % (3–35 keV), dead time ≈ 250 µs per pulse, housing fluorescence possible (Au L most often).
+>    Output to the MCA box 524 058. *Source:* LD instruction sheet 559 938; leybold-shop product page 559938.
+> 4. **Samples.**
+>    - Brass: LD's own brass XRF experiment (P7.5.1.2) uses the target-alloy set 554 848, with **CuZn39Pb3 = 58 Cu / 39 Zn / 3 Pb**
+>      (the leaded brass), CuZn36 = 64/36 and stainless X5CrNi18-10 = 72 Fe / 18 Cr / 10 Ni. It calibrates with Cu Kα 8.04 and Pb Lα 10.56 keV,
+>      and its peak-height method is first order: matrix effects (Zn K exciting Cu) bias it. *Source:* LD CASSY Lab help pages P7511/P7512;
+>      Amptek XRF tutorial.
+>    - Coin, default: the **US cent, 1982 on** (US coins circulate in Ecuador). Core Zinc Alloy 190 (0.7–0.9 % Cu) with ≈ 8 µm pure Cu plating
+>      (≈ 7.5 µm at the centre, about twice that at the rim); 97.5 Zn / 2.5 Cu overall; 2.5 g, 19.05 mm. *Source:* Wikipedia "Penny (United
+>      States coin)"; CONECA, citing a Concurrent Technologies Corp. report; Stack's Bowers.
+>    - Coin, alternative: the **Ecuador 1 centavo 2003** (KM# 104a), Cu-plated steel, magnetic, 2.35 g. Plating thickness unknown, so it is
+>      an assumption (see Q9). *Source:* Wikipedia "Ecuadorian centavo coins"; Numista 3003.
+
+---
+
+## Risks
+
+> [!warning] Calibration debt
+> Each practice adds empirical numbers: K_direct, background, foil thicknesses, detector FWHM, and the efficiency.
+> Without lab data they are assumptions. Mark them that way in the UI teacher notes and in `PARAMETERS.md`, and never tune them to make a task "work".
+
+> [!warning] Cross-crystal scale
+> Only NaCl is calibrated (Fig. 4). Other crystals rely on the kinematic mosaic ratio. Real crystals differ in mosaicity
+> and extinction (LiF and HOPG especially). Show peak *positions* as exact and *heights* as model estimates.
+
+> [!warning] Bundle size
+> XRF kernels and the Forge's element tables must stay out of the main bundle (lazy). Check `npm run build` sizes in every phase.
+
+> [!warning] Scope creep
+> Not in this plan (backlog for [[Bragg-Simulation-Plan#Phase 11 — Extensions]]): other anodes, Duane–Hunt, a custom
+> XRF alloy editor, secondary fluorescence, a full CASSY Lab emulation.
+
+---
+
+## Verify
+
+The standard check every phase runs (the phase sections add their own extras):
+
+```bash
+micromamba run -n atom-sim pytest model                          # includes the artifact freshness check
+micromamba run -n atom-sim ruff check . && micromamba run -n atom-sim ruff format --check .
+micromamba run -n atom-sim npm --prefix web run test
+micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle sizes
+```
+
+---
+
+## Session log
+
+Newest first. One entry per session. This is what the next session reads to know what happened.
+
+> [!example]- Entry template
+> ```
+> ### YYYY-MM-DD · <phase> · tasks <IDs>
+> - Done: <task IDs ticked, files touched>
+> - Verify: <pytest N passed · vitest N passed · build OK/size> or <what failed>
+> - Uncommitted: <yes/no, what>
+> - Surprises / decisions: <anything that changed the plan; also edit the phase section>
+> - Next: <task ID and first concrete step>
+> ```
+
+### 2026-10-14 · G0 · tasks G0.1
+- Done: answered open questions 1–4 (user + web research, sources in [[#Open questions]]); propagated them to G0.1, L1, L2, L3, C1.
+  G0.1: `.claude/skills/bragg-reference/references/practicas.md` and a pointer row in that skill's `SKILL.md`.
+- Verify: docs only. No sentence copied from the guides (spot-checked against `pdftotext refs/*.pdf`).
+- Uncommitted: no (two `[G0]` commits, not pushed)
+- Surprises / decisions: the "C" absorber is polystyrene. The detector's dead time (250 µs) is large, so the MCA needs live time.
+  Mica's first order sits at ≈ 2° (direct-beam region). The crystal presets are now NaCl, LiF, Si, calcite, mica.
+- Next: G0.2 (`CLAUDE.md` scope lines), then G0.3 (Q5–9 to the lab staff)
+
+### 2026-10-14 · planning
+- Done: this plan written from the three EPN guides and the current codebase (model 0.3.x, Phases 0–9 complete).
+- Verify: n/a (no code)
+- Uncommitted: no (committed with the G0.1 session)
+- Next: G0.1, the reference facts into `bragg-reference`; then ask the [[#Open questions]]
+
+%% The frontmatter, status board and Session log are what the next session reads first. Keep them current. %%
