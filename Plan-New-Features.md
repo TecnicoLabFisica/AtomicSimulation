@@ -31,7 +31,7 @@ sources:
 
 **Contents:** [[#If you were sent here]] · [[#Status board]] · [[#How to work across sessions]] · [[#Ground rules]] ·
 [[#Roadmap]] · [[#Part 0 — Groundwork]] · [[#Part I — Lab practices]] · [[#Part II — Crystal library]] ·
-[[#Part III — Materials Forge]] · [[#Open questions]] · [[#Risks]] · [[#Session log]]
+[[#Part III — Materials Forge]] · [[#Open questions]] · [[#Calibration anchors]] · [[#Risks]] · [[#Session log]]
 
 ---
 
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G0.2`, add the scope lines to `CLAUDE.md`; then G0.3 (the remaining [[#Open questions]] 5–8).
+> **Next:** `G0.2` + `G0.5` together (the `CLAUDE.md` scope lines and the rename to X-Ray Lab), then G1.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -160,13 +160,19 @@ flowchart TD
     Samples: Cu, Zn, Pb, leaded brass, a coin. Analysis: identify the lines, Gaussian fits or deconvolution, mass fractions.
 - [ ] **G0.2** Add these lines to `CLAUDE.md` (scope paragraph): the project now covers the X-ray apparatus lab suite,
       and the new plan is this note.
-- [ ] **G0.3** Ask the lab staff the [[#Open questions]] and record the answers here.
+- [x] **G0.3** Ask the lab staff the [[#Open questions]] and record the answers here.
+- [x] **G0.4** Credit the EPN guides in the README to "Técnicos de Laboratorio del Departamento de Física de la EPN" (user, 2026-10-14).
+- [ ] **G0.5** Rename the app to **X-Ray Lab** (user, 2026-10-14): README title and intro, `web/index.html` `<title>`,
+      `web/package.json` name (then `npm install` to refresh the lock), `CLAUDE.md` heading, app name in the i18n dictionaries if shown.
+      The repo stays `TecnicoLabFisica/AtomicSimulation` (renaming it would break the Pages URL). The 554 800 suffix stays,
+      e.g. `X-Ray Lab · 554 800`. Load `bragg-ui` if the change reaches a view.
 
 **Done when:** a fresh session can brief any phase below without opening `refs/`.
 
-**Files:** `.claude/skills/bragg-reference/references/practicas.md`, `CLAUDE.md`, this note
+**Files:** `.claude/skills/bragg-reference/references/practicas.md`, `CLAUDE.md`, `README.md`, `web/index.html`, `web/package.json`, this note
 
-**Verify:** the file exists and holds no verbatim sentence from the guides; brief G1 in a fresh session without opening `refs/`
+**Verify:** the file exists and holds no verbatim sentence from the guides; brief G1 in a fresh session without opening `refs/`;
+after G0.5 `git grep -n 'Bragg reflection simulation\|bragg-sim-web'` finds only history docs, and `npm --prefix web run build` passes
 
 ### G1 — Accessories and shared physics
 
@@ -184,9 +190,10 @@ flowchart LR
       the detector. Placement (collimator or sensor) doesn't change T, so it's one argument. Default `()` keeps every
       existing fixture identical.
 - [ ] **G1.3** `scan.direct_rate(U_kV, I_mA, absorbers=(), filters=(), params)`: no crystal, sensor at 0°. It equals
-      K_direct · ∫ S_U(λ) T_air T_abs(λ) dλ, then dead time. K_direct is a new empirical parameter (anchor: the guide's
-      ≥ 950 /s at 21 kV / 0.05 mA, or better, a lab measurement).
-- [ ] **G1.4** `ModelParams.background_per_s` (natural GM background). The `tube_off_*` fixtures then equal the background, not 0.
+      K_direct · ∫ S_U(λ) T_air T_abs(λ) dλ, then dead time. K_direct is a new empirical parameter. There is no EPN data
+      (user, 2026-10-14), so the anchor is the guide's ≥ 950 /s at 21 kV / 0.05 mA (see [[#Calibration anchors]]).
+- [ ] **G1.4** `ModelParams.background_per_s` (natural GM background; value in [[#Calibration anchors]]). The `tube_off_*`
+      fixtures then equal the background, not 0.
       Bump the model version and explain it in `PARAMETERS.md`.
 - [ ] **G1.5** Fixtures: one filter case, two direct-beam cases (with and without absorber), background.
 
@@ -235,7 +242,8 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
 - [ ] **L1.1** Foil areal densities in `PARAMETERS.md` from the 554 832 thicknesses above × bulk density (cite the LD catalog).
 - [ ] **L1.2** `analysis.k_edge_deg(betas, R_open, R_foil)`: edge position from the steepest descent of T, with uncertainty.
 - [ ] **L1.3** `analysis.moseley_fit(Z, lambda_K_pm)` → R∞ and σ with errors.
-- [ ] **L1.4** Notebook `05_moseley.ipynb`: four foil scans with noise → edges → fit. The fit should recover R∞ within a few %.
+- [ ] **L1.4** Notebook `05_moseley.ipynb`: four foil scans with noise → edges → fit. Compare with (a) a fit of the tabulated
+      xraylib edges and (b) LD's published example (R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7; literature R∞ = 1.0974 × 10⁷ m⁻¹, σ_K ≈ 3.6).
 - [ ] **L1.5** Teacher key section in `docs/teacher-key.md` (`teacher_key.py`, seeded).
 
 #### S2 — Web
@@ -244,11 +252,13 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
 - [ ] **L1.7** Explore overlay: edge markers per foil (hidden until the act step, as in Phase 9).
 - [ ] **L1.8** `pedagogy-reviewer`.
 
-**Done when:** a student can do the whole practice on a phone and the key reproduces R∞ ≈ 1.097 × 10⁷ m⁻¹ within the model's error.
+**Done when:** a student can do the whole practice on a phone, and the key's R and σ_K agree with the fit of the tabulated edges
+within the model's error. Real K edges don't follow the simple Moseley formula exactly, so R comes out a few % below R∞,
+as in LD's example. That shortfall is physics, and the teacher key should say so.
 
 **Files:** `model/src/braggsim/analysis.py`, `model/notebooks/05_moseley.ipynb`, `model/scripts/teacher_key.py`, `docs/teacher-key.md`, `web/src/pedagogy/tasks/moseley-k-edges.ts`
 
-**Verify:** [[#Verify|standard]] + `pytest model -k moseley`; run `05_moseley.ipynb` (R∞ within a few %); finish the task at 390 px (`run-app`)
+**Verify:** [[#Verify|standard]] + `pytest model -k moseley`; run `05_moseley.ipynb` (R, σ_K vs the tabulated-edge fit); finish the task at 390 px (`run-app`)
 
 ### L2 — Práctica 1: attenuation vs thickness and material
 
@@ -261,7 +271,8 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
 - [ ] **L2.1** Absorber sets as data: the Al wheel (0, 0.5 … 3.0 mm) and the material wheel (polystyrene, Al, Fe, Cu, Zr, Ag,
       0.4 mm each). At 0.4 mm the Fe … Ag absorbers transmit far below 1 %, so background and dead time dominate their
       readings. That is real (it's why the guide raises I to 1 mA for them) and a teaching point, so don't hide it.
-- [ ] **L2.2** Calibrate `K_direct` and `background_per_s` (documented. If there's no lab data, use the guide's 950 /s hint, marked as such).
+- [ ] **L2.2** Set `K_direct` and `background_per_s` from [[#Calibration anchors]] (no EPN data exists; mark both as anchored to
+      published or guide values, not fitted to measurements).
 - [ ] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,
       ln T vs d with and without Zr, μ vs Z (log-log), compared with xraylib μ at Mo Kα.
 - [ ] **L2.4** Check whether constant GM efficiency ε biases μ_eff. `physics-reviewer` decides whether ε(λ) is needed now.
@@ -295,11 +306,12 @@ with ψ₁ = ψ₂ = 45° (target at 45°, detector at 90°).
   σ_el ≈ 160 eV, F ≈ 0.15, ε = 3.8 eV (0.40 keV at 6.4 keV). **Dead time ≈ 250 µs per pulse**, so live time matters at 1 mA.
   The housing can fluoresce (Au L lines most often): an optional small term.
 - Samples: pure Cu, Zn, Pb; leaded brass **CuZn39Pb3** (58 Cu / 39 Zn / 3 Pb, LD target-alloy set 554 848); optional CuZn36
-  (64/36). Coins: the **US cent** (1982 on, circulates in Ecuador), a *layered* sample with ≈ 8 µm Cu on a Zn core
-  (0.8 % Cu); and the **Ecuador 1 centavo 2003**, Cu-plated steel (plating thickness is an assumption).
+  (64/36). Coin: the **Ecuador 1 centavo 2003** (user, 2026-10-14), a *layered* sample: Cu plating on a steel core.
+  No mint publishes the plating; the estimate is ≈ 18 µm Cu (see [[#Calibration anchors]]). That is comparable to the
+  attenuation length of Cu Kα in Cu (≈ 21 µm), so the core's Fe Kα comes through weakened, and how much depends on the plating.
 - Rayleigh and Compton scatter of the Mo lines (Compton at 90° ≈ 16.9 keV).
 
-Lines in play: Cu Kα 8.04 / Kβ 8.90, Zn Kα 8.63 / Kβ 9.57, Pb Lα 10.55 / Lβ 12.61 keV (Fe Kα 6.40 for the steel coin). At 0.4 keV
+Lines in play: Cu Kα 8.04 / Kβ 8.90, Zn Kα 8.63 / Kβ 9.57, Pb Lα 10.55 / Lβ 12.61 keV (Fe Kα 6.40 / Kβ 7.06 for the coin's core). At 0.4 keV
 FWHM, Cu Kα and Zn Kα are only 0.59 keV apart and Cu Kβ sits on Zn Kα, which is why the guide asks for Gaussian fits or a deconvolution.
 
 **Port strategy:** compute in Python an **excitation kernel** $K_{s,\text{line}}(E)$ per sample and per line (plus the
@@ -307,10 +319,11 @@ scatter kernels) on the source energy grid. Export it as a lazy table. TS multip
 S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 
 #### S1 — Python: sample physics
-- [ ] **L3.1** `fluorescence.py`: kernels for the pure Cu, Zn and Pb samples, CuZn39Pb3, CuZn36 and the two coins
-      (compositions in `PARAMETERS.md` with sources). The coins need a two-layer sample: the plating attenuates the
-      excitation and the core's lines, and it adds its own lines. Primary fluorescence only. Secondary fluorescence (Zn Kβ → Cu) is
-      documented as neglected, with an estimate of its size.
+- [ ] **L3.1** `fluorescence.py`: kernels for the pure Cu, Zn and Pb samples, CuZn39Pb3, CuZn36 and the 2003 centavo
+      (compositions in `PARAMETERS.md` with sources). The coin needs a two-layer sample: the plating attenuates the
+      excitation and the core's lines, and it adds its own lines. **Include secondary fluorescence** in the bulk alloys:
+      lines above the Cu K edge (8.98 keV: Zn Kβ, Pb L) excite Cu, and Pb L lines above 9.66 keV excite Zn. LD's own
+      brass example shows the result: Cu is overestimated (61.6 % found vs 58 %), see [[#Calibration anchors]].
 - [ ] **L3.2** Tests: line ratios vs xraylib, zero below the edge, linear in I.
 
 #### S2 — Python: detector and MCA
@@ -334,7 +347,8 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
       data taken, never on the student's %), `xrf-coin`.
 - [ ] **L3.9** Reviews: physics, apparatus, design, pedagogy.
 
-**Done when:** the brass key composition is close to the true w_i within the known bias of the first-order method, and the
+**Done when:** the brass key composition, using the same first-order method as the students, shows the same bias as LD's
+published example (Cu high, Zn low, Pb about right), and the
 Cu/Zn/Pb spectra look like typical Si-PIN XRF spectra (line positions exact, Cu Kβ/Zn Kα blend visible).
 
 **Files:** `model/src/braggsim/{fluorescence,detector,analysis}.py`, `model/notebooks/07_xrf_brass.ipynb`, `artifacts/tables/xrf_kernels.json`, `web/src/physics/fluorescence.ts`, `web/src/views/mca.ts`, `web/src/pedagogy/tasks/xrf-*.ts`
@@ -477,15 +491,16 @@ The engine already exists after C1. What's missing is **data for any element** i
 
 ## Open questions
 
-> [!question] Still open (for the user or the lab staff; record answers below with a date)
-> 5. **Real data:** are there past student datasets for P1, P5 and P6 from the EPN apparatus? They would replace the guide's hints as
->    calibration anchors.
-> 6. **GM background** rate measured with the tube off.
-> 7. **Attribution:** may the README cite the EPN guides by name (course, lab)? Are they EPN-authored?
-> 8. **Naming:** keep "Bragg simulation" as the app name, or rename it to an X-ray lab with Bragg as one experiment?
-> 9. **Ecuador centavo:** the 2000 issue is brass-plated steel and the 2003 issue Cu-plated steel. If the lab uses one, which issue, and is the plating thickness known?
+> [!question] Still open
+> 10. **Absorption wheel positions (P1, run 2a):** the guide lists four positions (30°–60°) for the last three materials. Which one
+>     is empty? Until the lab answers, assume the wheel order polystyrene, Al, Fe, Cu, Zr, Ag at 0°–50° and an open slot at 60°.
 
 > [!success]- Answered 2026-10-14 (user + web research)
+> 5. **Real data:** none from the EPN apparatus. Use published data from reliable sources → [[#Calibration anchors]].
+> 6. **GM background:** no EPN measurement. Use the published value → [[#Calibration anchors]].
+> 7. **Attribution:** the EPN guides are credited to "Técnicos de Laboratorio del Departamento de Física de la EPN" (G0.4).
+> 8. **Naming:** rename the app to **X-Ray Lab** (G0.5).
+> 9. **Coin:** use the **Ecuador 1 centavo 2003** (Cu-plated steel). The US cent is dropped.
 > 1. **Thicknesses.**
 >    - Material wheel (absorption accessory 554 834): **0.4 mm** each (user). The LD catalog says 0.5 mm; we use the user's value
 >      and note the catalog value in `PARAMETERS.md`. The "C" absorber is **polystyrene** (LD catalog), not graphite.
@@ -501,11 +516,28 @@ The engine already exists after C1. What's missing is **data for any element** i
 >      (the leaded brass), CuZn36 = 64/36 and stainless X5CrNi18-10 = 72 Fe / 18 Cr / 10 Ni. It calibrates with Cu Kα 8.04 and Pb Lα 10.56 keV,
 >      and its peak-height method is first order: matrix effects (Zn K exciting Cu) bias it. *Source:* LD CASSY Lab help pages P7511/P7512;
 >      Amptek XRF tutorial.
->    - Coin, default: the **US cent, 1982 on** (US coins circulate in Ecuador). Core Zinc Alloy 190 (0.7–0.9 % Cu) with ≈ 8 µm pure Cu plating
+>    - Coin, considered and dropped by Q9: the **US cent, 1982 on** (US coins circulate in Ecuador). Core Zinc Alloy 190 (0.7–0.9 % Cu) with ≈ 8 µm pure Cu plating
 >      (≈ 7.5 µm at the centre, about twice that at the rim); 97.5 Zn / 2.5 Cu overall; 2.5 g, 19.05 mm. *Source:* Wikipedia "Penny (United
 >      States coin)"; CONECA, citing a Concurrent Technologies Corp. report; Stack's Bowers.
->    - Coin, alternative: the **Ecuador 1 centavo 2003** (KM# 104a), Cu-plated steel, magnetic, 2.35 g. Plating thickness unknown, so it is
->      an assumption (see Q9). *Source:* Wikipedia "Ecuadorian centavo coins"; Numista 3003.
+>    - Coin, chosen: the **Ecuador 1 centavo 2003** (KM# 104a), Cu-plated steel, magnetic, 2.35 g, 19 mm, 1.45 mm. Plating → [[#Calibration anchors]]. *Source:* Wikipedia "Ecuadorian centavo coins"; Numista 3003.
+
+---
+
+## Calibration anchors
+
+> [!info] No EPN measurements exist (user, 2026-10-14)
+> Every number below is published or derived from published data. In `PARAMETERS.md` each one is labelled
+> "anchored to <source>", never "fitted to measurement".
+
+| Quantity | Value used | Source / reasoning |
+|---|---|---|
+| GM background `background_per_s` | **0.2 /s** (range 0.1–0.5) | LD instruction sheet 559 01 (end-window counter): background ≤ 7 pulses/min (0.12 /s) *with* 50 mm Pb + 3 mm Al shielding. Inside the 554 800 the tube is less shielded, so we use a little more. Assumption within that range. |
+| GM dead time | 100 µs (unchanged) | Same sheet: ≤ 90 µs. The model's τ = 100 µs is consistent. |
+| Direct-beam scale `K_direct` | ≈ 950 /s at 21 kV, 0.05 mA, no absorber, collimator, s₁ = s₂ = 5 cm | EPN Práctica 1 (the guide's minimum count for skipping calibration) |
+| Attenuation reference | xraylib μ/ρ × density at Mo Kα (and averaged over the filtered spectrum) | Schoonjans et al. 2011 |
+| Moseley result | R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7 (lit. 1.0974 × 10⁷, 3.6) | LD CASSY Lab help, "Moseley's law and determination of the Rydberg constant" |
+| Brass XRF result | CuZn39Pb3 by the first-order method: 61.6 Cu / 35.6 Zn / 2.9 Pb (nominal 58/39/3); 3 equal-width Gaussians at 8.04, 8.64, 8.91 keV; densities Cu 8.96, Zn 7.10, Pb 11.34 g/cm³ | LD CASSY Lab help P7.5.1.2 |
+| Centavo 2003 plating | **≈ 18 µm Cu** on steel (range 10–25 µm) | No mint publishes it. Analogue: the RCM copper-plated steel cent of the same size and mass (2.35 g, 19.05 mm, 1.45 mm) is 4.5 % Cu by mass, which gives ≈ 18 µm over the surface. The Ecuador 2003 coin was struck in Mexico, so this is an assumption. |
 
 ---
 
@@ -554,6 +586,15 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-14 · G0 · tasks G0.3, G0.4
+- Done: Q5–9 answered (no EPN data, so published anchors; credit to the EPN lab technicians; rename to X-Ray Lab; 2003 centavo).
+  Added [[#Calibration anchors]] (GM background, LD Moseley and brass example results, plating estimate) and propagated them
+  to G1, L1, L2, L3. L3 now includes secondary fluorescence. L1's "done when" now compares against the tabulated-edge fit,
+  not R∞. README credits the guides. `practicas.md` updated.
+- Verify: docs only.
+- Uncommitted: no (committed as `[G0] docs: record open-question answers and calibration anchors`)
+- Next: G0.2 + G0.5
 
 ### 2026-10-14 · G0 · tasks G0.1
 - Done: answered open questions 1–4 (user + web research, sources in [[#Open questions]]); propagated them to G0.1, L1, L2, L3, C1.

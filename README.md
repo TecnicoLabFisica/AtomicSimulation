@@ -61,6 +61,9 @@ micromamba run -n atom-sim pytest model
 
 - LD Didactic, *Physics Leaflet P6.3.3.1: Bragg reflection: diffraction of X-rays at a monocrystal*.
 - LD Didactic, *Instruction sheet 554 800: X-ray apparatus*.
+- Técnicos de Laboratorio del Departamento de Física de la EPN, lab guides for the X-ray apparatus: *Práctica 1,
+  Atenuación de rayos X*; *Práctica 5, Ley de Moseley y constante de Rydberg*; *Práctica 6, Fluorescencia de rayos X
+  del latón*.
 - T. Schoonjans et al., *The xraylib library for X-ray–matter interactions. Recent developments*,
   Spectrochim. Acta B 66 (2011) 776–784. <https://github.com/tschoonj/xraylib>
 - H. A. Kramers, *On the theory of X-ray absorption and of the continuous X-ray spectrum*,

@@ -1,6 +1,7 @@
 # EPN lab practices on the X-ray apparatus
 
-Paraphrased settings and steps from three EPN lab guides (Laboratorio de Física Atómica y Molecular), plus
+Paraphrased settings and steps from three EPN lab guides (Laboratorio de Física Atómica y Molecular; credit them to
+"Técnicos de Laboratorio del Departamento de Física de la EPN"), plus
 accessory and sample data researched on the web. The guides are kept in `refs/` (gitignored). Cite them as
 `EPN Práctica 1`, `EPN Práctica 5`, `EPN Práctica 6`. The roadmap that uses these facts is `Plan-New-Features.md`.
 
@@ -28,8 +29,8 @@ first reading is at least ≈ 950 /s.
 The guide gives the material-set thickness as 0.5 mm, the same as the LD catalog. **The project uses 0.4 mm**
 (user decision, 2026-10-14). The Al thicknesses are as listed.
 
-**Ambiguity (ask the lab).** Run 2a lists 4 positions (30°–60°) for the last 3 materials. Which position is open,
-or holds a 7th absorber?
+**Ambiguity (open question 10).** Run 2a lists 4 positions (30°–60°) for the last 3 materials. Until the lab answers,
+assume polystyrene, Al, Fe, Cu, Zr, Ag at 0°–50° and an open slot at 60°.
 
 **Analysis asked.** T vs thickness; μ from the slope of ln T vs thickness; T and μ for each material; μ vs Z.
 
@@ -90,8 +91,8 @@ composition from Gaussian fits or deconvolution, compared with literature; the s
 | 559 938 housing lines | radiation that passes the Si can excite the housing (iron alloy, gold-plated), so Fe, Co, Ni, Cu, Zn, Au or Ag lines may appear; Au L lines most often | LD instruction sheet 559 938 §9 |
 | Target-alloy set 554 848 | CuZn39Pb3 = 58 Cu / 39 Zn / 3 Pb (leaded brass); CuZn36 = 64 Cu / 36 Zn; X5CrNi18-10 = 72 Fe / 18 Cr / 10 Ni (wt %) | LD CASSY Lab help, experiments P7.5.1.1 / P7.5.1.2 |
 | LD brass method | peak height ∝ number of atoms, referenced to pure-element spectra: first order only. Matrix effects (Zn K exciting Cu, absorption) bias it | LD P7.5.1.2 help page; Amptek tutorial "Understanding characteristic X-rays" |
-| US cent, 1982 on (circulates in Ecuador) | zinc core (Zinc Alloy 190, 0.7–0.9 % Cu) plated with ≈ 8 µm pure Cu (≈ 7.5 µm centre, about twice at the rim); overall ≈ 97.5 Zn / 2.5 Cu; 2.5 g, 19.05 mm dia., 1.52 mm | Wikipedia "Penny (United States coin)"; CONECA (citing Concurrent Technologies Corp.); Stack's Bowers |
-| Ecuador 1 centavo | 2000 issue: brass-plated steel (sources disagree, some say solid brass), 2.5 g, 19 mm; 2003 issue (KM# 104a): Cu-plated steel, magnetic, 2.35 g, 19 mm. Plating thickness not published (assumption) | Wikipedia "Ecuadorian centavo coins"; Numista 3003 |
+| US cent, 1982 on (considered, not used) | zinc core (Zinc Alloy 190, 0.7–0.9 % Cu) plated with ≈ 8 µm pure Cu (≈ 7.5 µm centre, about twice at the rim); overall ≈ 97.5 Zn / 2.5 Cu; 2.5 g, 19.05 mm dia., 1.52 mm | Wikipedia "Penny (United States coin)"; CONECA (citing Concurrent Technologies Corp.); Stack's Bowers |
+| Ecuador 1 centavo (**the 2003 issue is the project's coin**, user 2026-10-14) | 2000 issue: brass-plated steel (sources disagree, some say solid brass), 2.5 g, 19 mm; 2003 issue (KM# 104a): Cu-plated steel, magnetic, 2.35 g, 19 mm, 1.45 mm, struck in Mexico. Plating not published: estimate ≈ 18 µm Cu (range 10–25), from the RCM copper-plated steel cent of the same size and mass (4.5 % Cu by mass) | Wikipedia "Ecuadorian centavo coins"; Numista 3003 |
 
 ## Crystals in use at the lab (user, 2026-10-14)
 
@@ -99,3 +100,12 @@ NaCl, LiF, Si, calcite, mica. Catalog values: NaCl (100) d = 282 pm (LD 554 78, 
 d = 201 pm (LD); NaCl cut along (110) d = 199.4 pm (LD 554 792, θ = 10.3°). **(verify)** before use: Si (111)
 d ≈ 313.6 pm; calcite (104) d ≈ 303.5 pm; muscovite 2M1 (002) d ≈ 995 pm (a ≈ 5.20, b ≈ 9.03, c ≈ 20.1 Å,
 β ≈ 95.8°; Wikipedia, webmineral, mindat).
+
+## Published results and background (no EPN data exists; user, 2026-10-14)
+
+| Quantity | Value | Source |
+|---|---|---|
+| GM end-window counter 559 01 background | ≤ 7 pulses/min (≈ 0.12 /s) with 50 mm Pb + 3 mm Al shielding | LD instruction sheet 559 01 |
+| GM 559 01 dead time | ≤ 90 µs | LD instruction sheet 559 01 |
+| Moseley, LD example | R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7 from the Zr, Mo, Ag, In edges (lit. 1.0974 × 10⁷ m⁻¹, 3.6). Evaluation: T = R/R₀, x axis → nλ, λ_K from the edge, fit 1/√λ_K = √R (Z − σ_K) | LD CASSY Lab help, Moseley's law and the Rydberg constant |
+| Brass XRF, LD example | CuZn39Pb3 found 61.6 Cu / 35.6 Zn / 2.9 Pb (nominal 58/39/3). Cu comes out high because of secondary fluorescence: Zn Kβ (9.57 keV) is above the Cu K edge (8.98 keV). Fit of 7.5–9.1 keV with three equal-width Gaussians (Cu Kα 8.04, Zn Kα 8.64, Cu Kβ 8.91 keV). Densities Cu 8.96, Zn 7.10, Pb 11.34 g/cm³ | LD CASSY Lab help P7.5.1.2 |
