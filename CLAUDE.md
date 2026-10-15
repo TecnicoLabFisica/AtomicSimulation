@@ -61,6 +61,12 @@ Skills (`.claude/skills/`):
 Agents (`.claude/agents/`, read-only reviewers; call them after meaningful changes in their area):
 `physics-reviewer`, `apparatus-reviewer`, `design-reviewer`, `pedagogy-reviewer`.
 
+Model roles: the main Opus session reviews, analyzes, plans, orchestrates and reasons. Building, coding, fixing
+and implementing go to subagents dispatched with `model: "sonnet"`. Give each one a self-contained brief: the goal,
+the files involved, the invariants above that apply, and how to verify the work (which tests to run). Review its diff
+before accepting it. Small edits (a typo, a one-line fix, a docs or config tweak) Opus makes directly, because
+briefing an agent would cost more than the edit. The read-only reviewers above stay on Opus.
+
 ## Public-repo hygiene (checklist)
 
 - [ ] LD PDFs (once committed under `start/`) purged from local history on 2026-09-24, but GitHub still
@@ -71,3 +77,4 @@ Agents (`.claude/agents/`, read-only reviewers; call them after meaningful chang
 - [x] LICENSE files: MIT (code) + CC BY 4.0 (educational content/docs); README cites LD sources.
 - [x] No absolute local paths, tokens or `settings.local.json` in history: audited all refs on 2026-09-26.
       Re-check: `git grep -nIE '/home/|/Users/|ghp_|github_pat_|sk-|PRIVATE KEY' $(git rev-list --all)`.
+
