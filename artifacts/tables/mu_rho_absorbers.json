@@ -1,5 +1,14 @@
 {
  "description": "Mass attenuation μ/ρ (cm²/g) of the absorbers on the grid of mu_rho.json; same interpolation (braggsim.filters.transmission)",
+ "foils_mg_cm2": {
+  "Ag": 52.5,
+  "Al": 134.945,
+  "Cu": 62.72,
+  "Fe": 393.7,
+  "In": 219.3,
+  "Mo": 102.2,
+  "Zr": 32.53
+ },
  "model_version": "0.4.0",
  "mu_rho_cm2_g": {
   "Ag": [
@@ -8019,5 +8028,61 @@
    749.0666381457092
   ]
  },
- "source": "xraylib 4.2.1 CS_Total_CP"
+ "source": "xraylib 4.2.1 CS_Total_CP",
+ "wheels_mg_cm2": {
+  "al": [
+   null,
+   [
+    "Al",
+    134.945
+   ],
+   [
+    "Al",
+    269.89
+   ],
+   [
+    "Al",
+    404.835
+   ],
+   [
+    "Al",
+    539.78
+   ],
+   [
+    "Al",
+    674.725
+   ],
+   [
+    "Al",
+    809.67
+   ]
+  ],
+  "material": [
+   [
+    "Polystyrene",
+    42.4
+   ],
+   [
+    "Al",
+    107.956
+   ],
+   [
+    "Fe",
+    314.96
+   ],
+   [
+    "Cu",
+    358.4
+   ],
+   [
+    "Zr",
+    260.24
+   ],
+   [
+    "Ag",
+    420.0
+   ],
+   null
+  ]
+ }
 }

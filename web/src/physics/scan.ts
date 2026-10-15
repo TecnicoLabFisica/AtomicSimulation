@@ -254,10 +254,12 @@ export function expectedRate(
 }
 
 /** port of braggsim.scan.direct_rate: observed rate in counts/s with the counter in the direct beam
- * (no crystal, sensor at 0°; EPN Práctica 1). Wheel absorbers and Moseley foils are both `filters`. */
-export function directRate(UkV: number, ImA: number, filters: Filters = [], params: ModelParams = DEFAULT): number {
+ * (no crystal, sensor at `sensorDeg`; EPN Práctica 1). Wheel absorbers and Moseley foils are both `filters`. */
+export function directRate(UkV: number, ImA: number, filters: Filters = [], params: ModelParams = DEFAULT, sensorDeg = 0): number {
+  if (!(sensorDeg >= SENSOR_MIN_DEG && sensorDeg <= SENSOR_MAX_DEG)) throw new RangeError(`sensor outside its range ${SENSOR_MIN_DEG}° … ${SENSOR_MAX_DEG}°`)
   checkTube(UkV, ImA)
   checkFilters(filters)
   if (!validated.has(params)) throw new TypeError('params must come from modelParams()')
-  return deadTime(params.direct_per_s * tubeFactor(UkV, ImA, params, filters) + params.background_per_s, params.tau_s)
+  const profile = Math.exp(-0.5 * (sensorDeg / params.leak_width_deg) ** 2)
+  return deadTime(params.direct_per_s * tubeFactor(UkV, ImA, params, filters) * profile + params.background_per_s, params.tau_s)
 }

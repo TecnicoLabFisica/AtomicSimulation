@@ -332,3 +332,11 @@ def test_fig4_peak_heights_within_known_line_tip_deficit(n, lam):
     b, data, model = _fig4_log_panel()
     near = np.abs(b - FIG4_BETA_OFFSET_DEG - theta_from_lambda(lam, n)) < 0.2
     assert 0.65 < model[near].max() / data[near].max() < 1.15
+
+
+def test_direct_rate_falls_off_axis_and_rejects_bad_sensor():
+    on, off = direct_rate(21.0, 0.05), direct_rate(21.0, 0.05, sensor_deg=3.0)
+    assert off < on
+    assert direct_rate(21.0, 0.05, sensor_deg=-3.0) == approx(off)
+    with pytest.raises(ValueError):
+        direct_rate(21.0, 0.05, sensor_deg=171.0)

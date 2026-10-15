@@ -4,7 +4,8 @@
 // Settings are integers in device steps (U in 0.1 kV, I in 0.01 mA, angles in 0.1°) and become floats
 // only when the physics is called: 100 × 0.01 mA summed in floats is 1.0000000000000007 mA > 1 mA.
 import { mulberry32, poisson, type Rng } from '../physics/detector'
-import { BETA_MAX_DEG, BETA_MIN_DEG, DEFAULT, expectedRate, type ModelParams } from '../physics/scan'
+import { BETA_MAX_DEG, BETA_MIN_DEG, DEFAULT, directRate, expectedRate, type ModelParams } from '../physics/scan'
+import { FOILS_MG_CM2, WHEELS_MG_CM2, absorbersLoaded } from '../physics/tables'
 
 export type Key =
   | 'U' | 'I' | 'DT' | 'DBETA' | 'LIMITS' // parameter keys (§7 b3)
@@ -12,6 +13,10 @@ export type Key =
   | 'RESET' | 'REPLAY' | 'SCAN' | 'HV' | 'SPEAKER' // operational keys (§7 b5)
 export type Mode = 'SENSOR' | 'TARGET' | 'COUPLED'
 type Param = 'U' | 'I' | 'DT' | 'DBETA' | 'LIMIT_LO' | 'LIMIT_HI'
+/** What sits in the beam path: the crystal, one of the two 554 834 absorber plates, or nothing. */
+export type Holder = 'crystal' | 'alWheel' | 'materialWheel' | 'empty'
+/** Accessories mounted with the door open; filter values are FOILS_MG_CM2 names (e.g. 'Zr'). */
+export type Setup = Readonly<{ holder: Holder; collimatorFilter: string | null; sensorFilter: string | null }>
 export type Phase = 'idle' | 'safety' | 'positioning' | 'scan' | 'exposure'
 type Arms = { target: number; sensor: number } // 0.1°
 
@@ -29,6 +34,10 @@ const ARM_RANGE: Record<Mode, readonly [number, number]> = {
   TARGET: [-3600, 3600],
   COUPLED: [-50, 850],
 }
+// ponytail: a binary window, no angular profile: an assumption to be confirmed by the lab staff and
+// upgraded to a Python profile if L2 needs it. A target turned ≈180° is treated as blocked, though a real
+// plate might put an absorber on the tube side.
+export const WHEEL_WINDOW_DEG = 3 // target within ±3° of a slot centre: the slot is in the beam
 const COUNTER_MAX_PER_S = 65_535 // internal rate limit (§4)
 const DISPLAY_MAX = 9999 // 4-digit display
 
@@ -91,6 +100,7 @@ export class Apparatus {
   exposureDone = false // "0 s" stays on show after an exposure until the next key or turn
   speaker = false
   doorsClosed = true
+  private _setup: Setup = { holder: 'crystal', collimatorFilter: null, sensorFilter: null }
   hvOn = false
   alert: Alert | null = null // cleared by the next key
   // Program
@@ -122,6 +132,11 @@ export class Apparatus {
     return this.phase !== 'idle'
   }
 
+  /** A program may count: the exposure timer needs HV only (a background run is at 0 kV), auto-scan also U and I. */
+  private get ready(): boolean {
+    return this.phase === 'exposure' ? this.hvOn : this.emitting
+  }
+
   /** The motor is driving the arms. */
   get moving(): boolean {
     return this.path.length > 0
@@ -140,18 +155,57 @@ export class Apparatus {
     return this.phase === 'scan' || this.phase === 'exposure' || this.phase === 'positioning' || (this.phase === 'safety' && this.next !== 'hv')
   }
 
-  /** Expected rate R̄ at the current arm positions, in counts/s (0 with HV off). */
+  get setup(): Setup {
+    return this._setup
+  }
+
+  /** Expected rate R̄ at the current arm positions, in counts/s. With HV off the counter still sees the
+   * natural GM background. */
   expectedRate(): number {
-    if (!this.hvOn) return 0
-    return expectedRate([this.target / 10], this.u / 10, this.i / 100, this.params, [this.sensor / 10])[0]
+    const { u, i, sensor, target, params } = this
+    if (!this.hvOn) return directRate(0, 0, [], params)
+    const filters = this.foils()
+    if (this._setup.holder === 'crystal') return expectedRate([target / 10], u / 10, i / 100, params, [sensor / 10], filters)[0]
+    // No crystal: the counter sees the direct beam through the wheel slot in the beam, else the frame blocks it.
+    const slot = this._setup.holder === 'empty' ? null : this.wheelSlot()
+    if (slot === undefined) return directRate(0, 0, [], params)
+    return directRate(u / 10, i / 100, slot ? [...filters, slot] : filters, params, sensor / 10)
   }
 
   /** Expected rate a counter at the specular angle 2β would see, in counts/s: the reflected beam the
-   * goniometer view draws. 0 with HV off, and where 2β lies outside the sensor range. */
+   * goniometer view draws. 0 with HV off, without the crystal, and where 2β lies outside the sensor range. */
   specularRate(): number {
     const beta = wrapTarget(this.target) / 10
-    if (!this.hvOn || beta < BETA_MIN_DEG || beta > BETA_MAX_DEG) return 0
-    return expectedRate([beta], this.u / 10, this.i / 100, this.params)[0]
+    if (!this.hvOn || this._setup.holder !== 'crystal' || beta < BETA_MIN_DEG || beta > BETA_MAX_DEG) return 0
+    return expectedRate([beta], this.u / 10, this.i / 100, this.params, undefined, this.foils())[0]
+  }
+
+  /** The true rate R is past Rτ = 0.3: dead-time losses exceed 23 % and the choice of dead-time model
+   * starts to matter (simulation aid, not a device feature). */
+  get saturated(): boolean {
+    return this.expectedRate() * this.params.tau_s > 0.3 / 1.3 // observed m = R/(1+Rτ)
+  }
+
+  /** Change the accessories; only with the door open (§6). Refused (false) with doors closed. */
+  mount(setup: Setup): boolean {
+    if (this.doorsClosed) return false
+    const names = [setup.collimatorFilter, setup.sensorFilter].filter((n) => n !== null)
+    if ((setup.holder.endsWith('Wheel') || names.length > 0) && !absorbersLoaded()) throw new RangeError('absorber tables not loaded')
+    for (const n of names) if (!Object.hasOwn(FOILS_MG_CM2, n)) throw new RangeError(`unknown filter ${n}`)
+    this._setup = Object.freeze({ ...setup })
+    return true
+  }
+
+  private foils(): [string, number][] {
+    return [this._setup.collimatorFilter, this._setup.sensorFilter].filter((n) => n !== null).map((n) => [n, FOILS_MG_CM2[n]])
+  }
+
+  /** The wheel slot in the beam (null = open slot), or undefined when the wheel frame blocks it. */
+  private wheelSlot(): readonly [string, number] | null | undefined {
+    const t = wrapTarget(this.target)
+    const k = Math.round(t / 100)
+    if (k < 0 || k > 6 || Math.abs(t - 100 * k) > WHEEL_WINDOW_DEG * 10) return undefined
+    return WHEELS_MG_CM2[this._setup.holder === 'alWheel' ? 'al' : 'material'][k]
   }
 
   press(key: Key): void {
@@ -198,6 +252,7 @@ export class Apparatus {
           secondsCounted: this.secondsCounted,
           target: this.target,
           sensor: this.sensor,
+          _setup: this._setup,
           path: [{ target: 0, sensor: 0 }],
         })
         return
@@ -375,7 +430,7 @@ export class Apparatus {
       this.phase = 'exposure'
       this.lastScan = null
       const arms = this.restingArms()
-      this.program = { steps: [this.mode === 'SENSOR' ? arms.sensor : arms.target], index: 0, elapsedS: 0, counts: 0 }
+      this.program = { steps: [this.mode === 'SENSOR' ? arms.sensor : wrapTarget(arms.target)], index: 0, elapsedS: 0, counts: 0 }
       return
     }
     // Auto-scan: both arms to zero (in every mode, confirmed by the lab staff), then the scan arm to the
@@ -434,11 +489,11 @@ export class Apparatus {
 
   /** One whole simulated second: sample the counter, feed the running program. */
   private countSecond(): void {
-    const c = this.hvOn ? Math.min(poisson(this.expectedRate(), this.rng), COUNTER_MAX_PER_S) : 0
+    const c = Math.min(poisson(this.expectedRate(), this.rng), COUNTER_MAX_PER_S)
     this.lastSecondCounts = c
     this.secondsCounted++
     const p = this.program
-    if (!p || !this.emitting || this.moving) return // a program waits for HV, emission current and the arms (§7 b5)
+    if (!p || !this.ready || this.moving) return // a program waits for HV, emission current and the arms (§7 b5)
     p.counts += c
     const s = this.lastScan // null for an exposure
     if (s && (this.u !== s.u || this.i !== s.i)) s.changed = true
@@ -461,7 +516,7 @@ export class Apparatus {
    * A sum of Poisson counts is Poisson, so the stored means have the same statistics as in real time. */
   private finish(): void {
     this.land()
-    while (this.program && this.emitting) {
+    while (this.program && this.ready) {
       const p = this.program
       const left = this.dt - p.elapsedS
       p.counts += Math.min(poisson(this.expectedRate() * left, this.rng), COUNTER_MAX_PER_S * left)

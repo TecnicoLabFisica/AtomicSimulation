@@ -39,7 +39,7 @@ function run(fn: string, c: Case) {
     }
     case 'scan.direct_rate': {
       const params: ModelParams = x.params ? modelParams(x.params) : DEFAULT
-      return expectClose([directRate(x.U_kV, x.I_mA, x.filters, params)], [c.expected.rate_per_s])
+      return expectClose([directRate(x.U_kV, x.I_mA, x.filters, params, x.sensor_deg)], [c.expected.rate_per_s])
     }
     case 'scan.coupled_betas':
       return expectClose(coupledBetas(x.lo_deg, x.hi_deg, x.step_deg), c.expected.beta_deg)

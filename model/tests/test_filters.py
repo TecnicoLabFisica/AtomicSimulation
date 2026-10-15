@@ -4,7 +4,14 @@ import xraylib
 from pytest import approx
 
 from braggsim.constants import HC_KEV_PM, MO_KA_PM, MO_KB_PM
-from braggsim.filters import ABSORBERS, check_filters, transmission
+from braggsim.filters import (
+    ABSORBERS,
+    FOILS_MM,
+    WHEELS_MM,
+    areal_density_mg_cm2,
+    check_filters,
+    transmission,
+)
 
 LAM = np.array([40.0, MO_KB_PM, MO_KA_PM, 150.0])
 
@@ -57,3 +64,30 @@ def test_filter_without_an_exported_table_is_refused():
     # The web app has μ/ρ tables only for ABSORBERS (and air and Pyrex, which are not filters).
     with pytest.raises(ValueError):
         check_filters((("Ni", 1.0),))
+
+
+def test_areal_density_is_linear_in_thickness():
+    assert areal_density_mg_cm2("Cu", 0.3) == approx(3 * areal_density_mg_cm2("Cu", 0.1))
+
+
+def test_densities_match_handbook_within_1_percent():
+    handbook = {
+        "Al": 2.70,
+        "Fe": 7.87,
+        "Cu": 8.96,
+        "Zr": 6.52,
+        "Mo": 10.2,
+        "Ag": 10.5,
+        "In": 7.31,
+        "Polystyrene": 1.05,
+    }
+    assert set(handbook) == set(ABSORBERS)
+    for m, rho in handbook.items():
+        assert areal_density_mg_cm2(m, 1.0) / 100 == approx(rho, rel=0.01)
+
+
+def test_wheels_have_seven_slots_of_known_absorbers():
+    for slots in WHEELS_MM.values():
+        assert len(slots) == 7
+        assert all(s is None or s[0] in ABSORBERS for s in slots)
+    assert all(m in ABSORBERS for m in FOILS_MM)

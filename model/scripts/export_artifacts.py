@@ -22,7 +22,15 @@ import braggsim
 from braggsim import scan
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM
 from braggsim.crystal import structure_factor_sq_rel, theta_from_lambda
-from braggsim.filters import ABSORBERS, MU_RHO_GRID_PM, mu_rho_table, transmission
+from braggsim.filters import (
+    ABSORBERS,
+    FOILS_MM,
+    MU_RHO_GRID_PM,
+    WHEELS_MM,
+    areal_density_mg_cm2,
+    mu_rho_table,
+    transmission,
+)
 from braggsim.source import lambda_min_pm
 
 ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
@@ -57,12 +65,12 @@ def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT, sensor_de
     }
 
 
-def _direct_case(description, U_kV, I_mA, filters=()):
+def _direct_case(description, U_kV, I_mA, filters=(), sensor_deg=0.0):
     return {
         "description": description,
         "inputs": {"U_kV": U_kV, "I_mA": I_mA, "filters": [[m, d] for m, d in filters],
-                   "params": dataclasses.asdict(scan.DEFAULT)},
-        "expected": {"rate_per_s": scan.direct_rate(U_kV, I_mA, filters)},
+                   "sensor_deg": sensor_deg, "params": dataclasses.asdict(scan.DEFAULT)},
+        "expected": {"rate_per_s": scan.direct_rate(U_kV, I_mA, filters, sensor_deg=sensor_deg)},
     }  # fmt: skip
 
 
@@ -222,6 +230,8 @@ def _fixtures():
                 _direct_case("Al 1.0 mm", 21.0, 0.05, (("Al", 270.0),)),
                 _direct_case("Zr 0.05 mm + Cu 0.4 mm", 30.0, 1.0, (("Zr", 32.6), ("Cu", 358.4))),
                 _direct_case("Tube off: natural background only", 0.0, 0.05),
+                _direct_case("Off-axis 1.5° (Gaussian profile, leak width)", 21.0, 0.05, (), 1.5),
+                _direct_case("Off-axis 3°", 21.0, 0.05, (), 3.0),
             ],
         },
         "tube_off_I0": _rate_case(
@@ -284,6 +294,16 @@ def build():
                 "of mu_rho.json; same interpolation (braggsim.filters.transmission)",
                 "source": f"xraylib {xraylib.__version__} CS_Total_CP",
                 "mu_rho_cm2_g": {m: _floats(mu_rho_table(m)) for m in ABSORBERS},
+                "foils_mg_cm2": {
+                    m: round(areal_density_mg_cm2(m, t), 6) for m, t in FOILS_MM.items()
+                },
+                "wheels_mg_cm2": {
+                    w: [
+                        None if slot is None else [slot[0], round(areal_density_mg_cm2(*slot), 6)]
+                        for slot in slots
+                    ]
+                    for w, slots in WHEELS_MM.items()
+                },
             }
         ),
         "tables/structure_factor.json": _dump(

@@ -259,17 +259,23 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters
     return dead_time(true_rate, params.tau_s)
 
 
-def direct_rate(U_kV, I_mA, filters=(), params=DEFAULT):
-    """Observed counting rate in counts/s with the counter in the direct beam: no crystal,
-    sensor at 0°. EPN Práctica 1 (attenuation; collimator, s1 = s2 = 5 cm, GM counter).
+def direct_rate(U_kV, I_mA, filters=(), params=DEFAULT, sensor_deg=0.0):
+    """Observed counting rate in counts/s with the counter in the direct beam: no crystal, sensor
+    at ``sensor_deg``. EPN Práctica 1 (attenuation; collimator, s1 = s2 = 5 cm, GM counter).
 
     ``direct_per_s`` is anchored to the guide's ≥ 950/s at 21 kV and 0.05 mA, and the tube
     dependence is ``tube_factor``. The absorber wheel and the Moseley foils are both just entries
-    in ``filters``, ``(material, areal_density_mg_cm2)`` each.
+    in ``filters``, ``(material, areal_density_mg_cm2)`` each. Without the crystal the counter sees
+    the angular profile of the direct beam, a Gaussian in the sensor angle; its width is assumed
+    equal to the fitted leak halo ``leak_width_deg`` (an assumption, no measurement).
     """
+    if not (math.isfinite(sensor_deg) and SENSOR_MIN_DEG <= sensor_deg <= SENSOR_MAX_DEG):
+        raise ValueError(f"sensor outside its range {SENSOR_MIN_DEG}° … {SENSOR_MAX_DEG}°")
     _check_tube(U_kV, I_mA)
     check_filters(filters)
+    profile = math.exp(-0.5 * (sensor_deg / params.leak_width_deg) ** 2)
     true_rate = (
-        params.direct_per_s * tube_factor(U_kV, I_mA, params, filters) + params.background_per_s
+        params.direct_per_s * tube_factor(U_kV, I_mA, params, filters) * profile
+        + params.background_per_s
     )
     return float(dead_time(true_rate, params.tau_s))

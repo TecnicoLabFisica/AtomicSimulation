@@ -17,6 +17,18 @@ from braggsim.constants import HC_KEV_PM
 # 554 834 (Al wheel, material wheel). "Polystyrene" is the NIST compound for the LD "C" absorber.
 ABSORBERS = ("Polystyrene", "Al", "Fe", "Cu", "Zr", "Mo", "Ag", "In")
 
+# LD foil set 554 832, thickness in mm (LD catalog).
+FOILS_MM = {"Zr": 0.05, "Mo": 0.1, "Ag": 0.05, "In": 0.3, "Al": 0.5, "Fe": 0.5, "Cu": 0.07}
+
+# The two plates of the absorption accessory 554 834: 7 slots at target angles 0°, 10° … 60°
+# ((material, thickness_mm) or None = open). Assumptions (model/PARAMETERS.md): the material plate's
+# 0.4 mm is the user's decision (the catalog says 0.5 mm) and its open slot is at 60°
+# (open question 10 in Plan-New-Features.md).
+WHEELS_MM = {
+    "al": (None, *(("Al", 0.5 * k) for k in range(1, 7))),
+    "material": (*((m, 0.4) for m in ("Polystyrene", "Al", "Fe", "Cu", "Zr", "Ag")), None),
+}
+
 # μ/ρ is tabulated on this fixed grid and interpolated log–log, so the web app can load the very
 # same numbers (artifacts/tables/mu_rho.json) and match Python to 1e-9. It spans λ_min at 35 kV
 # (35.4 pm) to 1st order at the arm limit θ = 85° (562 pm); beyond it the end values are held.
@@ -38,6 +50,15 @@ def transmission(lambda_pm, material, areal_density_mg_cm2):
     log_lam = np.log(np.asarray(lambda_pm, dtype=float))
     log_mu = np.interp(log_lam, np.log(MU_RHO_GRID_PM), np.log(mu_rho_table(material)))
     return np.exp(-np.exp(log_mu) * areal_density_mg_cm2 / 1000)
+
+
+def areal_density_mg_cm2(material, thickness_mm):
+    """Areal density ρx in mg/cm² of a ``thickness_mm`` foil: 100 · thickness_mm · ρ(g/cm³)."""
+    if material == "Polystyrene":
+        rho_g_cm3 = xraylib.GetCompoundDataNISTByName(material)["density"]
+    else:
+        rho_g_cm3 = xraylib.ElementDensity(xraylib.SymbolToAtomicNumber(material))
+    return 100 * thickness_mm * rho_g_cm3
 
 
 def check_filters(filters):

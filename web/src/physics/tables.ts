@@ -11,12 +11,22 @@ const logMuRho: Record<string, Float64Array> = Object.fromEntries(
 )
 export const LOG_MU_RHO: Readonly<Record<string, Float64Array>> = logMuRho
 
+/** Foil set 554 832 (name → mg/cm²) and the two plates of the absorption accessory 554 834 (7 slots,
+ * `null` = open); empty until loadAbsorbers() resolves. */
+export const FOILS_MG_CM2: Record<string, number> = {}
+export type Slot = readonly [string, number] | null
+export const WHEELS_MG_CM2: Record<'al' | 'material', readonly Slot[]> = { al: [], material: [] }
+
+export const absorbersLoaded = (): boolean => 'Zr' in logMuRho
+
 /** Merge the absorber tables (Polystyrene … In, ~78 kB gzip) into LOG_MU_RHO. A separate chunk, fetched
  * only by the views that use filters; idempotent. Same λ grid as mu_rho.json. */
 export async function loadAbsorbers(): Promise<void> {
-  if ('Zr' in logMuRho) return
+  if (absorbersLoaded()) return
   const { default: absorbers } = await import('../../../artifacts/tables/mu_rho_absorbers.json')
   for (const [m, t] of Object.entries(absorbers.mu_rho_cm2_g as Record<string, number[]>)) logMuRho[m] = Float64Array.from(t, Math.log)
+  Object.assign(FOILS_MG_CM2, absorbers.foils_mg_cm2)
+  Object.assign(WHEELS_MG_CM2, absorbers.wheels_mg_cm2)
 }
 export const STRUCTURE_FACTOR_SQ_REL: readonly number[] = structureFactor.f_sq_rel
 export const DEFAULT_PARAMS_JSON = modelParams.params

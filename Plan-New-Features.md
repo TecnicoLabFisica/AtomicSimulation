@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-14
 current_phase: G1
-next_task: G1.7
+next_task: G1.9
 last_session: 2026-10-14
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G1.7` (the `setup` state in `apparatus.ts`; it must call `loadAbsorbers()` before using a filter). Then `apparatus-reviewer` (G1.8).
+> **Next:** `G1.9` (the "Montaje / Setup" tray: it awaits `loadAbsorbers()`, calls `Apparatus.mount()`, and shows `saturated`). Load `bragg-ui` first.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -207,11 +207,23 @@ flowchart LR
 
 #### S2 — Port and apparatus
 - [x] **G1.6** TS port of the above. Vitest passes with every fixture.
-- [ ] **G1.7** `apparatus.ts`: a `setup` state: `holder` (crystal | absorberWheel | xrfSample | empty), `collimatorFilter`,
+- [x] **G1.7** `apparatus.ts`: a `setup` state: `holder` (crystal | absorberWheel | xrfSample | empty), `collimatorFilter`,
       `sensorFilter`, `detector` (gm | energy). Changing the setup requires the door to be open (interlock).
       With the absorber wheel, the target angle selects the absorber position (10° pitch; between positions the beam
       is partly blocked, as an assumption to confirm).
-- [ ] **G1.8** `apparatus-reviewer` pass.
+- [x] **G1.8** `apparatus-reviewer` pass.
+
+> [!note] As built (2026-10-14), refining G1.7–G1.8
+> - `holder` is `crystal | alWheel | materialWheel | empty` (554 834 has two plates). `xrfSample` and `detector: energy` are **deferred to L3**,
+>   where their physics lands. `mount(setup)` works only with the doors open (which already implies HV off and idle); RESET keeps the setup.
+>   The setup is frozen and read-only from outside.
+> - Thicknesses are data in Python: `filters.FOILS_MM`, `filters.WHEELS_MM`, `areal_density_mg_cm2`, exported to `mu_rho_absorbers.json`
+>   (`foils_mg_cm2`, `wheels_mg_cm2`) and read in TS as `FOILS_MG_CM2`/`WHEELS_MG_CM2` after `loadAbsorbers()`. This was the data half of L1.1 and L2.1.
+> - No crystal: `direct_rate(..., sensor_deg)` gives the direct beam a Gaussian profile with the leak width (an assumption). A wheel slot is in the beam
+>   within ±3° (`WHEEL_WINDOW_DEG`); between slots the frame blocks it (binary, an assumption to confirm with the lab).
+> - The exposure timer runs with HV on even at 0 kV / 0 mA (P1 run 3, background); auto-scan steps still wait for emission. The counter reads
+>   the GM background with HV off too.
+> - `Apparatus.saturated`: Rτ > 0.3 (a simulation aid). The guide's own polystyrene reading in run 2a trips it (Rτ ≈ 0.32), which is kept as a teaching point.
 
 #### S3 — Setup UI
 - [ ] **G1.9** A "Montaje / Setup" tray (bench card + 2D fallback) to place accessories. i18n ES/EN. Load `bragg-ui` first.
@@ -511,6 +523,8 @@ The engine already exists after C1. What's missing is **data for any element** i
 > [!question] Still open
 > 10. **Absorption wheel positions (P1, run 2a):** the guide lists four positions (30°–60°) for the last three materials. Which one
 >     is empty? Until the lab answers, assume the wheel order polystyrene, Al, Fe, Cu, Zr, Ag at 0°–50° and an open slot at 60°.
+>     Evidence (apparatus review 2026-10-14): at the guide's 1 mA, an open slot anywhere in 30°–60° saturates the GM (true ≈ 2.8e5/s, Rτ ≈ 28),
+>     so the guide presumably never measures the open slot at 1 mA. An open slot at 0° would fit the Al plate, but it contradicts "the first three materials at 0°–20°".
 
 > [!success]- Answered 2026-10-14 (user + web research)
 > 5. **Real data:** none from the EPN apparatus. Use published data from reliable sources → [[#Calibration anchors]].
@@ -603,6 +617,19 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-14 · G1 · tasks G1.7, G1.8
+- Done: Python `filters.FOILS_MM`/`WHEELS_MM`/`areal_density_mg_cm2`, `scan.direct_rate(..., sensor_deg)` (Gaussian profile, leak width),
+  exported to `mu_rho_absorbers.json` and `direct_beam.json` (two new off-axis cases); `PARAMETERS.md` (absorber thicknesses and apparatus
+  assumptions). TS: `tables.ts` (`FOILS_MG_CM2`, `WHEELS_MG_CM2`, `absorbersLoaded`), `scan.ts` (`directRate` sensorDeg), `apparatus.ts`
+  (setup, `mount`, holder dispatch, `saturated`, the exposure timer on HV only, background with HV off, the wrapped exposure angle).
+- Reviews: physics (no blockers; fixed the off-axis halo, unit names and docs) and apparatus G1.8 (blocking: the P1 background run never
+  finished; fixed). See the G1 "As built" note.
+- Verify: pytest 143 passed · ruff clean · export byte-stable · Vitest 95 passed · build OK (main 75.9 kB gzip). Fixtures: only `direct_beam.json`
+  changed, additively. `mu_rho_absorbers` is still not its own chunk, because nothing calls `loadAbsorbers()` until G1.9.
+- Uncommitted: yes, all of G1.7–G1.8 (G1 S1 + G1.6 are in `164ef2b`).
+- Surprises / decisions: Q10 gained evidence (an open slot at 1 mA saturates the GM). L1.1 and L2.1 lose their data half (already exported).
+- Next: G1.9, the setup tray. Load `bragg-ui`. Await `loadAbsorbers()`, call `mount()` with the door open, show `saturated` as a simulation aid. Then check the build for the absorber chunk.
 
 ### 2026-10-14 · G1 · tasks G1.1–G1.6
 - Done: S1 (Python) and the S2 port. `filters.py` (`ABSORBERS`, `check_filters`), `scan.py` (`filters=` everywhere, `direct_rate`,

@@ -1,8 +1,9 @@
 // The procedures of LD instruction sheet 554 800 §11, key by key, plus the panel's guard rails.
-import { describe, expect, test } from 'vitest'
-import { Apparatus, MOTOR_DEG_PER_S, OK_S, SAFE_S, adjustMultiplier, fmtMean, wrapTarget, type Key } from '../src/apparatus/apparatus'
+import { beforeAll, describe, expect, test } from 'vitest'
+import { Apparatus, MOTOR_DEG_PER_S, OK_S, SAFE_S, adjustMultiplier, fmtMean, wrapTarget, type Key, type Setup } from '../src/apparatus/apparatus'
 import { mulberry32 } from '../src/physics/detector'
-import { expectedRate } from '../src/physics/scan'
+import { DEFAULT, directRate, expectedRate } from '../src/physics/scan'
+import { FOILS_MG_CM2, WHEELS_MG_CM2, loadAbsorbers } from '../src/physics/tables'
 
 const SAFETY_S = SAFE_S + OK_S
 
@@ -190,16 +191,12 @@ describe('§11 e) exposure timer', () => {
     expect(Math.abs(rate - rBar)).toBeLessThan(5 * Math.sqrt(rBar / 10) + 1)
   })
 
-  test('the program waits while no emission current flows', () => {
+  test('the exposure timer needs HV only: with no emission current it counts the background', () => {
     const a = device()
     set(a, 'DBETA', -1)
     a.press('SCAN')
     a.tick(SAFETY_S + 5)
-    expect(a.phase).toBe('exposure')
-    expect(a.display().bottom).toBe('1') // Δt = 1 s still to go
-    set(a, 'I', 10)
-    a.tick(1)
-    expect(a.phase).toBe('idle')
+    expect(a.phase).toBe('idle') // EPN P1 run 3: 0 kV / 0 mA
     expect(a.replay).toHaveLength(1)
   })
 })
@@ -435,4 +432,127 @@ test('REPLAY means use as many decimals as fit the 4 digits', () => {
   expect([5.81, 58.1, 581, 5810, 9.9996, 99.996, 999.96, 0, 20_000].map(fmtMean)).toEqual(
     ['5.810', '58.10', '581.0', '5810', '10.00', '100.0', '1000', '0.000', '9999'],
   )
+})
+
+describe('setup (G1.7)', () => {
+  beforeAll(loadAbsorbers)
+
+  /** HV on at `kV`, `mA`, doors closed, with the given accessories mounted. */
+  function running(kV: number, mA: number, setup: Partial<Setup> = {}) {
+    const a = device()
+    a.setDoors(false)
+    expect(a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: null, ...setup })).toBe(true)
+    a.setDoors(true)
+    set(a, 'U', kV * 10 - a.u)
+    set(a, 'I', mA * 100)
+    a.press('HV')
+    a.tick(SAFETY_S + 0.1)
+    return a
+  }
+
+  test('mount needs the door open; RESET keeps the setup', () => {
+    const a = device()
+    const setup: Setup = { holder: 'empty', collimatorFilter: 'Zr', sensorFilter: null }
+    expect(a.mount(setup)).toBe(false)
+    expect(a.setup.holder).toBe('crystal')
+    a.setDoors(false)
+    expect(a.mount(setup)).toBe(true)
+    a.press('RESET')
+    expect(a.setup).toEqual(setup)
+    expect(() => a.mount({ ...setup, sensorFilter: 'Pb' })).toThrow(RangeError)
+  })
+
+  test('Al wheel in the direct beam: slot in the beam, else the frame blocks it', () => {
+    const a = running(21, 0.05, { holder: 'alWheel' })
+    a.press('TARGET')
+    expect(a.expectedRate()).toBe(directRate(21, 0.05)) // slot 0 is open
+    a.moveArm(100)
+    const al = directRate(21, 0.05, [['Al', WHEELS_MG_CM2.al[1]![1]]])
+    expect(a.expectedRate()).toBe(al)
+    expect(al).toBeLessThan(directRate(21, 0.05))
+    a.moveArm(-50)
+    expect(a.expectedRate()).toBe(directRate(0, 0))
+  })
+
+  test('crystal with a Zr sensor filter', () => {
+    const a = running(35, 1, { sensorFilter: 'Zr' })
+    a.press('COUPLED')
+    a.moveArm(72) // β = 7.2°, 2β = 14.4°
+    const bare = expectedRate([7.2], 35, 1, DEFAULT, [14.4])[0]
+    expect(a.expectedRate()).toBeCloseTo(expectedRate([7.2], 35, 1, DEFAULT, [14.4], [['Zr', FOILS_MG_CM2.Zr]])[0], 9)
+    expect(a.expectedRate()).toBeLessThan(bare)
+  })
+
+  test('saturated: the open beam at full power paralyses a GM counter', () => {
+    expect(running(35, 1, { holder: 'empty' }).saturated).toBe(true)
+    expect(running(21, 0.05, { holder: 'empty' }).saturated).toBe(false)
+  })
+
+  test('EPN P1 run 3: background at 0 kV / 0 mA finishes and reads the background', () => {
+    const a = device()
+    set(a, 'DBETA', -1)
+    set(a, 'DT', 99) // 1 → 100 s
+    a.press('SCAN')
+    a.tick(SAFETY_S + 101)
+    expect(a.phase).toBe('idle')
+    const bg = directRate(0, 0)
+    expect(Math.abs(a.replay[0].rate - bg)).toBeLessThan((5 * Math.sqrt(bg / 100)))
+  })
+
+  test('P1 run 1a end to end: Al plate at 20°, 30 s exposure', () => {
+    const a = running(21, 0.05, { holder: 'alWheel' })
+    a.press('HV')
+    a.press('TARGET')
+    a.adjust(200)
+    set(a, 'DBETA', -1)
+    set(a, 'DT', 29)
+    a.press('SCAN')
+    a.tick(SAFETY_S + 31)
+    expect(a.hvOn).toBe(false)
+    expect(a.target).toBe(200)
+    const mean = directRate(21, 0.05, [['Al', WHEELS_MG_CM2.al[2]![1]]])
+    expect(Math.abs(a.replay[0].rate - mean)).toBeLessThan(5 * Math.sqrt(mean / 30))
+  })
+
+  test('target wrap and frame', () => {
+    const a = running(21, 0.05, { holder: 'alWheel' })
+    a.press('TARGET')
+    const at = (tenths: number) => {
+      a.target = tenths
+      return a.expectedRate()
+    }
+    const slot1 = directRate(21, 0.05, [['Al', WHEELS_MG_CM2.al[1]![1]]])
+    expect(at(-3500)).toBe(slot1)
+    expect(at(3700)).toBe(slot1)
+    expect(at(-20)).toBe(directRate(21, 0.05))
+    expect(at(-50)).toBe(directRate(0, 0))
+  })
+
+  test('material plate: open slot at 60°; saturation boundary', () => {
+    const a = running(30, 0.02, { holder: 'materialWheel' })
+    a.press('TARGET')
+    a.target = 600
+    expect(a.expectedRate()).toBe(directRate(30, 0.02))
+    a.target = 0
+    expect(a.saturated).toBe(true) // polystyrene 0.4 mm
+    a.target = 100
+    expect(a.saturated).toBe(false) // Al
+  })
+
+  test('empty holder off-axis follows the direct-beam profile', () => {
+    const a = running(21, 0.05, { holder: 'empty' })
+    a.sensor = 15
+    expect(a.expectedRate()).toBe(directRate(21, 0.05, [], DEFAULT, 1.5))
+    expect(a.expectedRate()).toBeLessThan(directRate(21, 0.05))
+  })
+
+  test('mount refused while HV is on; no specular beam without crystal; saturated off with HV off', () => {
+    const a = running(35, 1, { holder: 'empty' })
+    expect(a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: null })).toBe(false)
+    expect(a.specularRate()).toBe(0)
+    a.press('HV')
+    expect(a.saturated).toBe(false)
+    expect(a.expectedRate()).toBe(directRate(0, 0))
+    expect(a.specularRate()).toBe(0)
+  })
 })

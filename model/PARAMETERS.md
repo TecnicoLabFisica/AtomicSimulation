@@ -65,6 +65,26 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 | `analysis.MAX_ORDER_SPREAD_PM`, `MAX_KB_KA_RATIO_DEV` | 3 pm, 3 % | Pairing checks: λ of one line across orders, and λ(Kβ)/λ(Kα) = 0.888 per order. A wrong pairing is off by ≥ 30 pm or ≥ 40 %. These limits also stay above the honest near-edge bias of 1st-order Kβ, so they reject mislabelling, not bias. The scan must also start ≥ `PEAK_HALF_WINDOW_DEG` below 1st-order Kβ and hold at least two orders |
 | `analysis.THRESHOLD_HALF_WINDOW_DEG`; the teacher-key sweep | ±0.5°; 22–35 kV in 1 kV steps at 0.1 mA, Δt = 10 s | Line-threshold evaluation (`line_threshold_kv`, `model/scripts/teacher_key.py`). The window's lower end (6.7°) is ≈ 2.3σ above 1st-order Kβ₁,₃. That tail scales with the line, so it rescales the areas without moving U_K. The sweep starts at 22 kV, where the 1st-order Kα is visible, and runs at 0.1 mA to keep dead time small. Noise-free bias budget: straight baseline −0.18 kV, dead time +0.10 kV (0.1 mA) or +0.70 kV and m → 1.35 (1 mA). The fit recovers the model's own power law (m, `source.LINE_EXPONENT_M`), so it validates the method, not the near-threshold physics. Chosen 2026-09-25 |
 
+## Absorber thicknesses (`filters.FOILS_MM`, `filters.WHEELS_MM`)
+
+Areal density = 100 · thickness_mm · ρ (xraylib; polystyrene from the NIST compound). Added 2026-10-14.
+
+| Item | Thickness (mm) | Source |
+|---|---|---|
+| Foil set 554 832 | Zr 0.05, Mo 0.1, Ag 0.05, In 0.3, Al 0.5, Fe 0.5, Cu 0.07 | LD catalog |
+| 554 834 Al plate | open, Al 0.5, 1.0, 1.5, 2.0, 2.5, 3.0 (slots at 0°, 10° … 60°) | LD catalog |
+| 554 834 material plate | Polystyrene, Al, Fe, Cu, Zr, Ag at 0.4 each, open at 60° | 0.4 mm by user decision (the catalog says 0.5 mm); open slot at 60° is an assumption (open question 10) |
+
+## Apparatus assumptions (web emulator)
+
+Added 2026-10-14. No measurement behind any of them.
+
+| Name | Value | Why |
+|---|---|---|
+| Direct-beam profile (`scan.direct_rate` `sensor_deg`) | Gaussian, width = `leak_width_deg` | Without a crystal the counter sees the beam's angular profile; its width is assumed equal to the fitted leak halo |
+| `WHEEL_WINDOW_DEG` | 3° | A 554 834 slot is in the beam within ±3° of its centre; between slots the frame blocks it (background only). Binary window, to be confirmed by the lab staff |
+| `Apparatus.saturated` threshold | Rτ = 0.3 | Dead-time losses exceed 23 % and the dead-time model choice starts to matter. The guide's own P1 run 2a polystyrene reading (30 kV, 0.02 mA, 0.4 mm; true ≈ 3160/s, Rτ ≈ 0.32, 24 % loss) trips the warning: kept as a teaching point, not hidden |
+
 ## Calibration-only (never used by the model)
 
 | Name | Value | Where | Meaning |
@@ -123,5 +143,5 @@ What the model is trustworthy for, beyond the 35 kV, 1 mA, 2°–25° scan it wa
   fitted to orders 1–3, and no data beyond 25° test them.
 - **`direct_rate` while Rτ ≲ 0.3** (true rate ≲ 3000/s). Above that a real GM counter paralyses and reads far less
   than the non-paralyzable R/(1 + Rτ): the open beam at 30 kV, 1 mA (1.6e5/s true) would read 9418/s here. Even polystyrene
-  0.4 mm at 30 kV, 0.02 mA loses 24 % to dead time. The apparatus should warn at such rates (L2).
+  0.4 mm at 30 kV, 0.02 mA loses 24 % to dead time. `Apparatus.saturated` warns at such rates.
 - **Still unverified:** `LINE_EXPONENT_M` (only 35 kV data) and τ of the 559 01 counter.
