@@ -32,6 +32,7 @@ export const task: GuidedTask = {
   id: 'attenuation-material',
   mode: 'lab',
   level: 2,
+  crystal: 'NaCl',
   controls: ['U', 'I', 'DT', 'DBETA', 'TARGET', 'SCAN', 'REPLAY'],
   initial: { U_kV: 30, I_mA: 0.01, dt_s: 30, dBeta_deg: 0 },
   predict: { kind: 'choice', answer: 1 },

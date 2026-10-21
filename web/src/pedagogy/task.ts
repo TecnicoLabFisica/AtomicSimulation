@@ -13,13 +13,29 @@ export type GuidedTask = {
   /** A number with a unit, or one of the task's `options` strings (by index). */
   predict: { kind: 'number'; unit: string } | { kind: 'choice'; answer: number }
   success: (a: Apparatus) => boolean
+  /** Crystal preset the teacher puts on the crystal holder at the start (default 'NaCl'). */
+  crystal?: string
+  /** The setup tray's crystal picker stays on `crystal` while the task is active (default true). */
+  crystalLocked?: boolean
   /** Optional checklist shown under the act text: what the task has collected so far, by label key. */
   progress?: (a: Apparatus) => { key: string; done: boolean }[]
 }
 
 /** Start from the device defaults (RESET: HV off, arms driven home), then the task's settings. */
-export function applyInitial(a: Apparatus, init: GuidedTask['initial']): void {
+export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal = 'NaCl'): void {
   a.press('RESET')
+  // The task setup is the teacher preparing the bench, so the crystal goes on with the doors treated as open
+  // (mount() itself still refuses a student with the doors closed). The holder is left alone: the attenuation
+  // tasks have a plate wheel there. A non-NaCl preset must be loaded first (loadCrystals()).
+  if (a.setup.crystal !== crystal) {
+    const closed = a.doorsClosed
+    a.doorsClosed = false
+    try {
+      a.mount({ ...a.setup, crystal })
+    } finally {
+      a.doorsClosed = closed
+    }
+  }
   if (init.U_kV !== undefined) a.u = Math.round(init.U_kV * 10)
   if (init.I_mA !== undefined) a.i = Math.round(init.I_mA * 100)
   if (init.dt_s !== undefined) a.dt = init.dt_s
@@ -27,3 +43,9 @@ export function applyInitial(a: Apparatus, init: GuidedTask['initial']): void {
   if (init.mode) a.press(init.mode)
   if (init.limits_deg) [a.limitLo, a.limitHi] = init.limits_deg.map((d) => Math.round(d * 10))
 }
+
+// The task on the card, so the setup tray can lock its crystal picker without importing the card.
+let active: GuidedTask | null = null
+export const setActiveTask = (k: GuidedTask | null): void => void (active = k)
+/** The crystal the active task fixes on the picker, or null when none is active or the task allows a choice. */
+export const lockedCrystal = (): string | null => (active && active.crystalLocked !== false ? (active.crystal ?? 'NaCl') : null)

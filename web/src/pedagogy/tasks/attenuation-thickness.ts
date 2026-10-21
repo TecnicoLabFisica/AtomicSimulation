@@ -42,6 +42,7 @@ export const task: GuidedTask = {
   id: 'attenuation-thickness',
   mode: 'lab',
   level: 2,
+  crystal: 'NaCl',
   controls: ['U', 'I', 'DT', 'DBETA', 'TARGET', 'SCAN', 'REPLAY'],
   initial: { U_kV: 21, I_mA: 0.05, dt_s: 30, dBeta_deg: 0 },
   predict: { kind: 'choice', answer: 1 },

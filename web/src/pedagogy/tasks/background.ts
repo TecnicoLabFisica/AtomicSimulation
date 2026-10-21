@@ -9,6 +9,7 @@ export const task: GuidedTask = {
   id: 'background',
   mode: 'lab',
   level: 1,
+  crystal: 'NaCl',
   controls: ['U', 'I', 'DT', 'DBETA', 'SCAN', 'REPLAY'],
   initial: { U_kV: 0, I_mA: 0, dt_s: 100, dBeta_deg: 0 },
   predict: { kind: 'choice', answer: 1 },

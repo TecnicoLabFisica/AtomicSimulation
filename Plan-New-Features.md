@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-21
 current_phase: C2
-next_task: C2.4
+next_task: C2.6
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -531,8 +531,13 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
       As built: the spectrum markers, edges, λ_min band and readout use the d of the *stored scan's* crystal. The Huygens panel (Explore only) shows "LiF · d = 201.4 pm", and the goniometer's
       expected-angle ticks use `a.crystal`. The 3D bench mesh and its label are unchanged (it had none). In Lab mode the name only appears (tested). The `moseley-k-edges` check requires NaCl.
       Main 90.3 kB gzip; `crystals` is a lazy 48.3 kB chunk.
-- [ ] **C2.4** Existing tasks declare `crystal: 'NaCl'` and lock the picker. New task: "predict θ(Kα) for LiF before scanning".
-- [ ] **C2.5** L1 Moseley gains an optional "use LiF" variant (the guide notes that the angular window changes with the crystal).
+- [x] **C2.4** Existing tasks declare `crystal: 'NaCl'` and lock the picker. New task: "predict θ(Kα) for LiF before scanning".
+      As built (2026-10-21): `GuidedTask.crystal` / `crystalLocked`. `applyInitial` mounts the task's crystal with the doors briefly treated as open (the teacher prepares the bench; the student's
+      `mount` still needs the doors open). The card awaits `loadCrystals()` for non-NaCl. The picker locks with "Esta tarea usa NaCl". New Explore task `lif-kalpha-angle` (θ ≈ 10.16°):
+      a stored COUPLED LiF scan covering θ(Kα) ± 0.7° with Δβ ≤ 0.23° and Kα ≥ 5σ in the model.
+- [x] **C2.5** L1 Moseley gains an optional "use LiF" variant (the guide notes that the angular window changes with the crystal).
+      As built: groups are on one crystal (NaCl or LiF). NaCl keeps the EPN 3.7–7.5° window; for LiF the window is computed from d (≈ 6.0–10.2°), and `edgeStands` uses the group's crystal.
+      The picker is free in this task (`crystalLocked: false`). No LiF angles appear in student text; the teacher note gives In 6.3°, Ag 6.9°, Mo 8.9°, Zr 9.8°.
 - [ ] **C2.6** Design, apparatus and pedagogy reviews.
 
 **Done when:** switching crystals updates everything consistently, and Lab mode shows only what a real bench shows (the crystal's name, not its d).

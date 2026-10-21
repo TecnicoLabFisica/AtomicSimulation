@@ -4,22 +4,32 @@ import { Apparatus, OK_S, SAFE_S } from '../src/apparatus/apparatus'
 import { clearExports, exportedScans, exposureCsv, markExported, replayCsv } from '../src/pedagogy/csv'
 import { en } from '../src/pedagogy/i18n/en'
 import { es } from '../src/pedagogy/i18n/es'
-import { applyInitial, type GuidedTask } from '../src/pedagogy/task'
+import { TASKS } from '../src/pedagogy/card'
+import { applyInitial, lockedCrystal, setActiveTask, type GuidedTask } from '../src/pedagogy/task'
 import { task as attMaterial } from '../src/pedagogy/tasks/attenuation-material'
 import { task as attThickness } from '../src/pedagogy/tasks/attenuation-thickness'
 import { task as background } from '../src/pedagogy/tasks/background'
 import { task as kalpha } from '../src/pedagogy/tasks/kalpha-third-order'
+import { task as lif } from '../src/pedagogy/tasks/lif-kalpha-angle'
 import { task as lambda3 } from '../src/pedagogy/tasks/lambda-three-orders'
 import { task as threshold } from '../src/pedagogy/tasks/line-threshold'
 import { task as moseley } from '../src/pedagogy/tasks/moseley-k-edges'
 import { mulberry32 } from '../src/physics/detector'
-import { loadAbsorbers } from '../src/physics/tables'
+import { loadAbsorbers, loadCrystals } from '../src/physics/tables'
 
 const SAFETY_S = SAFE_S + OK_S
 
 function started(task: GuidedTask) {
   const a = new Apparatus(mulberry32(1234))
   applyInitial(a, task.initial)
+  return a
+}
+
+/** The bench as the card prepares it (a non-NaCl crystal needs its table first). */
+async function startedOn(task: GuidedTask) {
+  if (task.crystal && task.crystal !== 'NaCl') await loadCrystals()
+  const a = new Apparatus(mulberry32(1234))
+  applyInitial(a, task.initial, task.crystal)
   return a
 }
 
@@ -30,6 +40,65 @@ function scan(a: Apparatus) {
   a.tick(SAFETY_S)
   expect(a.busy).toBe(false)
 }
+
+describe('crystal of a task', () => {
+  test('every task declares its crystal; only the Moseley task leaves the picker free', () => {
+    for (const t of TASKS) expect(t.crystal, t.id).toBeDefined()
+    expect(TASKS.filter((t) => t.crystalLocked === false).map((t) => t.id)).toEqual(['moseley-k-edges'])
+    expect(lif.crystal).toBe('LiF')
+  })
+
+  test('the picker is locked to the active task\'s crystal, and free after it or in the Moseley task', () => {
+    expect(lockedCrystal()).toBeNull()
+    setActiveTask(kalpha)
+    expect(lockedCrystal()).toBe('NaCl')
+    setActiveTask(lif)
+    expect(lockedCrystal()).toBe('LiF')
+    setActiveTask(moseley)
+    expect(lockedCrystal()).toBeNull()
+    setActiveTask(null)
+    expect(lockedCrystal()).toBeNull()
+  })
+
+  test('applyInitial puts the crystal on with the doors closed, and leaves them closed', async () => {
+    const a = await startedOn(lif)
+    expect(a.setup.crystal).toBe('LiF')
+    expect(a.doorsClosed).toBe(true)
+    expect(a.mount({ ...a.setup, crystal: 'NaCl' })).toBe(false) // the student still needs the doors open
+    applyInitial(a, kalpha.initial, kalpha.crystal) // the next task starts on NaCl again
+    expect(a.setup.crystal).toBe('NaCl')
+  })
+
+  test('the attenuation tasks keep the plate wheel the student mounted', async () => {
+    await loadAbsorbers()
+    const a = new Apparatus(mulberry32(1))
+    a.setDoors(false)
+    a.mount({ ...a.setup, holder: 'alWheel' })
+    a.setDoors(true)
+    applyInitial(a, attThickness.initial, attThickness.crystal)
+    expect(a.setup.holder).toBe('alWheel')
+  })
+})
+
+describe('lif-kalpha-angle', () => {
+  /** A COUPLED scan on `crystal` from lo to hi (0.1°), Δβ 0.1°. */
+  const run = async (crystal: string, lo: number, hi: number, dBeta = 1) => {
+    const a = await startedOn(lif)
+    a.setDoors(false)
+    expect(a.mount({ ...a.setup, crystal })).toBe(true)
+    a.setDoors(true)
+    ;[a.dBeta, a.limitLo, a.limitHi] = [dBeta, lo, hi]
+    scan(a)
+    return a
+  }
+
+  test('no scan yet: not met', async () => expect(lif.success(await startedOn(lif))).toBe(false))
+  test('LiF scan around θ = 10.16°: met', async () => expect(lif.success(await run('LiF', 90, 115))).toBe(true))
+  test('a NaCl scan over the same angles: not met', async () => expect(lif.success(await run('NaCl', 90, 115))).toBe(false))
+  test('the NaCl angle 7.24° on LiF: not met (the misconception)', async () => expect(lif.success(await run('LiF', 62, 82))).toBe(false))
+  test('a window that stops short of the line: not met', async () => expect(lif.success(await run('LiF', 90, 103))).toBe(false))
+  test('Δβ = 0.3° is too coarse', async () => expect(lif.success(await run('LiF', 90, 115, 3))).toBe(false))
+})
 
 describe('kalpha-third-order', () => {
   test.each([
@@ -245,6 +314,37 @@ describe('moseley-k-edges', () => {
     expect(exportedScans(a)[0]).toMatchObject({ mode: 'COUPLED', first: 37, last: 75, step: 1, u: 350, i: 100, dt: 5, changed: false })
   })
 
+  describe('LiF variant', () => {
+    beforeAll(loadCrystals)
+    const exportOn = (a: Apparatus, crystal: string, foil: string | null, lo: number, hi: number) => {
+      a.setDoors(false)
+      expect(a.mount({ holder: 'crystal', crystal, collimatorFilter: null, sensorFilter: foil })).toBe(true)
+      a.setDoors(true)
+      ;[a.u, a.i, a.dt, a.dBeta, a.limitLo, a.limitHi] = [350, 100, 5, 1, lo, hi]
+      scan(a)
+      markExported(a)
+    }
+    const FOILS = [null, 'Zr', 'Mo', 'Ag', 'In']
+    const lifSession = (lo = 60, hi = 103, crystals = FOILS.map(() => 'LiF')) => {
+      const a = started(moseley)
+      FOILS.forEach((f, k) => exportOn(a, crystals[k], f, lo, hi))
+      return a
+    }
+
+    test('five LiF scans over the LiF edges: met', () => expect(moseley.success(lifSession())).toBe(true))
+    test('the NaCl window on LiF misses the Zr edge: not met', () => expect(moseley.success(lifSession(37, 75))).toBe(false))
+    test('a LiF window that starts above the In edge: not met', () => expect(moseley.success(lifSession(64, 103))).toBe(false))
+    test('a mixed NaCl/LiF group: not met', () => {
+      const a = lifSession(37, 103, ['LiF', 'LiF', 'LiF', 'NaCl', 'NaCl']) // wide enough for both crystals
+      expect(moseley.success(a)).toBe(false)
+    })
+    test('NaCl scans still pass on their own window', () => {
+      const a = started(moseley)
+      FOILS.forEach((f) => exportOn(a, 'NaCl', f, 37, 75))
+      expect(moseley.success(a)).toBe(true)
+    })
+  })
+
   test('progress follows the exports; clearExports starts over', () => {
     const a = started(moseley)
     const done = () => moseley.progress!(a).filter((p) => p.done).map((p) => p.key)
@@ -396,6 +496,10 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
     const { teacher: _, ...student } = dict.task[moseley.id as keyof typeof dict.task]
     const text = JSON.stringify(student)
     for (const leak of ['7.0', '6.3', '4.9', '4.5', '68', '62.0', '48', '44', '17.9', '25.5', '27.9'])
+      expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
+    // The LiF variant's window and edges (≈ 6.0–10.2°, 6.3, 6.9, 8.9, 9.8°) stay in the teacher note, even as the
+    // sentence is in the student text: no angle of LiF there.
+    for (const leak of ['6.9', '8.9', '9.8', '10.2', '6.0°', 'LiF (d'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
     // Attenuation: T, μ/ρ and rates are in the teacher notes only; the observation does not give the answer.
     for (const t of [attThickness, attMaterial, background]) {

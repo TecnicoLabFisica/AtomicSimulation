@@ -20,6 +20,7 @@ export const task: GuidedTask = {
   id: 'lambda-three-orders',
   mode: 'lab',
   level: 2,
+  crystal: 'NaCl',
   controls: ['U', 'I', 'DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },
   predict: { kind: 'choice', answer: 0 },

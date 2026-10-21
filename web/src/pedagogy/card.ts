@@ -2,21 +2,22 @@
 // (predict → act → observe → explain). The act step ends by itself when the task's success(a) holds.
 import type { Apparatus, Key } from '../apparatus/apparatus'
 import { getLang, t } from '../i18n'
-import { loadAbsorbers } from '../physics/tables'
+import { loadAbsorbers, loadCrystals } from '../physics/tables'
 import { en } from './i18n/en'
 import { es } from './i18n/es'
 import { clearExports } from './csv'
 import { getMode, setHints, setMode, type AppMode } from './mode'
-import { applyInitial, type GuidedTask } from './task'
+import { applyInitial, setActiveTask, type GuidedTask } from './task'
 import { task as attenuationMaterial } from './tasks/attenuation-material'
 import { task as attenuationThickness } from './tasks/attenuation-thickness'
 import { task as background } from './tasks/background'
 import { task as kalphaThirdOrder } from './tasks/kalpha-third-order'
 import { task as lambdaThreeOrders } from './tasks/lambda-three-orders'
+import { task as lifKalphaAngle } from './tasks/lif-kalpha-angle'
 import { task as lineThreshold } from './tasks/line-threshold'
 import { task as moseleyKEdges } from './tasks/moseley-k-edges'
 
-export const TASKS: GuidedTask[] = [kalphaThirdOrder, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial]
+export const TASKS: GuidedTask[] = [kalphaThirdOrder, lifKalphaAngle, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial]
 const MODES: AppMode[] = ['explore', 'lab']
 
 /** Guided-task strings in the current language. */
@@ -121,12 +122,22 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       setMode(k.mode)
       onMode()
     }
-    applyInitial(a, k.initial)
-    clearExports(a) // a restart begins fresh
-    a.clearExposureLog()
-    void loadAbsorbers() // the foils the task mounts
-    onFocus(k.controls)
-    go(0)
+    setActiveTask(k)
+    const begin = () => {
+      if (task !== k) return // the student went back while the crystal table loaded
+      applyInitial(a, k.initial, k.crystal)
+      clearExports(a) // a restart begins fresh
+      a.clearExposureLog()
+      void loadAbsorbers() // the foils the task mounts
+      onFocus(k.controls)
+      go(0)
+    }
+    if (k.crystal && k.crystal !== 'NaCl') {
+      loadCrystals().then(begin, () => {
+        task = null // offline: the list stays, nothing half-prepared
+        setActiveTask(null)
+      })
+    } else begin()
   }
 
   root.addEventListener('click', (e) => {
@@ -140,6 +151,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     } else if (d.task) start(TASKS.find((k) => k.id === d.task)!)
     else if (d.back !== undefined) {
       task = null
+      setActiveTask(null)
       setHints(true)
       onFocus(null)
       build()

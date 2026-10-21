@@ -3,6 +3,7 @@
 import type { Apparatus, Holder } from '../apparatus/apparatus'
 import { t } from '../i18n'
 import { getMode } from '../pedagogy/mode'
+import { lockedCrystal } from '../pedagogy/task'
 import { FOILS_MG_CM2, loadAbsorbers, loadCrystals } from '../physics/tables'
 
 const HOLDERS: Holder[] = ['crystal', 'alWheel', 'materialWheel', 'empty']
@@ -21,6 +22,7 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
       <p class="hint" data-crystal-note hidden>${s.crystalHeightsNote}</p>
       <label>${s.collimatorFilter}<select data-field="collimatorFilter">${opts(foils)}</select></label>
       <label>${s.sensorFilter}<select data-field="sensorFilter">${opts(foils)}</select></label>
+      <p class="hint" data-crystal-lock></p>
       <p class="hint" data-locked></p>`
   }
   const field = (f: (typeof FIELDS)[number]) => root.querySelector<HTMLSelectElement>(`[data-field="${f}"]`)!
@@ -49,9 +51,11 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     root.querySelector<HTMLElement>('[data-crystal-row]')!.hidden = !onCrystal
     root.querySelector<HTMLElement>('[data-crystal-note]')!.hidden = !onCrystal || getMode() !== 'explore'
     setText(root.querySelector<HTMLElement>('[data-locked]')!, a.doorsClosed ? s.setupLocked : '')
+    const lock = lockedCrystal() // a guided task fixes the crystal: the picker shows its name, disabled
+    setText(root.querySelector<HTMLElement>('[data-crystal-lock]')!, lock && onCrystal ? `${s.taskCrystal} ${s.crystals[lock] ?? lock}.` : '')
     for (const k of FIELDS) {
       const sel = field(k)
-      const off = a.doorsClosed || !loaded
+      const off = a.doorsClosed || !loaded || (k === 'crystal' && lock !== null)
       if (sel.disabled !== off) sel.disabled = off
       const v = a.setup[k] ?? ''
       if (document.activeElement !== sel && sel.value !== v) sel.value = v

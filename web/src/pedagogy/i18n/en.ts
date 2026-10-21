@@ -69,6 +69,18 @@ export const en: PedagogyDict = {
       teacher:
         'Answer: θ = 22.21° (leaflet Table 2); the task is met on the nearest 0.1° step, 22.2°. Typical mistake: 21.72°, from tripling θ; only continuum arrives there. Another: thinking the third order is a different λ. To discuss: up to which order does the geometry allow Kα? (nλ ≤ 2d, n ≤ 7).',
     },
+    'lif-kalpha-angle': {
+      title: 'Kα with another crystal',
+      concept: 'Bragg’s law and the crystal',
+      predict: 'With NaCl (d = 282.0 pm), first-order Mo Kα shows up at θ = 7.24°. This task mounts a LiF crystal, with d = 201.4 pm. At which angle θ do you expect first-order Kα?',
+      options: [],
+      act: 'In COUPLED mode, run a scan that covers your prediction: set the limits 1° below and above your angle, Δβ = 0.1° or finer, and press SCAN. If the Kα peak does not show up, correct the window and repeat.',
+      observe: 'The Kα peak lies further right than with NaCl, and Kβ, on its left, has moved too. In “Path difference” (λ button), 2d sin θ = λ with the LiF d.',
+      explain:
+        'The Kα wavelength is the same, 71.1 pm, but Bragg’s law, nλ = 2d sin θ, gives sin θ = λ / 2d: with a smaller d, sin θ and θ grow. With LiF, θ = 10.16°; with NaCl, 7.24°. The angle depends on the wavelength and the crystal, not only on the tube. Also, since Δθ ≈ Δλ / (2d cos θ), at larger θ and smaller d the Kα doublet and the Kα–Kβ pair spread further apart.',
+      teacher:
+        'Answer: θ = arcsin(71.08 / (2 × 201.4)) = arcsin(0.1765) = 10.16° (NaCl: arcsin(71.08 / 564.02) = 7.24°). With LiF, Kβ falls at 9.01°. Typical mistake: “the angle depends only on the tube” (7.24°). Another: scaling θ, not sin θ, with the ratio of d; that gives 10.1°, narrowly, but fails at large angles. The task is met by a COUPLED scan on LiF that covers the line ±0.7°, with Δβ ≤ 0.23° and 5 σ above the background according to the model; the student’s number is not checked. To discuss: up to which order does the geometry allow Kα with LiF? (nλ ≤ 2d, n ≤ 5).',
+    },
     'line-threshold': {
       title: 'Line threshold',
       concept: 'Characteristic lines',
@@ -98,13 +110,13 @@ export const en: PedagogyDict = {
       concept: 'K absorption edges',
       predict: 'A Zr foil (Z = 40) and an Ag foil (Z = 47) absorb strongly for photon energies above their K-edge energy (the energy needed to remove a K-shell electron). Scanning β, where do you expect the Ag edge relative to the Zr edge?',
       options: ['At a smaller β than Zr’s', 'At the same β', 'At a larger β than Zr’s'],
-      act: 'At 35 kV and 1 mA, in COUPLED, scan from 3.7° to 7.5° with Δβ = 0.1° and Δt = 5 s. Make one scan without a foil and one with each foil (Zr, Mo, Ag, In). To change foils, switch HV off, open the doors, put the foil in the sensor slot from Setup and close them. After each scan, download the CSV on the Monitor. All scans must share the same U and I.',
+      act: 'At 35 kV and 1 mA, in COUPLED, scan from 3.7° to 7.5° with Δβ = 0.1° and Δt = 5 s. Make one scan without a foil and one with each foil (Zr, Mo, Ag, In). To change foils, switch HV off, open the doors, put the foil in the sensor slot from Setup and close them. After each scan, download the CSV on the Monitor. All scans must share the same U and I. Variant: repeat it with LiF from Setup; the angular windows change with the crystal.',
       actHelp: 'If a foil gets no ✓, check the limits, Δβ, and that U and I match the scan without a foil.',
       observe: 'As β increases, the transmission T = rate with foil / rate without jumps up at a different angle for each foil. The Kα and Kβ peaks come from the tube: they appear without a foil too and nearly cancel in T.',
       explain:
         'Below θ_K (λ < λ_K) a photon has the energy to eject a K electron and is absorbed; above θ_K it does not, so the transmission rises. Compute λ_K = 2d sin θ_K with d = 282.01 pm. The higher Z is, the more strongly the nucleus pulls on the K electrons: the binding energy rises, λ_K gets shorter and, by Bragg’s law, the Ag edge lies at a smaller θ than the Zr edge. Moseley’s law holds for the edges too: √(1/λ_K) = √R (Z − σ_K), with R the Rydberg constant (the squared slope) and σ_K the screening constant, how much the other electrons reduce the charge the K electron feels (−intercept / slope). Your R will come out a few % below R∞ = 1.097 × 10⁷ m⁻¹, from physics and from the counter’s finite angular resolution.',
       teacher:
-        'Answer: the first option; the Ag edge falls at θ ≈ 4.94° and the Zr edge at ≈ 7.02° (higher Z → shorter λ_K → smaller θ). Typical mistakes: “more Z or more energy, larger angle”; keeping the ¾ factor of the Kα line (an edge has none: R would come out 33 % high); taking the tube’s Kα/Kβ peaks for edges. The fit should give R ≈ 1.06 × 10⁷ m⁻¹ and σ_K ≈ 2.9, R ≈ 3.5 % below R∞ (±1 % noise): ≈ 1.3 % is physics (relativity and screening that grows with Z) and ≈ 2.3 % is the counter’s resolution bias. To discuss: why does the transmission rise with λ at the edge instead of falling? See docs/teacher-key.md (Moseley).',
+        'Answer: the first option; the Ag edge falls at θ ≈ 4.94° and the Zr edge at ≈ 7.02° (higher Z → shorter λ_K → smaller θ). Typical mistakes: “more Z or more energy, larger angle”; keeping the ¾ factor of the Kα line (an edge has none: R would come out 33 % high); taking the tube’s Kα/Kβ peaks for edges. The fit should give R ≈ 1.06 × 10⁷ m⁻¹ and σ_K ≈ 2.9, R ≈ 3.5 % below R∞ (±1 % noise): ≈ 1.3 % is physics (relativity and screening that grows with Z) and ≈ 2.3 % is the counter’s resolution bias. LiF variant (d = 201.4 pm): the edges fall at ≈ 6.3° (In), 6.9° (Ag), 8.9° (Mo) and 9.8° (Zr), so the window becomes ≈ 6.0°–10.2° (worked out from the crystal’s d; all scans of a group must be on the same crystal, and NaCl and LiF are not mixed). To discuss: why does the transmission rise with λ at the edge instead of falling? See docs/teacher-key.md (Moseley).',
     },
   },
 }

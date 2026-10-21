@@ -68,6 +68,18 @@ export const es = {
       teacher:
         'Respuesta: θ = 22.21° (tabla 2 del folleto); la tarea se cumple en el paso de 0.1° más cercano, 22.2°. Error típico: 21.72°, por triplicar θ; ahí solo llega el continuo. Otro: creer que el tercer orden es otra λ. Para discutir: ¿hasta qué orden permite la geometría ver Kα? (nλ ≤ 2d, n ≤ 7).',
     },
+    'lif-kalpha-angle': {
+      title: 'Kα con otro cristal',
+      concept: 'Ley de Bragg y cristal',
+      predict: 'Con NaCl (d = 282.0 pm), Kα de primer orden del Mo aparece en θ = 7.24°. Esta tarea monta un cristal de LiF, con d = 201.4 pm. ¿En qué ángulo θ esperas Kα de primer orden?',
+      options: [] as string[],
+      act: 'Con el modo COUPLED, haz un barrido que cubra tu predicción: fija los límites 1° por debajo y por encima de tu ángulo, Δβ = 0.1° o más fino, y pulsa SCAN. Si el pico de Kα no aparece, corrige la ventana y repite.',
+      observe: 'El pico de Kα sale más a la derecha que con NaCl, y Kβ, a su izquierda, también se ha desplazado. En «Diferencia de camino» (botón λ), 2d sen θ = λ con la d del LiF.',
+      explain:
+        'La λ de Kα es la misma, 71.1 pm, pero la ley de Bragg, nλ = 2d sen θ, da sen θ = λ / 2d: con una d menor, sen θ y θ crecen. Con LiF, θ = 10.16°; con NaCl, 7.24°. El ángulo depende de la λ y del cristal, no solo del tubo. Además, como Δθ ≈ Δλ / (2d cos θ), a mayor θ y menor d el doblete Kα y el par Kα–Kβ se separan más.',
+      teacher:
+        'Respuesta: θ = arcsen(71.08 / (2 × 201.4)) = arcsen(0.1765) = 10.16° (NaCl: arcsen(71.08 / 564.02) = 7.24°). Con LiF, Kβ cae en 9.01°. Error típico: «el ángulo depende solo del tubo» (7.24°). Otro: escalar θ y no sen θ con el cociente de d; da 10.1° por poco, pero falla a ángulos grandes. La tarea se da por hecha con un barrido COUPLED sobre LiF que cubra la línea ±0.7°, con Δβ ≤ 0.23° y a 5 σ sobre el fondo según el modelo; no se revisa el número del estudiante. Para discutir: ¿hasta qué orden permite la geometría ver Kα con LiF? (nλ ≤ 2d, n ≤ 5).',
+    },
     'line-threshold': {
       title: 'Umbral de las líneas',
       concept: 'Líneas características',
@@ -97,13 +109,13 @@ export const es = {
       concept: 'Bordes de absorción K',
       predict: 'Un filtro de Zr (Z = 40) y otro de Ag (Z = 47) absorben mucho los fotones con energía mayor que la de su borde K (la energía necesaria para arrancar un electrón de la capa K). Al barrer β, ¿dónde esperas el borde de la Ag respecto al del Zr?',
       options: ['A un β menor que el del Zr', 'Al mismo β', 'A un β mayor que el del Zr'],
-      act: 'Con 35 kV y 1 mA, en COUPLED, barre de 3.7° a 7.5° con Δβ = 0.1° y Δt = 5 s. Haz un barrido sin filtro y uno con cada filtro (Zr, Mo, Ag, In). Para cambiar de filtro, apaga HV, abre las puertas, colócalo en la ranura del sensor desde Montaje y ciérralas. Tras cada barrido, descarga el CSV en el Monitor. Todos los barridos deben tener la misma U y la misma I.',
+      act: 'Con 35 kV y 1 mA, en COUPLED, barre de 3.7° a 7.5° con Δβ = 0.1° y Δt = 5 s. Haz un barrido sin filtro y uno con cada filtro (Zr, Mo, Ag, In). Para cambiar de filtro, apaga HV, abre las puertas, colócalo en la ranura del sensor desde Montaje y ciérralas. Tras cada barrido, descarga el CSV en el Monitor. Todos los barridos deben tener la misma U y la misma I. Variante: repítela con LiF desde Montaje; las ventanas angulares cambian con el cristal.',
       actHelp: 'Si un filtro no se marca ✓, revisa los límites, Δβ y que U e I sean las del barrido sin filtro.',
       observe: 'Al crecer β, la transmisión T = tasa con filtro / tasa sin filtro sube de golpe en un ángulo distinto para cada filtro. Los picos Kα y Kβ son del tubo: aparecen también sin filtro y casi se cancelan en T.',
       explain:
         'Para θ < θ_K (λ < λ_K) el fotón tiene energía para arrancar un electrón K y se absorbe; por encima de θ_K ya no, y la transmisión sube. Calcula λ_K = 2d sen θ_K con d = 282.01 pm. Cuanto mayor es Z, más fuerte atrae el núcleo a los electrones K: la energía de enlace sube, λ_K se acorta y, por la ley de Bragg, el borde de la Ag cae a menor θ que el del Zr. La ley de Moseley vale también para los bordes: √(1/λ_K) = √R (Z − σ_K), con R la constante de Rydberg (pendiente al cuadrado) y σ_K la constante de apantallamiento, cuánto reducen los demás electrones la carga que siente el electrón K (−ordenada / pendiente). Tu R saldrá unos % por debajo de R∞ = 1.097 × 10⁷ m⁻¹, por física y por la resolución angular finita del contador.',
       teacher:
-        'Respuesta: la primera opción; el borde de la Ag cae en θ ≈ 4.94° y el del Zr en ≈ 7.02° (Z mayor → λ_K menor → θ menor). Errores típicos: «más Z o más energía, mayor ángulo»; usar el factor ¾ de la línea Kα (para el borde no va: R saldría un 33 % alta); tomar los picos Kα/Kβ del tubo por bordes. Del ajuste se espera R ≈ 1.06 × 10⁷ m⁻¹ y σ_K ≈ 2.9, R ≈ 3.5 % por debajo de R∞ (±1 % por ruido): ≈ 1.3 % es física (relatividad y un apantallamiento que crece con Z) y ≈ 2.3 % es el sesgo de resolución del contador. Para discutir: ¿por qué la transmisión sube con λ en el borde, en vez de bajar? Ver docs/teacher-key.md (Moseley).',
+        'Respuesta: la primera opción; el borde de la Ag cae en θ ≈ 4.94° y el del Zr en ≈ 7.02° (Z mayor → λ_K menor → θ menor). Errores típicos: «más Z o más energía, mayor ángulo»; usar el factor ¾ de la línea Kα (para el borde no va: R saldría un 33 % alta); tomar los picos Kα/Kβ del tubo por bordes. Del ajuste se espera R ≈ 1.06 × 10⁷ m⁻¹ y σ_K ≈ 2.9, R ≈ 3.5 % por debajo de R∞ (±1 % por ruido): ≈ 1.3 % es física (relatividad y un apantallamiento que crece con Z) y ≈ 2.3 % es el sesgo de resolución del contador. Variante con LiF (d = 201.4 pm): los bordes caen en ≈ 6.3° (In), 6.9° (Ag), 8.9° (Mo) y 9.8° (Zr), así que la ventana pasa a ≈ 6.0°–10.2° (se calcula con la d del cristal; todos los barridos de un grupo deben ser sobre el mismo cristal, y no se mezclan NaCl y LiF). Para discutir: ¿por qué la transmisión sube con λ en el borde, en vez de bajar? Ver docs/teacher-key.md (Moseley).',
     },
   },
 }

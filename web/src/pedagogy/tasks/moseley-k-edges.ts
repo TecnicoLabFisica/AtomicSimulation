@@ -4,7 +4,7 @@
 import type { Apparatus } from '../../apparatus/apparatus'
 import { EDGE_SPLIT_HALF_WINDOW_DEG, MAX_EDGE_STEP_DEG, MIN_PROMINENCE_SIGMA } from '../../physics/analysis'
 import { HC_KEV_PM, K_EDGE_KEV } from '../../physics/constants'
-import { thetaFromLambda } from '../../physics/crystal'
+import { crystalByName, dPm, thetaFromLambda } from '../../physics/crystal'
 import { DEFAULT, expectedRate } from '../../physics/scan'
 import { FOILS_MG_CM2 } from '../../physics/tables'
 import { exportedScans, type ExportRecord } from '../csv'
@@ -12,9 +12,24 @@ import type { GuidedTask } from '../task'
 
 const FOILS = Object.keys(K_EDGE_KEV) as (keyof typeof K_EDGE_KEV)[]
 const KEYS = ['open', ...FOILS]
-// The window of the EPN procedure (FIRST, LAST in 0.1°); a wider one (e.g. LD's 3°–8°) also passes.
+// The window of the EPN procedure on NaCl (FIRST, LAST in 0.1°); a wider one (e.g. LD's 3°–8°) also passes.
 const P5_WINDOW_DEG = [3.7, 7.5]
-const [FIRST, LAST] = P5_WINDOW_DEG.map((d) => Math.round(d * 10))
+const [P5_FIRST, P5_LAST] = P5_WINDOW_DEG.map((d) => Math.round(d * 10))
+// A group of scans is all on one of these crystals (the task offers NaCl, and LiF as a variant).
+const CRYSTALS_OK = ['NaCl', 'LiF']
+
+/** θ of the 1st-order K edge of `el` on `crystal`, in degrees. */
+const edgeTheta = (el: keyof typeof K_EDGE_KEV, crystal: string) =>
+  thetaFromLambda(HC_KEV_PM / K_EDGE_KEV[el], 1, dPm(crystalByName(crystal)))
+
+/** The window (FIRST, LAST in 0.1°) a scan on `crystal` must cover: the EPN one on NaCl, else every foil's edge
+ * ± the edge-search half-window, computed from that crystal's d. */
+function windowOf(crystal: string): [number, number] {
+  if (crystal === 'NaCl') return [P5_FIRST, P5_LAST]
+  const th = FOILS.map((el) => edgeTheta(el, crystal))
+  const h = EDGE_SPLIT_HALF_WINDOW_DEG + 1e-9
+  return [Math.floor(10 * (Math.min(...th) - h)), Math.ceil(10 * (Math.max(...th) + h))]
+}
 
 /** The scan's own label: the foil in the beam, 'open' with none; null if two foils were in. */
 function keyOf(r: ExportRecord): string | null {
@@ -22,13 +37,20 @@ function keyOf(r: ExportRecord): string | null {
   return foils.length > 1 ? null : (foils[0] ?? 'open')
 }
 
-/** A coupled scan on the crystal, steady, fine enough and wide enough for an edge search. */
-const usable = (r: ExportRecord) =>
-  r.mode === 'COUPLED' && !r.changed && r.setup.holder === 'crystal' && r.setup.crystal === 'NaCl' && // the edge check uses the NaCl d
- 
-  r.step > 0 && r.step / 10 <= MAX_EDGE_STEP_DEG && r.first <= FIRST && r.last >= LAST
+/** A coupled scan on the crystal, steady, fine enough and wide enough for an edge search on its crystal's d. */
+function usable(r: ExportRecord): boolean {
+  if (r.mode !== 'COUPLED' || r.changed || r.setup.holder !== 'crystal' || !CRYSTALS_OK.includes(r.setup.crystal)) return false
+  if (r.step <= 0 || r.step / 10 > MAX_EDGE_STEP_DEG) return false
+  try {
+    const [first, last] = windowOf(r.setup.crystal)
+    return r.first <= first && r.last >= last
+  } catch {
+    return false // the crystal table is not loaded (cannot be, after a scan on it)
+  }
+}
 
-const sameBeam = (a: ExportRecord, b: ExportRecord) => a.u === b.u && a.i === b.i
+// Same beam and same crystal: groups never mix crystals.
+const sameBeam = (a: ExportRecord, b: ExportRecord) => a.u === b.u && a.i === b.i && a.setup.crystal === b.setup.crystal
 
 // The coarse test of braggsim.analysis.k_edge_deg on the expected rates: for every split β_k of the scan
 // within EDGE_SPLIT_HALF_WINDOW_DEG of the tabulated edge, the weighted mean transmission T = R_foil / R_open
@@ -38,13 +60,14 @@ const variance = (rate: number, dt: number) => Math.max(rate * dt, 1) / dt ** 2
 
 function edgeStands(el: keyof typeof K_EDGE_KEV, open: ExportRecord, foil: ExportRecord): boolean {
   if (FOILS_MG_CM2[el] === undefined) return false
-  const thetaK = thetaFromLambda(HC_KEV_PM / K_EDGE_KEV[el])
+  const crystal = crystalByName(foil.setup.crystal)
+  const thetaK = edgeTheta(el, foil.setup.crystal)
   const h = EDGE_SPLIT_HALF_WINDOW_DEG + 1e-9
   const betas: number[] = []
   for (let b = foil.first; b <= foil.last; b += foil.step) betas.push(b / 10)
   const [u, i] = [foil.u / 10, foil.i / 100]
-  const rOpen = expectedRate(betas, u, i)
-  const rFoil = expectedRate(betas, u, i, DEFAULT, null, [[el, FOILS_MG_CM2[el]]])
+  const rOpen = expectedRate(betas, u, i, DEFAULT, null, [], crystal)
+  const rFoil = expectedRate(betas, u, i, DEFAULT, null, [[el, FOILS_MG_CM2[el]]], crystal)
   if (rOpen.some((r) => r <= 0)) return false
   const side = (inSide: (b: number) => boolean) => {
     let [sw, swt, n] = [0, 0, 0]
@@ -95,6 +118,8 @@ export const task: GuidedTask = {
   id: 'moseley-k-edges',
   mode: 'lab',
   level: 2,
+  crystal: 'NaCl', // the default bench; the LiF variant needs the picker
+  crystalLocked: false,
   controls: ['U', 'I', 'DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },
   predict: { kind: 'choice', answer: 0 },

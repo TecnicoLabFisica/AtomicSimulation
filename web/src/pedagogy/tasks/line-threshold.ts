@@ -10,6 +10,7 @@ export const task: GuidedTask = {
   id: 'line-threshold',
   mode: 'explore',
   level: 2,
+  crystal: 'NaCl',
   controls: ['U', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED', dt_s: 1, dBeta_deg: 0.1, limits_deg: [5, 9] },
   predict: { kind: 'choice', answer: 1 },

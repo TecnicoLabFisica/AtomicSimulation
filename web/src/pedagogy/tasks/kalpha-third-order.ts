@@ -12,6 +12,7 @@ export const task: GuidedTask = {
   id: 'kalpha-third-order',
   mode: 'explore',
   level: 1,
+  crystal: 'NaCl',
   controls: ['COUPLED', 'HV'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },
   predict: { kind: 'number', unit: '°' },
