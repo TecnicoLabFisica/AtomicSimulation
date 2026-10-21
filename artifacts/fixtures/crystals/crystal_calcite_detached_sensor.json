@@ -1,0 +1,56 @@
+{
+ "description": "calcite, 35 kV, 1 mA: target at order-1 Kα θ, sensor at 2θ ± 0.3° and far off; last point target 1° off with the sensor at 2θ",
+ "expected": {
+  "rate_per_s": [
+   549.2578002119157,
+   1577.3039729935517,
+   1783.5662999111853,
+   1563.8346498482188,
+   526.6652180879615,
+   9218.783812013136,
+   5.536932539373187,
+   5.536932539381802
+  ]
+ },
+ "function": "scan.expected_rate",
+ "inputs": {
+  "I_mA": 1.0,
+  "U_kV": 35.0,
+  "beta_deg": [
+   6.7246439109029215,
+   6.7246439109029215,
+   6.7246439109029215,
+   6.7246439109029215,
+   6.7246439109029215,
+   6.7246439109029215,
+   6.7246439109029215,
+   7.7246439109029215
+  ],
+  "crystal": "calcite",
+  "params": {
+   "absorber_mg_cm2": 326.0,
+   "background_per_s": 0.2,
+   "debye_waller_pm2": 6260.0,
+   "direct_per_s": 297000.0,
+   "leak_amp_per_s": 118000.0,
+   "leak_width_deg": 1.161,
+   "line_to_cont": 0.00743,
+   "scale": 167600.0,
+   "scatter_per_s": 5.34,
+   "sigma_deg": 0.1228,
+   "tau_s": 0.0001
+  },
+  "sensor_deg": [
+   13.149287821805842,
+   13.349287821805843,
+   13.449287821805843,
+   13.549287821805843,
+   13.749287821805844,
+   0.0,
+   120.0,
+   13.449287821805843
+  ]
+ },
+ "model_version": "0.4.0",
+ "name": "crystal_calcite_detached_sensor"
+}

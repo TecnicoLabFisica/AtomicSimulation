@@ -64,7 +64,7 @@ function run(fn: string, c: Case) {
 
 describe('artifacts/fixtures', () => {
   test('fixtures exist and share the tables’ model version', () => {
-    expect(Object.keys(crystalFiles).length).toBe(4)
+    expect(Object.keys(crystalFiles).length).toBe(7)
     expect(Object.keys(files).length).toBeGreaterThan(10)
     for (const f of Object.values(files)) expect(f.model_version).toBe(MODEL_VERSION)
   })

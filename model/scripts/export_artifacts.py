@@ -202,6 +202,52 @@ def _crystal_fixtures():
         )  # fmt: skip
         case["inputs"]["crystal"] = name
         out[f"crystal_{name.lower()}_35kV_1mA"] = case
+    out.update(_crystal_fixtures_wide())
+    return out
+
+
+def _crystal_fixtures_wide():
+    """Crystals off the 35 kV, 1 mA, unfiltered, coupled default: low kV, detached sensor, tail."""
+    out = {}
+    lif, calcite, mus = PRESETS["LiF"], PRESETS["calcite"], PRESETS["muscovite"]
+
+    def add(key, crystal_key, case):
+        case["inputs"]["crystal"] = crystal_key
+        out[key] = case
+
+    zr = (("Zr", areal_density_mg_cm2("Zr", 0.05)),)
+    add(
+        "crystal_lif_20kV_zr_filter",
+        "LiF",
+        _rate_case(
+            "LiF, 20 kV (below the Mo K edge: continuum only), 1 mA, Zr 0.05 mm, "
+            "coupled 5° → 30°, Δβ = 0.25° (orders 1–2 window)",
+            scan.coupled_betas(5.0, 30.0, 0.25), 20.0, 1.0, filters=zr, crystal=lif,
+        ),
+    )  # fmt: skip
+    th = float(theta_from_lambda(MO_KA_PM, 1, d_pm(calcite)))
+    sensor = np.r_[
+        2 * th - 0.3, 2 * th - 0.1, 2 * th, 2 * th + 0.1, 2 * th + 0.3, 0.0, 120.0, 2 * th
+    ]
+    beta = np.r_[np.full(7, th), th + 1.0]
+    add(
+        "crystal_calcite_detached_sensor",
+        "calcite",
+        _rate_case(
+            "calcite, 35 kV, 1 mA: target at order-1 Kα θ, sensor at 2θ ± 0.3° and far off; "
+            "last point target 1° off with the sensor at 2θ",
+            beta, 35.0, 1.0, sensor_deg=sensor, crystal=calcite,
+        ),
+    )  # fmt: skip
+    add(
+        "crystal_muscovite_35kV_high_orders",
+        "muscovite",
+        _rate_case(
+            "muscovite, 35 kV, 1 mA, coupled 60° → 85°, Δβ = 0.5° (high-order tail, "
+            f"max_order {scan.max_order(mus)})",
+            scan.coupled_betas(60.0, 85.0, 0.5), 35.0, 1.0, crystal=mus,
+        ),
+    )  # fmt: skip
     return out
 
 
