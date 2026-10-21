@@ -8,6 +8,11 @@ def test_mo_k_edge_matches_xraylib():
     assert c.MO_K_EDGE_KEV == approx(xraylib.EdgeEnergy(42, xraylib.K_SHELL), abs=1e-4)
 
 
+def test_foil_k_edges_match_xraylib():
+    for el, z in {"Zr": 40, "Mo": 42, "Ag": 47, "In": 49}.items():
+        assert c.K_EDGE_KEV[el] == approx(xraylib.EdgeEnergy(z, xraylib.K_SHELL), abs=1e-4)
+
+
 def test_kb_ka_ratio_matches_xraylib_radiative_rates():
     ka = sum(xraylib.RadRate(42, line) for line in (xraylib.KL3_LINE, xraylib.KL2_LINE))
     kb = sum(

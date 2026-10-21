@@ -17,6 +17,7 @@ export const en: PedagogyDict = {
   restart: 'Start over',
   teacher: 'Note for teachers',
   modeNote: { explore: 'Explore mode', lab: 'Lab mode' },
+  progressLabels: { open: 'open' },
   task: {
     'kalpha-third-order': {
       title: 'Kα in third order',
@@ -53,6 +54,18 @@ export const en: PedagogyDict = {
         'Find the centre of each peak, compute λ = 2d sin θ / n with d = a₀/2 = 282.01 pm, and average the orders. If all give the same λ, you have confirmed Bragg’s law: the order changes the angle, not the wavelength.',
       teacher:
         'Analysis outside the app (~20 min). Expected values in docs/teacher-key.md (Tables 3–5, simulated data). Typical mistakes: using a₀ = 564.02 pm instead of d = a₀/2 (λ comes out doubled), taking the sensor angle (2θ) as θ, assigning a peak to the wrong order. To discuss: why does the Kβ–Kα pair spread apart in higher orders?',
+    },
+    'moseley-k-edges': {
+      title: 'Moseley’s law',
+      concept: 'K absorption edges',
+      predict: 'A Zr foil (Z = 40) and an Ag foil (Z = 47) absorb strongly for photon energies above their K-edge energy. Scanning β, where do you expect the Ag edge relative to the Zr edge?',
+      options: ['At a smaller β than Zr’s', 'At the same β', 'At a larger β than Zr’s'],
+      act: 'At 35 kV and 1 mA, in COUPLED, scan from 3.7° to 7.5° with Δβ = 0.1° and Δt = 5 s. Make one scan without a foil and one with each foil (Zr, Mo, Ag, In). Mount the foil in the sensor slot from Setup, with the doors open. After each scan, download the CSV on the Monitor. All scans must share the same U and I.',
+      observe: 'The transmission R(foil) / R(open) jumps up at one angle, and each foil does it at a different one.',
+      explain:
+        'The higher Z is, the more strongly the nucleus pulls on the K-shell electrons: the binding energy rises and λ_K gets shorter. By Bragg’s law a shorter λ reflects at a smaller θ, so the Ag edge lies at a smaller angle than the Zr edge. Moseley’s law, found for the K lines, holds for the edges too: √(1/λ_K) is linear in Z. The squared slope gives R, and the intercept divided by the slope gives −σ_K. Your R will come out a little below R∞: partly physics (real K edges are not hydrogen-like) and partly the counter’s finite angular resolution.',
+      teacher:
+        'Answer: the first option; the Ag edge falls at θ ≈ 4.94° and the Zr edge at ≈ 7.02° (higher Z → shorter λ_K → smaller θ). Typical mistake: “more Z or more energy, larger angle”. The fit should give R ≈ 1.06 × 10⁷ m⁻¹ and σ_K ≈ 2.9, 3.4 % below R∞: ≈ 1.3 % is physics (real K edges are not hydrogen-like) and ≈ 2.3 % is the counter’s resolution bias. To discuss: why does the transmission rise with λ at the edge instead of falling? See docs/teacher-key.md (Moseley).',
     },
   },
 }

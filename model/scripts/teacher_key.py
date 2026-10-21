@@ -11,7 +11,6 @@ the same on every run. Generated file: do not edit it by hand.
 from pathlib import Path
 
 import numpy as np
-import xraylib
 
 import braggsim
 from braggsim.analysis import (
@@ -26,7 +25,7 @@ from braggsim.analysis import (
     peak_center,
     wavelength_table,
 )
-from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
+from braggsim.constants import HC_KEV_PM, K_EDGE_KEV, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import sample_counts
 from braggsim.filters import FOILS_MM, areal_density_mg_cm2
@@ -110,7 +109,7 @@ def _moseley_section(rng):
     rows, (R, R_err, sigma, sigma_err, chi2) = fit(noisy=True)
     # The same evaluation on the noise-free scans isolates the resolution bias from the noise.
     _, (R_exact, _, sigma_exact, _, chi2_exact) = fit(noisy=False)
-    lam_tab = [HC_KEV_PM / xraylib.EdgeEnergy(zz, xraylib.K_SHELL) for zz in z]
+    lam_tab = [HC_KEV_PM / K_EDGE_KEV[el] for el in P5_Z]
     R_tab, _, sigma_tab, _, _ = moseley_fit(z, lam_tab)
     th = {el: _theta(lam) for el, lam in zip(P5_Z, lam_tab, strict=True)}
     out = [
@@ -168,8 +167,10 @@ def _moseley_section(rng):
         "",
         f"The task is met by the scans, not by the student's R: a COUPLED window that covers "
         f"{P5_BETA_RANGE_DEG[0]}° → {P5_BETA_RANGE_DEG[1]}° with Δβ ≤ {MAX_EDGE_STEP_DEG}°, "
-        "and all four foils plus an open scan. A student's R scatters by about the error above "
-        "and sits below R∞.",
+        "and all four foils plus an open scan, all five at the same U and I and exported. On the "
+        "expected rates, each edge must pass the coarse test of `k_edge_deg`: the rise of the "
+        f"mean T across the edge stands ≥ {MIN_PROMINENCE_SIGMA}σ. A student's R "
+        "scatters by about the error above and sits below R∞.",
         "",
     ]
     return out

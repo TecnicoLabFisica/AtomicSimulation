@@ -263,6 +263,8 @@ button, select { font: inherit; color: inherit; }
 .steps li[aria-current] { color: var(--label); font-weight: 600; }
 .steps li[aria-current]::before { background: var(--accent); box-shadow: none; }
 .task-body { display: grid; gap: var(--space-3); }
+.progress { margin: 0; font: var(--text-footnote); color: var(--label-2); }
+.progress span[data-done] { color: var(--label); }
 .predict-number { display: flex; align-items: baseline; gap: var(--space-2); font: var(--text-title); }
 .predict-number input {
   width: 7ch; font: inherit; font-variant-numeric: tabular-nums; color: var(--label); padding: var(--space-2) var(--space-3);

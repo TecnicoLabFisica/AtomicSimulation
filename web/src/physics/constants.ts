@@ -17,6 +17,9 @@ export const HC_KEV_PM = 1239.841984
 // Mo K absorption edge (xraylib.EdgeEnergy(42, K_SHELL)): K lines need a tube voltage above it.
 export const MO_K_EDGE_KEV = 19.9995
 
+/** port of braggsim.constants.K_EDGE_KEV: K edges of the 554 832 foils (xraylib.EdgeEnergy, Z = 40, 42, 47, 49). */
+export const K_EDGE_KEV = { Zr: 17.9976, Mo: MO_K_EDGE_KEV, Ag: 25.514, In: 27.9399 } as const
+
 // Emitted Kβ/Kα photon ratio of Mo from xraylib radiative rates.
 export const KB_KA_RATIO = 0.1935
 

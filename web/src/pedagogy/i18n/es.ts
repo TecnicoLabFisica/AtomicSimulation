@@ -16,6 +16,7 @@ export const es = {
   restart: 'Empezar de nuevo',
   teacher: 'Nota para docentes',
   modeNote: { explore: 'Modo Explorar', lab: 'Modo Laboratorio' },
+  progressLabels: { open: 'abierto' },
   task: {
     'kalpha-third-order': {
       title: 'Kα en tercer orden',
@@ -52,6 +53,18 @@ export const es = {
         'Busca el centro de cada pico, calcula λ = 2d sen θ / n con d = a₀/2 = 282.01 pm y promedia los órdenes. Si todos dan la misma λ, confirmas la ley de Bragg: el orden cambia el ángulo, no la longitud de onda.',
       teacher:
         'Análisis fuera de la app (~20 min). Valores esperados en docs/teacher-key.md (tablas 3–5, datos simulados). Errores típicos: usar a₀ = 564.02 pm en vez de d = a₀/2 (λ sale el doble), tomar el ángulo del sensor (2θ) como θ, asignar un pico al orden equivocado. Para discutir: ¿por qué el par Kβ–Kα se separa más en órdenes altos?',
+    },
+    'moseley-k-edges': {
+      title: 'Ley de Moseley',
+      concept: 'Bordes de absorción K',
+      predict: 'Un filtro de Zr (Z = 40) y otro de Ag (Z = 47) absorben mucho los fotones con energía mayor que la de su borde K. Al barrer β, ¿dónde esperas el borde de la Ag respecto al del Zr?',
+      options: ['A un β menor que el del Zr', 'Al mismo β', 'A un β mayor que el del Zr'],
+      act: 'Con 35 kV y 1 mA, en COUPLED, barre de 3.7° a 7.5° con Δβ = 0.1° y Δt = 5 s. Haz un barrido sin filtro y uno con cada filtro (Zr, Mo, Ag, In). Monta el filtro en la ranura del sensor desde Montaje, con las puertas abiertas. Tras cada barrido, descarga el CSV en el Monitor. Todos los barridos deben tener la misma U y la misma I.',
+      observe: 'La transmisión R(filtro) / R(abierto) salta hacia arriba en un ángulo, y cada filtro lo hace en uno distinto.',
+      explain:
+        'Cuanto mayor es Z, más fuerte atrae el núcleo a los electrones de la capa K: la energía de enlace sube y λ_K se acorta. Por la ley de Bragg, una λ más corta se refleja a un θ menor: el borde de la Ag queda a menor ángulo que el del Zr. La ley de Moseley, hallada para las líneas K, vale también para los bordes: √(1/λ_K) es lineal en Z. La pendiente al cuadrado da R, y la ordenada en el origen dividida por la pendiente da −σ_K. Tu R saldrá algo por debajo de R∞: en parte por física (los bordes K reales no son los del hidrógeno) y en parte por la resolución angular finita del contador.',
+      teacher:
+        'Respuesta: la primera opción; el borde de la Ag cae en θ ≈ 4.94° y el del Zr en ≈ 7.02° (Z mayor → λ_K menor → θ menor). Error típico: «más Z o más energía, mayor ángulo». Del ajuste se espera R ≈ 1.06 × 10⁷ m⁻¹ y σ_K ≈ 2.9, un 3.4 % por debajo de R∞: ≈ 1.3 % es física (los bordes K reales no son hidrogenoides) y ≈ 2.3 % es el sesgo de resolución del contador. Para discutir: ¿por qué la transmisión sube con λ en el borde, en vez de bajar? Ver docs/teacher-key.md (Moseley).',
     },
   },
 }

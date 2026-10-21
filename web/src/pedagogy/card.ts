@@ -2,15 +2,18 @@
 // (predict → act → observe → explain). The act step ends by itself when the task's success(a) holds.
 import type { Apparatus, Key } from '../apparatus/apparatus'
 import { getLang, t } from '../i18n'
+import { loadAbsorbers } from '../physics/tables'
 import { en } from './i18n/en'
 import { es } from './i18n/es'
+import { clearExports } from './csv'
 import { getMode, setHints, setMode, type AppMode } from './mode'
 import { applyInitial, type GuidedTask } from './task'
 import { task as kalphaThirdOrder } from './tasks/kalpha-third-order'
 import { task as lambdaThreeOrders } from './tasks/lambda-three-orders'
 import { task as lineThreshold } from './tasks/line-threshold'
+import { task as moseleyKEdges } from './tasks/moseley-k-edges'
 
-export const TASKS: GuidedTask[] = [kalphaThirdOrder, lineThreshold, lambdaThreeOrders]
+export const TASKS: GuidedTask[] = [kalphaThirdOrder, lineThreshold, lambdaThreeOrders, moseleyKEdges]
 const MODES: AppMode[] = ['explore', 'lab']
 
 /** Guided-task strings in the current language. */
@@ -47,6 +50,15 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       </ul>`
   }
 
+  /** The task's checklist as one line, "abierto ✓ · Zr – · …"; done items in the text colour (element symbols stay as they are). */
+  const progressItems = (k: GuidedTask) =>
+    k.progress!(a).map(({ key, done }) => ({
+      text: `${(pt().progressLabels as Record<string, string>)[key] ?? key} ${done ? '✓' : '–'}`,
+      done,
+    }))
+  const progressHtml = (items: { text: string; done: boolean }[]) =>
+    items.map((x) => `<span${x.done ? ' data-done' : ''}>${x.text}</span>`).join(' · ')
+
   const bodyHtml = (k: GuidedTask) => {
     const p = pt()
     const x = p.task[k.id as keyof typeof p.task]
@@ -60,7 +72,10 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       return `<p>${x.predict}</p>${input}
         <button class="primary" data-commit ${prediction === null ? 'disabled' : ''}>${p.commit}</button>`
     }
-    if (step === 1) return `<p>${x.act}</p><p class="hint">${p.waiting}</p>`
+    if (step === 1) {
+      const line = k.progress ? `<p class="progress" data-progress>${progressHtml(progressItems(k))}</p>` : ''
+      return `<p>${x.act}</p>${line}<p class="hint">${p.waiting}</p>`
+    }
     if (step === 2) {
       return `<p class="done">✓ ${p.done}</p><p>${x.observe}</p>
         <button class="primary" data-next>${p.explainNext}</button>`
@@ -103,6 +118,8 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       onMode()
     }
     applyInitial(a, k.initial)
+    clearExports(a) // a restart begins fresh
+    void loadAbsorbers() // the foils the task mounts
     onFocus(k.controls)
     go(0)
   }
@@ -143,6 +160,12 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   /** Per frame: the act step waits for the task's success condition. True when it was just met (the
    * caller brings the sheet back, since the student is at the instrument then). */
   const render = (): boolean => {
+    if (task?.progress && step === 1) {
+      const el = root.querySelector<HTMLElement>('[data-progress]')
+      const items = progressItems(task)
+      const text = items.map((x) => x.text).join(' · ')
+      if (el && el.textContent !== text) el.innerHTML = progressHtml(items) // calm live region: only on change
+    }
     if (!task || step !== 1 || !task.success(a)) return false
     go(2)
     return true

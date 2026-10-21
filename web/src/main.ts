@@ -140,7 +140,7 @@ function labels() {
   q('[data-lang]').setAttribute('aria-label', s.language)
   q('[data-gonio]').setAttribute('aria-label', getMode() === 'explore' ? `${s.gonioLabel}. ${s.dragCrystal}` : s.gonioLabel)
   for (const b of app.querySelectorAll('[data-close]')) b.setAttribute('aria-label', s.close)
-  for (const b of app.querySelectorAll('[data-back]')) (b.setAttribute('aria-label', s.back), (b.textContent = '×'))
+  for (const b of app.querySelectorAll('.focus-card > [data-back]')) (b.setAttribute('aria-label', s.back), (b.textContent = '×'))
   q('[data-bench]').setAttribute('aria-label', s.benchLabel)
   q('[data-no3d]').textContent = s.no3d
   q('[data-settings]').textContent = s.settings

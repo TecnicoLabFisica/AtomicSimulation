@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-20
 current_phase: L1
-next_task: L1.6
+next_task: L1.7
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,14 +54,14 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L1.6`, the Lab task `moseley-k-edges` (`write-guided-task`). Its success check uses `analysis.MAX_EDGE_STEP_DEG` (0.15°), not the Bragg `MAX_STEP_DEG`.
+> **Next:** `L1.7`, the Explore overlay: edge markers per foil, hidden until the act step (as in Phase 9). Load `bragg-ui`.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
 | G0 | Reference facts and scope | ✅ done | 1 | — |
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
-| L1 | Práctica 5: Moseley's law | 🟨 S1 done, S2 next | 2 | G1 |
+| L1 | Práctica 5: Moseley's law | 🟨 S2 in progress (L1.7 next) | 2 | G1 |
 | L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
@@ -284,8 +284,13 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
 - [x] **L1.5** Teacher key section in `docs/teacher-key.md` (`teacher_key.py`, seeded).
 
 #### S2 — Web
-- [ ] **L1.6** Lab task `moseley-k-edges` (`write-guided-task`). Predict where the Ag edge falls relative to Zr, then scan
+- [x] **L1.6** Lab task `moseley-k-edges` (`write-guided-task`). Predict where the Ag edge falls relative to Zr, then scan
       open + 4 foils, export CSV. The success check is on the scans (window, Δβ, foils used), never on the student's R∞.
+      As built: the app remembers every exported scan with the setup it was made with (`csv.exportedScans`; `lastScan.setup`),
+      since the apparatus keeps only the last one. Met by one (U, I) group holding an open scan and all four foils, each COUPLED,
+      steady, Δβ ≤ `MAX_EDGE_STEP_DEG`, covering 3.7–7.5° by its stored angles, with each edge passing the coarse test of
+      `k_edge_deg` on the expected rates (≥ 5σ). New `constants.K_EDGE_KEV` (xraylib, Py → TS). A progress line in the card
+      (`GuidedTask.progress`). CSV header and file name name the foil.
 - [ ] **L1.7** Explore overlay: edge markers per foil (hidden until the act step, as in Phase 9).
 - [ ] **L1.8** `pedagogy-reviewer`.
 
@@ -632,6 +637,23 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-20 · L1 · task L1.6 (and L1.1–L1.5 committed)
+- Done: L1.1–L1.5 committed as `d61588a` (user). L1.6 (Sonnet): `constants.K_EDGE_KEV` + test, TS port with `MAX_EDGE_STEP_DEG`,
+  `EDGE_SPLIT_HALF_WINDOW_DEG`; `lastScan.setup`; export records and the setup in the CSV; `GuidedTask.progress`; task, ES/EN strings,
+  11 Vitest cases; teacher-key success sentence. Opus fixes: records take the stored angles (a stopped scan no longer counts as the
+  whole window), per-list memo (the check ran `expectedRate` every frame), and `main.ts` relabelled the Learn card's back link as "×"
+  (pre-existing selector collision, now `.focus-card > [data-back]`).
+- Reviews: physics (OK with nits, all applied but two). The edge check now ports the best-split loop (splitting once at θ_K was
+  stricter than Python); wording fixes (transmission, not absorption, rises; −intercept/slope = σ_K; R deficit partly instrument;
+  "photon energies above the K edge"); a below-edge test at 25 kV. Not done: an artifact-backed parity test for `K_EDGE_KEV`
+  (same hand-port pattern as `MO_K_EDGE_KEV`; checked once by script: TS = Python = xraylib, identical), and the task uses
+  `DEFAULT` params, as the app does.
+- Verify: pytest 155 · ruff clean · Vitest 107 · build OK (main 79.8 kB gzip, +2.5 kB) · `artifacts/` unchanged · teacher key byte-stable.
+  The whole task done in the real UI at 390 px (headless Firefox, 390 px iframe), light and dark: five CSVs named by foil, observe step reached.
+- Uncommitted: no, committed with this entry (user).
+- Surprises / decisions: snap Firefox cannot see `/tmp` (load the iframe page via `document.write`; downloads to `~/snap/firefox/common`).
+- Next: L1.7, Explore overlay of the edge markers; then L1.8 `pedagogy-reviewer` over both.
 
 ### 2026-10-20 · L1 · tasks L1.1–L1.5 (and G1.11 committed)
 - Done: G1.11 committed as `771efa6` (unpushed), with the topbar and document title renamed to X-Ray Lab (user). L1.1: foil ρ/ρx table in

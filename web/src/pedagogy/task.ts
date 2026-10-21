@@ -13,6 +13,8 @@ export type GuidedTask = {
   /** A number with a unit, or one of the task's `options` strings (by index). */
   predict: { kind: 'number'; unit: string } | { kind: 'choice'; answer: number }
   success: (a: Apparatus) => boolean
+  /** Optional checklist shown under the act text: what the task has collected so far, by label key. */
+  progress?: (a: Apparatus) => { key: string; done: boolean }[]
 }
 
 /** Start from the device defaults (RESET: HV off, arms driven home), then the task's settings. */

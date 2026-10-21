@@ -1,14 +1,16 @@
 // Guided tasks: their success conditions on real apparatus runs, the CSV export, and the lab-mode leak guard.
-import { describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test } from 'vitest'
 import { Apparatus, OK_S, SAFE_S } from '../src/apparatus/apparatus'
-import { markExported, replayCsv } from '../src/pedagogy/csv'
+import { clearExports, exportedScans, markExported, replayCsv } from '../src/pedagogy/csv'
 import { en } from '../src/pedagogy/i18n/en'
 import { es } from '../src/pedagogy/i18n/es'
 import { applyInitial, type GuidedTask } from '../src/pedagogy/task'
 import { task as kalpha } from '../src/pedagogy/tasks/kalpha-third-order'
 import { task as lambda3 } from '../src/pedagogy/tasks/lambda-three-orders'
 import { task as threshold } from '../src/pedagogy/tasks/line-threshold'
+import { task as moseley } from '../src/pedagogy/tasks/moseley-k-edges'
 import { mulberry32 } from '../src/physics/detector'
+import { loadAbsorbers } from '../src/physics/tables'
 
 const SAFETY_S = SAFE_S + OK_S
 
@@ -145,15 +147,112 @@ test('replayCsv: header with the scan settings, one row per stored value', () =>
   expect(replayCsv(a)).toBeNull()
   scan(a)
   const lines = replayCsv(a, new Date(0))!.trimEnd().split('\n')
-  expect(lines.slice(0, 4)).toEqual([
+  expect(lines.slice(0, 5)).toEqual([
     '# Bragg reflection, simulated LD X-ray apparatus 554 800 (not measured data)',
     '# 1970-01-01T00:00:00.000Z',
+    '# setup: holder crystal; collimator filter none; sensor filter none',
     '# mode COUPLED; at the start: U = 35.0 kV, I = 1.00 mA, dt = 1 s',
     'beta_deg,rate_per_s',
   ])
-  expect(lines).toHaveLength(4 + 41) // 5.0 … 9.0° in 0.1° steps
-  expect(lines[4]).toMatch(/^5\.0,\d+(\.\d+)?$/)
+  expect(lines).toHaveLength(5 + 41) // 5.0 … 9.0° in 0.1° steps
+  expect(lines[5]).toMatch(/^5\.0,\d+(\.\d+)?$/)
   expect(lines.at(-1)).toMatch(/^9\.0,/)
+})
+
+describe('moseley-k-edges', () => {
+  beforeAll(loadAbsorbers)
+
+  type Run = { u?: number; i?: number; dt?: number; dBeta?: number; lo?: number; hi?: number }
+  /** One exported scan with `foil` mounted in the sensor slot (doors open to mount, then closed). */
+  const exportScan = (a: Apparatus, foil: string | null, { u = 350, i = 100, dt = 5, dBeta = 1, lo = 37, hi = 75 }: Run = {}) => {
+    a.setDoors(false)
+    expect(a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: foil })).toBe(true)
+    a.setDoors(true)
+    ;[a.u, a.i, a.dt, a.dBeta, a.limitLo, a.limitHi] = [u, i, dt, dBeta, lo, hi]
+    scan(a)
+    markExported(a)
+  }
+  const session = (run: Run = {}, foils: (string | null)[] = [null, 'Zr', 'Mo', 'Ag', 'In']) => {
+    const a = started(moseley)
+    for (const f of foils) exportScan(a, f, run)
+    return a
+  }
+
+  test('open scan and four foils at the P5 settings: met', () => {
+    expect(moseley.success(session())).toBe(true)
+  })
+
+  test('one foil missing: not met', () => {
+    expect(moseley.success(session({}, [null, 'Zr', 'Mo', 'Ag']))).toBe(false)
+    expect(moseley.success(session({}, ['Zr', 'Mo', 'Ag', 'In']))).toBe(false)
+  })
+
+  test('Δβ = 0.2° is too coarse', () => expect(moseley.success(session({ dBeta: 2 }))).toBe(false))
+  test('a window that starts above the EPN 3.7° is refused', () => expect(moseley.success(session({ lo: 40 }))).toBe(false))
+
+  test('one scan at another U: not met; repeating it at the common U: met', () => {
+    const a = session({}, [null, 'Zr', 'Mo', 'Ag'])
+    exportScan(a, 'In', { u: 300 })
+    expect(moseley.success(a)).toBe(false)
+    exportScan(a, 'In')
+    expect(moseley.success(a)).toBe(true)
+  })
+
+  test('Δt = 1 s at 0.05 mA: the edges do not stand out; the same scans at 1 mA do', () => {
+    expect(moseley.success(session({ dt: 1, i: 5 }))).toBe(false)
+    expect(moseley.success(session({ dt: 1, i: 100 }))).toBe(true)
+  })
+
+  test('at 25 kV no continuum reaches the short-λ side of the Ag and In edges', () => {
+    const a = session({ u: 250 })
+    expect(moseley.success(a)).toBe(false)
+    expect(moseley.progress!(a).filter((p) => p.done).map((p) => p.key)).toEqual(['open', 'Zr', 'Mo'])
+  })
+
+  test('a scan stopped early covers only the angles it stored', () => {
+    const a = session({}, [null, 'Zr', 'Mo', 'Ag'])
+    a.setDoors(false)
+    a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: 'In' })
+    a.setDoors(true)
+    a.timeScale = 1
+    a.press('SCAN')
+    a.tick(SAFETY_S + 60) // a few points of 5 s, then STOP
+    a.press('SCAN')
+    expect(a.replay.length).toBeGreaterThan(0)
+    expect(a.replay.at(-1)!.angle).toBeLessThan(75)
+    markExported(a)
+    expect(exportedScans(a).at(-1)!.last).toBe(a.replay.at(-1)!.angle)
+    expect(moseley.success(a)).toBe(false)
+  })
+
+  test('a foil mounted before the export does not relabel the scan', () => {
+    const a = started(moseley)
+    exportScan(a, 'Zr')
+    a.setDoors(false)
+    a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: 'In' })
+    expect(replayCsv(a)).toContain('sensor filter Zr')
+    markExported(a)
+    expect(exportedScans(a).at(-1)!.setup.sensorFilter).toBe('Zr')
+  })
+
+  test('CSV header names the filter; the record carries the step', () => {
+    const a = started(moseley)
+    exportScan(a, 'Ag')
+    expect(replayCsv(a, new Date(0))).toContain('# setup: holder crystal; collimator filter none; sensor filter Ag\n')
+    expect(exportedScans(a)[0]).toMatchObject({ mode: 'COUPLED', first: 37, last: 75, step: 1, u: 350, i: 100, dt: 5, changed: false })
+  })
+
+  test('progress follows the exports; clearExports starts over', () => {
+    const a = started(moseley)
+    const done = () => moseley.progress!(a).filter((p) => p.done).map((p) => p.key)
+    expect(done()).toEqual([])
+    exportScan(a, null)
+    exportScan(a, 'Zr')
+    expect(done()).toEqual(['open', 'Zr'])
+    expect(moseley.progress!(a).map((p) => p.key)).toEqual(['open', 'Zr', 'Mo', 'Ag', 'In'])
+    clearExports(a)
+    expect(done()).toEqual([])
+  })
 })
 
 test('lab tasks never state an expected angle or wavelength (teacher notes aside)', () => {
@@ -164,5 +263,10 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
       const text = JSON.stringify(student)
       for (const leak of LEAKS) expect(text, `${t.id}: "${leak}"`).not.toContain(leak)
     }
+    // Moseley: the edge angles (≈ 7.02°, 6.31°, 4.94°, 4.51°), λ_K (≈ 68.9, 62.0, 48.6, 44.4 pm) and edge keV.
+    const { teacher: _, ...student } = dict.task[moseley.id as keyof typeof dict.task]
+    const text = JSON.stringify(student)
+    for (const leak of ['7.0', '6.3', '4.9', '4.5', '68', '62.0', '48', '44', '17.9', '25.5', '27.9'])
+      expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
   }
 })

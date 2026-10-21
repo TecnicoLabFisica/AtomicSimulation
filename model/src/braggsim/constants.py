@@ -25,6 +25,10 @@ R_INF_PER_M = 1.0973731568157e7
 # xraylib.EdgeEnergy(42, K_SHELL).
 MO_K_EDGE_KEV = 19.9995
 
+# K absorption edges of the 554 832 foils (EPN Práctica 5, Moseley's law), by element symbol:
+# xraylib.EdgeEnergy(Z, K_SHELL) for Z = 40 (Zr), 42 (Mo), 47 (Ag), 49 (In).
+K_EDGE_KEV = {"Zr": 17.9976, "Mo": MO_K_EDGE_KEV, "Ag": 25.514, "In": 27.9399}
+
 # Emitted Kβ/Kα photon ratio of Mo: (KM3+KM2+KN3+KN2)/(KL3+KL2) radiative rates, xraylib.RadRate.
 KB_KA_RATIO = 0.1935
 

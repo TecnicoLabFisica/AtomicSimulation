@@ -89,4 +89,4 @@ This simulated measurement lands 3.4 % below R∞. Two causes add up, and the ro
 
 The quoted ± is the counting error only: a measurement scatters by it around the noise-free row, not around the tabulated one. χ²/dof = 2.1 (noise-free 0.2) with 2 degrees of freedom is consistent with a straight line.
 
-The task is met by the scans, not by the student's R: a COUPLED window that covers 3.7° → 7.5° with Δβ ≤ 0.15°, and all four foils plus an open scan. A student's R scatters by about the error above and sits below R∞.
+The task is met by the scans, not by the student's R: a COUPLED window that covers 3.7° → 7.5° with Δβ ≤ 0.15°, and all four foils plus an open scan, all five at the same U and I and exported. On the expected rates, each edge must pass the coarse test of `k_edge_deg`: the rise of the mean T across the edge stands ≥ 5σ. A student's R scatters by about the error above and sits below R∞.

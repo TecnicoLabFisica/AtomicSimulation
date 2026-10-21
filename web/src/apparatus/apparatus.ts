@@ -113,7 +113,7 @@ export class Apparatus {
   /** The auto-scan that filled `replay`: its arm, limits in 0.1°, and U, I, Δt at its start in device
    * steps (null after an exposure). `changed`: U or I differed from those while it counted (the device
    * allows it). */
-  lastScan: { mode: Mode; first: number; last: number; u: number; i: number; dt: number; changed: boolean } | null = null
+  lastScan: { mode: Mode; first: number; last: number; u: number; i: number; dt: number; changed: boolean; setup: Setup } | null = null
   /** Counts in the last whole simulated second; the rate display and speaker clicks use it. */
   lastSecondCounts = 0
   secondsCounted = 0 // increments with every whole simulated second
@@ -452,7 +452,7 @@ export class Apparatus {
     const first = clamp(this.limitLo, lo, hi)
     const last = clamp(this.limitHi, lo, hi)
     const n = Math.floor((last - first) / this.dBeta) + 1
-    this.lastScan = { mode, first, last, u: this.u, i: this.i, dt: this.dt, changed: false }
+    this.lastScan = { mode, first, last, u: this.u, i: this.i, dt: this.dt, changed: false, setup: this._setup }
     this.path = [{ target: 0, sensor: 0 }]
     this.coupleRef = { target: 0, sensor: 0 } // auto-scan couples to the zero of the measuring system
     this.phase = 'positioning'
