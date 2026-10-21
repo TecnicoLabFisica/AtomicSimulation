@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-20
-current_phase: C1
-next_task: C1.4
+current_phase: C2
+next_task: C2.1
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -65,7 +65,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
 | L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
-| C1 | Crystal engine and presets (Python) | 🟨 C1.1–C1.3 done, C1.4–C1.6 in review | 1 | G0 |
+| C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ⬜ todo | 2 | C1 |
 | F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
 | F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
@@ -497,9 +497,15 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
 >   ideal-mosaic heights labelled as upper bounds? (The plan's risk note already says heights are model estimates.)
 
 #### S2
-- [ ] **C1.4** Export `artifacts/tables/crystals.json` and per-crystal structure-factor tables. Fixtures: one scan per preset.
-- [ ] **C1.5** Notebook `08_crystals.ipynb`: the same tube, the five presets, first three orders, linear and log.
-- [ ] **C1.6** `physics-reviewer`.
+- [x] **C1.4** Export `artifacts/tables/crystals.json` and per-crystal structure-factor tables. Fixtures: one scan per preset.
+- [x] **C1.5** Notebook `08_crystals.ipynb`: the same tube, the five presets, first three orders, linear and log.
+- [x] **C1.6** `physics-reviewer`.
+      As built (2026-10-21): `artifacts/tables/crystals.json` (52 kB gzip, so it must be **lazy** in the port) holds per preset d, max_order, cell_scale, f_sq_rel, fitted_debye_waller
+      and mu_per_cm on the `mu_rho.json` grid, and its `description` gives the exact r_n and mu_factor recipe. Fixtures are in `artifacts/fixtures/crystals/`, kept out of the
+      non-recursive TS glob until C2.1. A JSON-only rebuild reproduced them with error 0.0 (review). Notebook 08: positions exact, heights are ideal-mosaic upper bounds.
+      Counts ratio to NaCl at order-1 Kα: LiF 2.0 (reflectivity 4.8 × LP 0.70 × dead time), Si 0.85, calcite 0.68, muscovite on the leak (Bragg-only ≈ 0.15).
+      Review fixes: the LiF window cut off its n = 3 doublet (θ₃ ≠ 3θ₁), the muscovite "peak" was the leak edge, and the counts vs reflectivity ratio is now explained.
+      There is a new pytest for peaks at the table angles (Si (222) and muscovite n = 1 have none).
 
 **Done when:** pytest green, NaCl unchanged, and every preset scan is physically sensible (peaks at the table angles, plausible relative heights).
 

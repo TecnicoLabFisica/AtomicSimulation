@@ -20,8 +20,18 @@ import xraylib
 
 import braggsim
 from braggsim import scan
-from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM
-from braggsim.crystal import structure_factor_sq_rel, theta_from_lambda
+from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
+from braggsim.crystal import (
+    NACL,
+    PRESETS,
+    cell_scale,
+    d_pm,
+    density_g_cm3,
+    mu_per_cm_table,
+    structure_factor_sq_rel,
+    structure_factor_sq_rel_crystal,
+    theta_from_lambda,
+)
 from braggsim.filters import (
     ABSORBERS,
     FOILS_MM,
@@ -46,7 +56,16 @@ def _dump(obj):
     return json.dumps(obj, sort_keys=True, indent=1, ensure_ascii=False, allow_nan=False) + "\n"
 
 
-def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT, sensor_deg=None, filters=()):
+def _rate_case(
+    description,
+    beta_deg,
+    U_kV,
+    I_mA,
+    params=scan.DEFAULT,
+    sensor_deg=None,
+    filters=(),
+    crystal=NACL,
+):
     beta = np.asarray(beta_deg, dtype=float)
     inputs = {"beta_deg": _floats(beta), "U_kV": U_kV, "I_mA": I_mA,
               "params": dataclasses.asdict(params)}  # fmt: skip
@@ -60,7 +79,9 @@ def _rate_case(description, beta_deg, U_kV, I_mA, params=scan.DEFAULT, sensor_de
         "description": description,
         "inputs": inputs,
         "expected": {
-            "rate_per_s": _floats(scan.expected_rate(beta, U_kV, I_mA, params, sensor_deg, filters))
+            "rate_per_s": _floats(
+                scan.expected_rate(beta, U_kV, I_mA, params, sensor_deg, filters, crystal)
+            )
         },
     }
 
@@ -135,6 +156,53 @@ def _rejected_case():
         else:
             raise AssertionError(f"scan.{fn} accepted {inputs}")
     return {"function": "rejected", "description": "Inputs the model refuses", "cases": out}
+
+
+def _crystal_tables():
+    """Everything the port needs for ``expected_rate(..., crystal=X)`` without xraylib.
+
+    r_n(params) = k · f_sq_rel[n−1] · exp(−2 B (n²−1) s_1²) with k = cell_scale, times
+    exp(2 B_fit / (2 d_NaCl)²) when ``fitted_debye_waller`` is false, B = params.debye_waller_pm2
+    when it is true and 0 otherwise (scan.ModelParams.order_strengths). The μ_X(λ) tables are the
+    very ones Python interpolates log–log (crystal.mu_per_cm_table), so mu_factor agrees exactly.
+    """
+    out = {}
+    for name, c in PRESETS.items():
+        out[name] = {
+            "a_pm": c.a_pm, "b_pm": c.b_pm, "c_pm": c.c_pm,
+            "alpha_deg": c.alpha_deg, "beta_deg": c.beta_deg, "gamma_deg": c.gamma_deg,
+            "cut": list(c.cut),
+            "d_pm": d_pm(c),
+            "density_g_cm3": density_g_cm3(c),
+            "reflectivity_model": c.reflectivity_model,
+            "fitted_debye_waller": c.fitted_debye_waller,
+            "source": c.source,
+            "max_order": scan.max_order(c),
+            "cell_scale": cell_scale(c),
+            "f_sq_rel": list(structure_factor_sq_rel_crystal(c, scan.max_order(c))),
+            "mu_per_cm": _floats(mu_per_cm_table(c)),
+        }  # fmt: skip
+    return out
+
+
+def _crystal_fixtures():
+    """One 35 kV, 1 mA coupled scan per non-NaCl preset, orders 1–3 of Mo Kα/Kβ in the window."""
+    out = {}
+    for name, c in PRESETS.items():
+        if c is NACL:
+            continue
+        d = d_pm(c)
+        lo = 1.5 if name == "muscovite" else round(float(theta_from_lambda(MO_KB_PM, 1, d)) - 1, 1)
+        hi = (
+            8.0 if name == "muscovite" else round(float(theta_from_lambda(MO_KA_PM, 3, d)) + 1.5, 1)
+        )
+        case = _rate_case(
+            f"{name}, 35 kV, 1 mA, coupled {lo:g}° → {hi:g}°, Δβ = 0.05° (orders 1–3 of Mo Kα/Kβ)",
+            scan.coupled_betas(lo, hi, 0.05), 35.0, 1.0, crystal=c,
+        )  # fmt: skip
+        case["inputs"]["crystal"] = name
+        out[f"crystal_{name.lower()}_35kV_1mA"] = case
+    return out
 
 
 def _fixtures():
@@ -314,6 +382,22 @@ def build():
                 "f_sq_rel": list(structure_factor_sq_rel(scan.MAX_ORDER)),
             }
         ),
+        "tables/crystals.json": _dump(
+            {
+                "description": "Crystal presets (braggsim.crystal.PRESETS). r_n = k f_sq_rel[n−1] "
+                "exp(−2B(n²−1)s_1²), s_1 = 1/(2 d_pm): k = cell_scale (× exp(2 B_fit/(2 d_NaCl)²) "
+                "if not fitted_debye_waller; B_fit = params.debye_waller_pm2, in pm², s in pm⁻¹), "
+                "B = params.debye_waller_pm2 if fitted_debye_waller else 0 "
+                "(scan.ModelParams.order_strengths). mu_factor is applied only for non-NaCl "
+                "crystals, per order at λ_n = 2d sinθ/n on the θ grid before the Gaussian "
+                "convolution, and per line component at its own λ. "
+                "mu_per_cm = linear attenuation in 1/cm "
+                "on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = "
+                "mu_per_cm[NaCl] / mu_per_cm[X] per λ",
+                "source": f"xraylib {xraylib.__version__} CS_Total, FF_Rayl, AtomicWeight",
+                "crystals": _crystal_tables(),
+            }
+        ),
         "tables/model_params.json": _dump(
             {
                 "description": "scan.DEFAULT, fitted to leaflet Fig. 4 (model/PARAMETERS.md)",
@@ -323,6 +407,9 @@ def build():
     }
     for name, case in _fixtures().items():
         files[f"fixtures/{name}.json"] = _dump({"name": name, **case})
+    # Own folder: the TS fixture test globs fixtures/*.json only (C2.1: move up then).
+    for name, case in _crystal_fixtures().items():
+        files[f"fixtures/crystals/{name}.json"] = _dump({"name": name, **case})
     return files
 
 

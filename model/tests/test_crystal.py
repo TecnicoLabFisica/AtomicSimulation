@@ -255,3 +255,29 @@ def test_crystal_fitted_anchor_needs_an_exact_d_and_atoms_at_rest():
         dataclasses.replace(NACL, d_anchor_pm=None)
     with pytest.raises(ValueError, match="anchor"):
         dataclasses.replace(NACL, basis=SI.basis, cut=(1, 1, 1), d_anchor_pm=None)
+
+
+@pytest.mark.parametrize("name", list(PRESETS))
+def test_crystal_preset_scans_peak_at_their_bragg_angles(name):
+    c = PRESETS[name]
+    for n in (1, 2, 3):
+        theta = float(theta_from_lambda(MO_KA_PM, n, d_pm(c)))
+        beta = np.arange(max(theta - 0.3, scan.BETA_MIN_DEG), theta + 0.3001, 0.01)
+        r = scan.expected_rate(beta, 35.0, 1.0, crystal=c)
+        interior = (r[1:-1] > r[:-2]) & (r[1:-1] >= r[2:])
+        near = np.abs(beta[1:-1] - theta) <= 0.06
+        has_max = bool(np.any(interior & near))
+        if (name, n) in {("Si", 2), ("muscovite", 1)}:  # (222) absent; order 1 on the falling leak
+            assert not has_max
+        else:
+            assert has_max, f"{name} n={n}"
+
+
+def test_crystal_order_1_bragg_only_heights_are_ordered_lif_nacl_si_calcite_muscovite():
+    bragg = scan.DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0)
+    h = {}
+    for name, c in PRESETS.items():
+        t = float(theta_from_lambda(MO_KA_PM, 1, d_pm(c)))
+        h[name] = scan.expected_rate([t], 35.0, 1.0, bragg, crystal=c)[0]
+    order = sorted(h, key=h.get, reverse=True)
+    assert order == ["LiF", "NaCl", "Si", "calcite", "muscovite"], h

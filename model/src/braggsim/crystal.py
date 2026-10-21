@@ -213,7 +213,7 @@ def structure_factor_sq_hkl(crystal, h, k, l):  # noqa: E741
 
 
 @functools.cache
-def _mu_per_cm_table(crystal):
+def mu_per_cm_table(crystal):
     """Linear attenuation μ in 1/cm on ``filters.MU_RHO_GRID_PM``: Σ_j occ_j σ_j / V with the
     atomic cross-sections σ_j = CS_Total(Z) · A / N_A (mixture rule, xraylib)."""
     from braggsim.filters import MU_RHO_GRID_PM
@@ -237,7 +237,7 @@ def linear_attenuation_per_cm(crystal, lambda_pm):
     log_mu = np.interp(
         np.log(np.asarray(lambda_pm, dtype=float)),
         np.log(MU_RHO_GRID_PM),
-        np.log(_mu_per_cm_table(crystal)),
+        np.log(mu_per_cm_table(crystal)),
     )
     return np.exp(log_mu)
 
