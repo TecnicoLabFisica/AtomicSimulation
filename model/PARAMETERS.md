@@ -53,6 +53,63 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 | `crystal.structure_factor_sq_rel` | \|F_n\|²/\|F₁\|², n = 1…15 | xraylib `FF_Rayl`, F = 4(f_Na + f_Cl) | Atomic data |
 | `scan.AIR_PATH_CM` | 18 cm | Geometry estimate: anode → crystal ≈ 12 cm, plus s₂ ≈ 6 cm | Degenerate with the absorber |
 
+## Crystal presets (`crystal.NACL`, `LIF`, `SI`, `CALCITE`, `MUSCOVITE`)
+
+Added 2026-10-21 (C1). Room-temperature structures; cells, atoms and B per atom from the sources below,
+all computed, none fitted. `Crystal.basis` holds **every atom of the conventional cell**; the cells with
+more than one orbit are generated from the asymmetric unit with the space-group operators
+(`crystal.build_basis`, tested for atom counts and distinct positions). θ is at Mo Kα = 71.080 pm
+(`constants.MO_KA_PM`, leaflet Table 1), n = 1. Order n of the scan is the reflection (n h, n k, n l) of
+`Crystal.cut`, the first allowed reflection of the cut plane's series (the (100) cut of rock salt gives
+(2n 0 0): (100) is extinct in the face-centred lattice).
+
+| Crystal | Space group, Z | Cell (pm, °) | Cut → n = 1 | d (pm) | θ(Kα, n=1) | ρ (g/cm³) | Source and status |
+|---|---|---|---|---|---|---|---|
+| NaCl | Fm-3m, 4 | a = 564.02 | (100) → (200) | 282.01 (exact, `D_NACL_PM`) | 7.24° | 2.164 | LD P6.3.3.1 (a₀, d); Walker et al., Am. Mineral. 89, 204 (2004), a = 564.01 at 298 K, agrees to 0.01 pm. Basis Na (0,0,0)+fcc, Cl (½,0,0)+fcc |
+| LiF | Fm-3m, 4 | a = 402.8 | (100) → (200) | 201.4 | 10.16° | 2.636 | Ott, Z. Kristallogr. 63, 222 (1926) (4.028(2) Å), a single old measurement; an independent room-temperature equation-of-state value of a₀ = 4.028(3) Å was seen only as a search snippet (authors and journal not verified), so it is not cited as confirmation. Older Wyckoff 1963 value 401.73 pm not used. Same basis as NaCl with Li, F |
+| Si | Fd-3m, 8 | a = 543.1020511 | (111) | 313.560 | 6.51° | 2.329 | CODATA 2018 (NIST X-ray table, 22.5 °C). Atoms (0,0,0) and (¼,¼,¼), each +fcc |
+| Calcite | R-3c, 6 (30 atoms hex.) | a = 498.8, c = 1706.1, γ = 120 | (104), rhombohedral cleavage face | 303.51 | 6.72° | 2.713 | Markgraf & Reeder, Am. Mineral. 70, 590 (1985), 24 °C (COD 9000965). Asymmetric unit Ca 6b (0,0,0), C 6a (0,0,¼), O 18e (0.2567,0,¼); 12 R-3c operators × R centring; C–O = 1.28 Å checks the operators |
+| Muscovite 2M1 | C2/c, 4 (92 entries, 76 heavy atoms) | a = 520.0, b = 902.1, c = 2007, β = 95.71 | (001) cleavage, first reflection (002) | 998.52 | 2.04° | 2.81 (ideal) | Guggenheim, Chang & Koster van Groos, Am. Mineral. 72, 537 (1987), 20 °C (COD 9001054). Positions and B of the paper; composition idealised to KAl₂(AlSi₃O₁₀)(OH)₂ (K 1, M = Al 1, both T sites Si 0.75 Al 0.25 as two entries per site, OH treated as O). H not located, left out |
+
+**Muscovite (001) is extinct.** In C2/c the c-glide leaves 00l only for even l, so the first reflection of the
+cleavage plane is (002), d = c sin β / 2 = 998.5 pm (the classic 10 Å mica spacing), not the ≈ 995 pm of
+the planning table (which came from memory). The 1M polytype would show (001).
+
+**Debye–Waller B per atom (Å², amplitude e^{−B s²}, intensity e^{−2B s²}, s = sin θ/λ).**
+
+| Crystal | B | Source, status |
+|---|---|---|
+| NaCl | 0 inside F; the thermal weakening is the fitted global `debye_waller_pm2` | `Crystal.fitted_debye_waller = True`. Per-atom literature B were not read (Debye estimate 1.17–1.51 Å²; Abrahams & Bernstein 1965 paywalled), and the global one is fitted to Fig. 4 |
+| LiF | Li 1.0, F 0.65 | **Assumption** (memory-level, 0.9–1.1 and 0.6–0.7 Å²); no primary table read. At s = 1/(2d) = 0.248 Å⁻¹ for (200), B = (1.0, 0.65) lowers |F|² by 8.6 % (n = 1), 31 % (n = 2), 55 % (n = 3); ±0.2 Å² moves them by 2.4 / 9 / 20 %. Could be fixed from Groenewegen & Huiszoon, Acta Cryst. A28, 166 (1972), or measured by comparing orders 1 to 3 |
+| Si | 0.476 | Heacock et al., Science 2021 (neutron Pendellösung, 0.4761(17) Å² at 295.5 K); X-ray and phonon values span 0.46–0.485 |
+| Calcite | Ca 0.94, C 0.91, O 1.51 | B = 8π² U_eq from the anisotropic U of Markgraf & Reeder 1985. Maslen et al. 1995 give ≈ 20 % lower values (0.77, 0.72, 1.31); no standard uncertainties in the database record |
+| Muscovite | K 1.68, M 0.63, T 0.62/0.63, O 0.84–1.43 | B = 8π² U_eq from Guggenheim 1987 (list in `crystal.py`). Richardson & Richardson 1982 give values about twice as large with no stated temperature; not used |
+
+**Why the other presets get no NaCl-fitted B.** The fitted 0.63 Å² is an *effective* value for NaCl
+that lumps thermal motion, extinction and the instrument. Applying it to another crystal would be
+wrong, and adding it on top of their own B would count thermal motion twice. Their literature B stays
+inside F only.
+
+**Cross-crystal scale (computed, not fitted; assumes NaCl-like mosaicity).** A thick mosaic
+crystal reflects an integrated fraction ∝ λ³|F|²/(V² μ) at a given λ (Warren, ch. 4). λ³ is common at
+equal λ and cancels in the ratio. NaCl's missing λ³/μ_NaCl(λ) shape was absorbed by the Fig. 4 fit (Known
+deviations), so multiplying by μ_NaCl/μ_X turns it into λ³/μ_X for crystal X. The Lorentz-polarization factor
+and the Jacobian are applied in `scan.py` at the crystal's own θ and d. NaCl keeps its fitted `scale`; crystal X
+multiplies order n at wavelength λ by
+
+r_n(X, λ) = [|F_n|²/V²]_X / [|F_1|²/V²]_NaCl · exp(−2B(s_n² − s_1²)) · exp(+2 B_fit s_1,NaCl²) · μ_NaCl(λ)/μ_X(λ)
+
+with |F|² per conventional cell (`crystal.structure_factor_sq`), V the cell volume, and
+μ = Σ occ·CS_Total(Z)·A/(N_A V) from xraylib on the `filters.MU_RHO_GRID_PM` grid, interpolated log–log
+(`crystal.linear_attenuation_per_cm`). The factor exp(+2 B_fit s₁²) (s₁ = 0.1773 Å⁻¹, 0.961 for B_fit = 0.63 Å²) is there because NaCl's `scale` already contains NaCl's fitted thermal factor while the other crystals' |F|² is divided by NaCl's at-rest |F|²; it moves when B_fit is refit. The first factor is `crystal.cell_scale`, the last
+`crystal.mu_factor`, applied per λ to both the continuum and the Kα/Kβ lines. Relative reflectivity of
+order 1 at Mo Kα: LiF 4.8, Si 0.71, calcite 0.56, muscovite 0.023 (NaCl = 1). `Crystal.reflectivity_model = "ideal_mosaic"` for all presets;
+"darwin" is a future Python-first feature (per-θ factor ∝ λ²|F|/(V sin 2θ), polarisation (1+|cos 2θ|)/2, no 1/μ).
+These are ideal-mosaic values for a crystal as perfect as the NaCl of Fig. 4, an upper bound. A perfect crystal follows the dynamical (Darwin) integrated reflectivity, which at Mo Kα, order 1 is 1/31 (NaCl), 1/150 (LiF), 1/28 (Si), 1/20 (calcite), 1/5 (muscovite) of the mosaic value. A Si wafer should read ≈ 0.03 × NaCl, not 0.68, and calcite cleavage pieces are close to perfect. LiF's ratio rests on its low μ, so secondary extinction lowers it to ≈ 2–3 for mosaic spreads of 0.05–0.3°. Computed, not fitted; check on the bench by comparing the order-1 Kα peak with NaCl at equal tube settings. Si and calcite are near-perfect in practice.
+The grid smears absorption edges (Ca K at 307.0 pm, K K at 343.7 pm) over 0.3 % in λ; μ is held constant
+beyond the 600 pm grid end (harmless: the absorber's T(600 pm) = 7e-32). Muscovite's order-1 Kα
+(2.04°) sits under the direct-beam leak (local maximum at 1.74°).
+
 ## Numerical and analysis choices (not fitted)
 
 | Name | Value | Why |

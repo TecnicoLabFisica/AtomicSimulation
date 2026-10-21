@@ -23,12 +23,16 @@ import math
 
 import numpy as np
 
-from braggsim.constants import D_NACL_PM, MO_KA_COMPONENTS, MO_KB_COMPONENTS
+from braggsim.constants import MO_KA_COMPONENTS, MO_KB_COMPONENTS
 from braggsim.crystal import (
+    NACL,
+    cell_scale,
+    d_pm,
     dlambda_dtheta_pm_per_deg,
     lambda_from_theta,
     lorentz_polarization,
-    structure_factor_sq_rel,
+    mu_factor,
+    structure_factor_sq_rel_crystal,
     theta_from_lambda,
 )
 from braggsim.detector import dead_time
@@ -51,8 +55,16 @@ U_REF_KV = 35.0  # voltage at which leak_amp_per_s and scatter_per_s are quoted
 SENSOR_MIN_DEG, SENSOR_MAX_DEG = -10.0, 170.0
 BETA_MIN_DEG, BETA_MAX_DEG = SENSOR_MIN_DEG / 2, SENSOR_MAX_DEG / 2
 U_MAX_KV, I_MAX_MA = 35.0, 1.0  # LD 554 800 tube limits
-# Highest order that can reach the counter: n λ_min(35 kV) ≤ 2d sin 85° gives n = 15.
-MAX_ORDER = int(2 * D_NACL_PM * math.sin(math.radians(BETA_MAX_DEG)) / lambda_min_pm(U_MAX_KV))
+
+
+def max_order(crystal=NACL, U_kV=U_MAX_KV):
+    """Highest order that reaches the counter: n λ_min(U) ≤ 2d sin 85° (15 for NaCl at 35 kV)."""
+    return max(
+        int(2 * d_pm(crystal) * math.sin(math.radians(BETA_MAX_DEG)) / lambda_min_pm(U_kV)), 1
+    )
+
+
+MAX_ORDER = max_order(NACL)  # NaCl at 35 kV: the orders tabulated in artifacts/
 # The 554 800 tops out at 3600 steps (0.1° over 360°); far above that is a units mistake.
 MAX_SCAN_STEPS = 100_000
 THETA_STEP_DEG = 0.01  # internal grid for the continuum convolution
@@ -85,12 +97,30 @@ class ModelParams:
 
     @property
     def order_reflectivity(self):
-        """{n: r_n} relative to n = 1: r_n = |F_n|²/|F_1|² · exp(−2B (s_n² − s_1²)), s_n = n/(2d)
-        in pm⁻¹ (Debye–Waller factor, Warren ch. 3). Orders with n λ > 2d are skipped later."""
-        s1_sq = (1 / (2 * D_NACL_PM)) ** 2
+        """``order_strengths(NACL)``: {n: r_n} relative to NaCl order 1."""
+        return self.order_strengths(NACL)
+
+    def order_strengths(self, crystal=NACL):
+        """{n: r_n} of ``crystal``, relative to NaCl order 1, up to ``max_order(crystal)``:
+        r_n = k · |F_n|²/|F_1|² · exp(−2B (s_n² − s_1²)), s_n = n/(2d) in pm⁻¹ (Debye–Waller
+        factor, Warren ch. 3), k = ``cell_scale`` · exp(+2 B_fit s_1,NaCl²) (1 for NaCl). B is the
+        fitted ``debye_waller_pm2`` for the NaCl anchor (``fitted_debye_waller``), 0 for the others,
+        whose literature B is already inside F. The λ-dependent absorption part of the
+        cross-crystal scale is ``crystal.mu_factor`` (applied per λ in the scan). Orders with
+        n λ > 2d are skipped later."""
+        d = d_pm(crystal)
+        s1_sq = (1 / (2 * d)) ** 2
+        b = self.debye_waller_pm2 if crystal.fitted_debye_waller else 0.0
+        k = cell_scale(crystal)
+        if not crystal.fitted_debye_waller:
+            # NaCl's fitted scale already contains exp(−2 B_fit s_1²); the other crystals' thermal
+            # |F|² is divided by NaCl's at-rest |F|², so put that factor back (it moves with B_fit).
+            k *= math.exp(2 * self.debye_waller_pm2 / (2 * d_pm(NACL)) ** 2)
         return {
-            n: f * math.exp(-2 * self.debye_waller_pm2 * (n * n - 1) * s1_sq)
-            for n, f in enumerate(structure_factor_sq_rel(MAX_ORDER), start=1)
+            n: k * f * math.exp(-2 * b * (n * n - 1) * s1_sq)
+            for n, f in enumerate(
+                structure_factor_sq_rel_crystal(crystal, max_order(crystal)), start=1
+            )
         }
 
 
@@ -137,7 +167,7 @@ def _gaussian(x_deg, sigma_deg):
     return np.exp(-0.5 * (x_deg / sigma_deg) ** 2) / (sigma_deg * np.sqrt(2 * np.pi))
 
 
-def _continuum_density(beta_deg, U_kV, I_mA, params, filters=()):
+def _continuum_density(beta_deg, U_kV, I_mA, params, filters=(), crystal=NACL):
     """Σ_n r_n × continuum per degree of θ, convolved with the instrument Gaussian, at β."""
     # Grid on the fixed lattice θ = i·step, so R̄(β) does not depend on which βs are queried
     # together; at least one kernel long, because "same" mode assumes that.
@@ -147,34 +177,39 @@ def _continuum_density(beta_deg, U_kV, I_mA, params, filters=()):
     i_hi = max(int(np.ceil(beta_deg.max() / THETA_STEP_DEG)) + half, i_lo + 2 * half)
     theta = THETA_STEP_DEG * np.arange(i_lo, i_hi + 1)
     density = np.zeros_like(theta)
-    for n, r_n in params.order_reflectivity.items():
-        lam = lambda_from_theta(theta, n)
+    d = d_pm(crystal)
+    for n, r_n in params.order_strengths(crystal).items():
+        lam = lambda_from_theta(theta, n, d)
         spec = continuum(lam, U_kV, I_mA)
         on = spec > 0
         if on.any():
-            density[on] += (
+            term = (
                 r_n * spec[on] * _transmission(lam[on], params, filters)
-                * dlambda_dtheta_pm_per_deg(theta[on], n) * lorentz_polarization(theta[on])
+                * dlambda_dtheta_pm_per_deg(theta[on], n, d) * lorentz_polarization(theta[on])
             )  # fmt: skip
+            density[on] += term if crystal is NACL else term * mu_factor(crystal, lam[on])
     k = THETA_STEP_DEG * np.arange(-half, half + 1)
     kernel = _gaussian(k, params.sigma_deg)
     smoothed = np.convolve(density, kernel / kernel.sum(), mode="same")
     return np.interp(beta_deg, theta, smoothed)
 
 
-def _line_density(beta_deg, U_kV, I_mA, params, filters=()):
+def _line_density(beta_deg, U_kV, I_mA, params, filters=(), crystal=NACL):
     """Σ_n r_n × Mo K line components as Gaussians at their Bragg angles, at β."""
     ka, kb = line_rates(U_kV, I_mA, params.line_to_cont)
     lines = [(lam, ka * f) for lam, f in MO_KA_COMPONENTS] + [
         (lam, kb * f) for lam, f in MO_KB_COMPONENTS
     ]
     out = np.zeros_like(beta_deg)
-    for n, r_n in params.order_reflectivity.items():
+    d = d_pm(crystal)
+    for n, r_n in params.order_strengths(crystal).items():
         for lam, rate in lines:
-            theta = theta_from_lambda(lam, n)
+            theta = theta_from_lambda(lam, n, d)
             if rate == 0 or np.isnan(theta):
                 continue
             weight = r_n * rate * _transmission(lam, params, filters) * lorentz_polarization(theta)
+            if crystal is not NACL:
+                weight = weight * float(mu_factor(crystal, lam))
             out += weight * _gaussian(beta_deg - theta, params.sigma_deg)
     return out
 
@@ -209,7 +244,7 @@ def _check_tube(U_kV, I_mA):
         raise ValueError(f"U_kV must be in 0 … {U_MAX_KV}, I_mA in 0 … {I_MAX_MA} (LD 554 800)")
 
 
-def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters=()):
+def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters=(), crystal=NACL):
     """Expected observed counting rate R̄ in counts/s (deterministic).
 
     ``beta_deg``: target (crystal) angles; ``U_kV``: tube voltage; ``I_mA``: emission current.
@@ -228,6 +263,10 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters
     the Bragg signal exactly; leak and scatter follow the filtered ``tube_factor`` (exact for the
     direct-beam halo, an assumption for scatter). The natural background is added before the
     dead time and ignores the tube and the filters.
+
+    ``crystal``: a ``crystal.Crystal`` (default NaCl, the calibrated anchor). Others scale the
+    reflected signal by the kinematic mosaic-crystal ratio to NaCl (``ModelParams.order_strengths``,
+    ``crystal.mu_factor``); leak, scatter and background do not depend on the crystal.
     """
     beta = np.asarray(beta_deg, dtype=float)
     if sensor_deg is None:
@@ -253,8 +292,8 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters
     if I_mA > 0 and U_kV > 0:
         rocking = np.exp(-0.5 * ((sensor / 2 - beta) / params.sigma_deg) ** 2)
         true_rate = true_rate + params.scale * rocking * (
-            _continuum_density(theta, U_kV, I_mA, params, filters)
-            + _line_density(theta, U_kV, I_mA, params, filters)
+            _continuum_density(theta, U_kV, I_mA, params, filters, crystal)
+            + _line_density(theta, U_kV, I_mA, params, filters, crystal)
         )
     return dead_time(true_rate, params.tau_s)
 

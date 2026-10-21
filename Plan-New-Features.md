@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-20
 current_phase: L2
-next_task: L2.3
+next_task: C1.4
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -467,7 +467,7 @@ it to *data* (cell, basis, cut plane) so the presets and the Forge share one eng
 | LiF | rock salt | (100) | a ≈ 402.7 | ≈ 201.4 | ≈ 10.2° | wider spread in θ |
 | Si | diamond | (111) | a ≈ 543.1 | ≈ 313.6 | ≈ 6.5° | (222) almost forbidden |
 | Calcite | rhombohedral (hex. setting) | (104) | a ≈ 499, c ≈ 1706 | ≈ 303.5 | ≈ 6.7° | cleavage plane; first non-cubic preset |
-| Mica (muscovite 2M1) | monoclinic | (002) | a ≈ 520, b ≈ 903, c ≈ 2011, β ≈ 95.8° | ≈ 995 | ≈ 2.05° | many orders; n = 1 sits in the direct-beam leak region |
+| Mica (muscovite 2M1) | monoclinic | (002) | a = 520.0, b = 902.1, c = 2007, β = 95.71° | 998.5 | 2.04° | many orders; n = 1 sits in the direct-beam leak region |
 
 Crystal list: the lab's usual crystals (user, 2026-10-14). The LD catalog gives d = 282 pm for NaCl (554 78) and 201 pm for LiF.
 KCl and KBr are no longer presets, but the Forge can still build them (F3).
@@ -475,11 +475,23 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
 %% ≈ values are from memory: S1 must fetch and cite each a and B (room temperature) from a primary source or a handbook. %%
 
 #### S1
-- [ ] **C1.1** Research and cite the cell, the basis (calcite: Ca, C, O positions; muscovite: full 2M1 basis), B per atom
+- [x] **C1.1** Research and cite the cell, the basis (calcite: Ca, C, O positions; muscovite: full 2M1 basis), B per atom
       and the cut plane of the five presets (WebFetch; record the sources in `PARAMETERS.md`).
-- [ ] **C1.2** Refactor `crystal.py` and `scan.py` to take a `crystal=NACL` argument. **Every existing fixture stays byte-identical.**
-- [ ] **C1.3** Test: NaCl built through the generic engine equals the old `structure_factor_sq_rel` to 1e-12. Si(200) and
+- [x] **C1.2** Refactor `crystal.py` and `scan.py` to take a `crystal=NACL` argument. **Every existing fixture stays byte-identical.**
+- [x] **C1.3** Test: NaCl built through the generic engine equals the old `structure_factor_sq_rel` to 1e-12. Si(200) and
       Si(222) are near zero. Rock salt (111) cut: odd orders ∝ (f_A − f_B)².
+
+> [!note] As built (2026-10-21), refining C1.1–C1.3
+> - Sources and values are in `PARAMETERS.md` § Crystal presets (COD/AMCSD CIFs: Walker 2004 NaCl, Markgraf & Reeder 1985 calcite, Guggenheim 1987 muscovite;
+>   CODATA Si a; Heacock 2021 Si B). LiF B values are **assumptions** (≈ 9 % on |F₁|², 55 % at n = 3). Muscovite's first reflection is (002), d = 998.5 pm ((001) is extinct).
+> - `crystal.Crystal` (cell, every atom of the conventional cell with B and occupancy, `cut` = the n = 1 reflection, `fitted_debye_waller`, `d_anchor_pm`,
+>   `reflectivity_model`). The presets are `NACL, LIF, SI, CALCITE, MUSCOVITE`, and `scan.expected_rate(..., crystal=NACL)` and `max_order(crystal, U_kV)` take them.
+>   NaCl keeps its anchor d and the fitted global B (atoms at rest inside F); the others carry their literature B inside F.
+> - Cross-crystal scale, computed, not fitted: r_n = [|F_n|²/V²]_X/[|F_1|²/V²]_NaCl · exp(+2B_fit s₁²) · μ_NaCl(λ)/μ_X(λ). Order 1 at Mo Kα: LiF 4.77, Si 0.71,
+>   calcite 0.56, muscovite 0.023 × NaCl. These are **ideal-mosaic upper bounds**. Physics review: a perfect crystal (Darwin) gives 1/28 (Si) … 1/150 (LiF) of that, so a
+>   Si wafer should read ≈ 0.03 × NaCl, and LiF secondary extinction gives ≈ 2–3. Not tuned; worded in `PARAMETERS.md`.
+> - ⏸ **Decision for the user:** add a `reflectivity_model = "darwin"` (dynamical, Python-first) for Si and calcite before C2 shows their heights, or ship
+>   ideal-mosaic heights labelled as upper bounds? (The plan's risk note already says heights are model estimates.)
 
 #### S2
 - [ ] **C1.4** Export `artifacts/tables/crystals.json` and per-crystal structure-factor tables. Fixtures: one scan per preset.
