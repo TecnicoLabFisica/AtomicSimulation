@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-20
 current_phase: L1
-next_task: L1.7
+next_task: L1.8
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,14 +54,14 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L1.7`, the Explore overlay: edge markers per foil, hidden until the act step (as in Phase 9). Load `bragg-ui`.
+> **Next:** `L1.8`, the `pedagogy-reviewer` over L1.6 + L1.7; then close L1 (its "Done when" was accepted 2026-10-20).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
 | G0 | Reference facts and scope | ✅ done | 1 | — |
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
-| L1 | Práctica 5: Moseley's law | 🟨 S2 in progress (L1.7 next) | 2 | G1 |
+| L1 | Práctica 5: Moseley's law | 🟨 S2 in progress (L1.8 next) | 2 | G1 |
 | L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
@@ -291,7 +291,11 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
       steady, Δβ ≤ `MAX_EDGE_STEP_DEG`, covering 3.7–7.5° by its stored angles, with each edge passing the coarse test of
       `k_edge_deg` on the expected rates (≥ 5σ). New `constants.K_EDGE_KEV` (xraylib, Py → TS). A progress line in the card
       (`GuidedTask.progress`). CSV header and file name name the foil.
-- [ ] **L1.7** Explore overlay: edge markers per foil (hidden until the act step, as in Phase 9).
+- [x] **L1.7** Explore overlay: edge markers per foil (hidden until the act step, as in Phase 9).
+      As built: `spectrum.ts` `edgeMarkers(setup)` marks the K edge (n = 1) of each `K_EDGE_KEV` foil in the *stored* scan's
+      setup: a `--label-2` hairline (the foil colour) with a long dash, labelled "Zr K" from the third row down, one row per foil.
+      Gated by `showHints()` like the other overlays (none in Lab mode or TARGET scans; 2θ for SENSOR). The plot cursor is now
+      a solid hairline so it can't pass for an edge. Mo K sits 0.11° from Kβ, so its label touches the Kβ line at 390 px (physical).
 - [ ] **L1.8** `pedagogy-reviewer`.
 
 **Done when:** a student can do the whole practice on a phone, and the key's R and σ_K agree with the fit of the tabulated edges
@@ -637,6 +641,19 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-20 · L1 · task L1.7
+- Done: L1.7 (Sonnet): `edgeMarkers` + the overlay block in `spectrum.ts`, i18n `kEdge`, `web/tests/spectrum.test.ts` (3 cases),
+  `components.md` spectrum bullet. Opus: label clamp, one row per foil, tighter test tolerance.
+- Reviews: design (ship after fixes, all applied): the short label "Zr K" instead of "borde K del Zr" (it crossed Kα at 390 px and
+  read "del Ag"), `lineWidth` set for the edges (inherited from uPlot when no Kα/Kβ marker is in view), solid plot cursor, `tokens.md`
+  `--label-2` light = .72 as in `tokens.css`. The "grey Kα" at 1440 px was image downscaling, not a bug.
+- Verify: Vitest 110 · build OK (main 80.0 kB gzip, +0.2 kB) · pytest and `artifacts/` untouched. Headless Firefox: Zr, Zr + Mo,
+  Zr + Ag at 390 and 1440 px, light and dark, es and en; Lab mode shows none; SENSOR scan at 2θ.
+- Uncommitted: no, committed with this entry (user).
+- Surprises / decisions: the driver must set `localStorage.lang` (the app ignores the browser language); U starts at 5 kV, so
+  set U and I before scanning.
+- Next: L1.8, `pedagogy-reviewer` over L1.6 + L1.7.
 
 ### 2026-10-20 · L1 · task L1.6 (and L1.1–L1.5 committed)
 - Done: L1.1–L1.5 committed as `d61588a` (user). L1.6 (Sonnet): `constants.K_EDGE_KEV` + test, TS port with `MAX_EDGE_STEP_DEG`,

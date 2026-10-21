@@ -112,7 +112,7 @@ button, select { font: inherit; color: inherit; }
 .plot .empty[hidden] { display: none; }
 .plot .empty span { background: var(--surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); }
 .u-select { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.u-cursor-x, .u-cursor-y { border-color: var(--label-3) !important; }
+.u-cursor-x, .u-cursor-y { border-color: var(--label-3) !important; border-style: solid !important; } /* not the dashed edge markers */
 
 /* ── Segmented controls, keys ──────────────────────────────────────────── */
 .seg { display: flex; gap: var(--space-1); background: var(--fill); border-radius: var(--radius-full); padding: 2px; }

@@ -3,11 +3,11 @@
 // when a point exceeds it, and log y is fixed. Data never makes the axes jump point by point.
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
-import type { Apparatus } from '../apparatus/apparatus'
+import type { Apparatus, Setup } from '../apparatus/apparatus'
 import { t } from '../i18n'
 import { downloadCsv } from '../pedagogy/csv'
 import { showHints } from '../pedagogy/mode'
-import { MO_KA_PM, MO_KB_PM } from '../physics/constants'
+import { HC_KEV_PM, K_EDGE_KEV, MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { lambdaFromTheta, thetaFromLambda } from '../physics/crystal'
 import { lambdaMinPm } from '../physics/source'
 import { palette, paletteVersion, scaledFont } from './canvas'
@@ -21,6 +21,12 @@ const LINES = [1, 2, 3].flatMap((n) => [
   { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n), colour: 'phys-kalpha-text' as const },
   { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n), colour: 'phys-kbeta' as const },
 ])
+
+/** K-edge angles (°) of the foils in a setup, first order: the practice and the step in T(λ) that students read are n = 1. */
+export function edgeMarkers(setup: Setup): { el: string; theta: number }[] {
+  const els = [...new Set([setup.collimatorFilter, setup.sensorFilter])].filter((el): el is string => el != null && el in K_EDGE_KEV)
+  return els.map((el) => ({ el, theta: thetaFromLambda(HC_KEV_PM / K_EDGE_KEV[el as keyof typeof K_EDGE_KEV]) })).filter((m) => !Number.isNaN(m.theta))
+}
 
 /** Smallest 1-2-5 × 10ⁿ at or above x (at least 10). */
 function niceCeil(x: number): number {
@@ -106,7 +112,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
         hooks: {
           draw: [() => void version++],
           // Explore overlays, under the data: the band the tube cannot reach (λ < λmin at the present U)
-          // and the expected line angles. The x axis is β (θ) for TARGET/COUPLED scans, 2θ for SENSOR scans.
+          // the expected line angles and the K edges of the foils in the scan's setup. The x axis is β (θ) for
+          // TARGET/COUPLED scans, 2θ for SENSOR scans.
           drawClear: [
             (u) => {
               if (!explore || !scan || scan.mode === 'TARGET') return // none on the empty axis
@@ -143,6 +150,23 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
                 ctx.strokeStyle = P[kb ? 'phys-kbeta' : 'phys-kalpha']
                 ctx.lineWidth = k
                 ctx.setLineDash(kb ? [2 * k, 2 * k] : [])
+                ctx.beginPath()
+                ctx.moveTo(x + k / 2, y + row)
+                ctx.lineTo(x + k / 2, bbox.top + bbox.height)
+                ctx.stroke()
+              }
+              // foil K edges (stored scan's setup) in the foil colour, from the third row down, one row per foil
+              // (Zr and Mo sit 0.7° apart); long dash, so not colour alone
+              ctx.fillStyle = ctx.strokeStyle = P['label-2']
+              ctx.lineWidth = k
+              ctx.setLineDash([6 * k, 3 * k])
+              for (const [i, e] of edgeMarkers(scan.setup).entries()) {
+                const x = Math.round(u.valToPos(f * e.theta, 'x', true))
+                if (!(x >= left && x <= right)) continue
+                const y = bbox.top + (2 + i) * row
+                const label = t().kEdge(e.el)
+                const half = ctx.measureText(label).width / 2 // kept inside the plot at its ends
+                ctx.fillText(label, Math.min(Math.max(x, left + half), right - half), y)
                 ctx.beginPath()
                 ctx.moveTo(x + k / 2, y + row)
                 ctx.lineTo(x + k / 2, bbox.top + bbox.height)

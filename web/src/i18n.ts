@@ -84,6 +84,7 @@ const es = {
   csv: 'CSV',
   csvLabel: 'Descargar los valores guardados (CSV)',
   lambdaMinBand: 'λ < λmín: el tubo no la emite',
+  kEdge: (el: string) => `${el} K`,
   dragCrystal: 'Arrastra el cristal para girarlo.',
   keys: {
     U: ['U', 'Tensión del tubo U'],
@@ -188,6 +189,7 @@ const en: Dict = {
   csv: 'CSV',
   csvLabel: 'Download the stored values (CSV)',
   lambdaMinBand: 'λ < λmin: not emitted by the tube',
+  kEdge: (el: string) => `${el} K`,
   dragCrystal: 'Drag the crystal to turn it.',
   keys: {
     U: ['U', 'Tube voltage U'],

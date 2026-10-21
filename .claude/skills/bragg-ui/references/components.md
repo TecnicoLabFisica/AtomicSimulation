@@ -66,7 +66,9 @@
 - Data is a 1.5px line in `--label`, with small points only when zoomed. Grid lines are `--separator` hairlines on
   y only. Axis labels use `--text-footnote` in `--label-2`.
 - Explore overlays: vertical hairline markers with labels "1·Kα", "2·Kβ", … in the physics colours, and a shaded
-  band below the λ_min angle.
+  band below the λ_min angle. Also the K edge of each foil in the stored scan's setup (n = 1): a hairline in
+  `--label-2` (the foil colour) with a long dash, labelled with the symbol and K ("Zr K") centred over its line,
+  from the third row down (one row per foil). The plot cursor is a solid hairline, so it never reads as an edge.
 - Interactions: tap or hover shows a crosshair readout (β, R, and λ for n = 1). Pinch or wheel zooms, and double-tap
   resets. CSV export sits in the overflow menu.
 - A theme adapter maps tokens to uPlot options and rebuilds when the theme changes.

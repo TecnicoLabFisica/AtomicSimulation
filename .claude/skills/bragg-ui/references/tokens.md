@@ -36,7 +36,7 @@ Hairline: `--stroke-hair: 0.5px` on DPR ≥ 2 and 1px otherwise. Chart strokes a
 | `--fill` | rgba(120,120,128,.12) | rgba(120,120,128,.24) | Control backgrounds |
 | `--separator` | rgba(60,60,67,.18) | rgba(84,84,88,.6) | Hairlines, grid |
 | `--label` | #1D1D1F | #F5F5F7 | Primary text |
-| `--label-2` | rgba(60,60,67,.62) | rgba(235,235,245,.62) | Secondary text, units |
+| `--label-2` | rgba(60,60,67,.72) | rgba(235,235,245,.62) | Secondary text, units |
 | `--label-3` | rgba(60,60,67,.32) | rgba(235,235,245,.32) | Disabled, ticks |
 | `--accent` | #0071E3 | #0A84FF | **The only** interaction colour: selected key, focus, primary button |
 | `--danger` | #D70015 | #FF453A | HV on lamp, interlock blink, errors |
