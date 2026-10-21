@@ -1,7 +1,8 @@
 import numpy as np
+import pytest
 from pytest import approx
 
-from braggsim.detector import dead_time, sample_counts
+from braggsim.detector import dead_time, dead_time_correct, sample_counts
 
 
 def test_dead_time_is_negligible_at_low_rates():
@@ -24,3 +25,10 @@ def test_counts_are_poisson_with_mean_and_variance_rate_times_dt():
         counts = sample_counts(np.full(20000, rate), dt, rng)
         assert counts.mean() == approx(rate * dt, rel=0.02)
         assert counts.var() == approx(rate * dt, rel=0.05)
+
+
+def test_dead_time_correct_inverts_dead_time():
+    r = np.array([0.0, 1.0, 500.0, 5000.0, 2e5])
+    assert dead_time_correct(dead_time(r, 1e-4), 1e-4) == approx(r, rel=1e-9, abs=1e-12)
+    with pytest.raises(ValueError):
+        dead_time_correct(1e4, 1e-4)

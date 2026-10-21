@@ -90,3 +90,41 @@ The noise-free evaluation lands 3.6 % below R∞ (this simulated measurement 3.4
 The quoted ± is the counting error only: a measurement scatters by it around the noise-free row, not around the tabulated one. χ²/dof = 2.1 (noise-free 0.2) with 2 degrees of freedom is consistent with a straight line.
 
 The task is met by the scans, not by the student's R: a COUPLED window that covers 3.7° → 7.5° with Δβ ≤ 0.15°, and all four foils plus an open scan, all five at the same U and I and exported. On the expected rates, each edge must pass the coarse test of `k_edge_deg`: the rise of the mean T across the edge stands ≥ 5σ. A student's R scatters by about the error above and sits below R∞.
+
+## Attenuation (EPN Práctica 1)
+
+Al wheel (0.5 → 3.0 mm in 0.5 mm steps) in the direct beam, GM counter at the sensor, background 0.14/s from a 100 s run at 0 kV. T = (R − b)/(R₀ − b); μ from ln T = −μ d through the origin, weighted by the counting errors of the points, with the common error of R₀ and b propagated (`braggsim.analysis.attenuation_fit`). Simulated counts, errors 1σ. μ/ρ = 10 μ/ρ_Al, ρ_Al = 2.699 g/cm³.
+
+| Run | R₀ (1/s) | μ (1/mm) | μ/ρ (cm²/g) | χ²/dof |
+|---|---|---|---|---|
+| 1a, 21 kV, 0.05 mA, no Zr | 948 | 1.548 ± 0.004 | 5.74 ± 0.02 | 154 |
+| 1b, 21 kV, 0.15 mA, Zr | 1048 | 1.653 ± 0.003 | 6.13 ± 0.01 | 124 |
+| 35 kV, 0.01 mA, Zr (not in the guide) | 958 | 0.855 ± 0.002 | 3.17 ± 0.01 | 1030 |
+
+Per point, μ_eff/ρ = −10 ln T/(ρ d) in cm²/g (beam hardening: it falls with d):
+
+| d (mm) | 1a, 21 kV, 0.05 mA, no Zr | 1b, 21 kV, 0.15 mA, Zr | 35 kV, 0.01 mA, Zr (not in the guide) |
+|---|---|---|---|
+| 0.5 | 6.42 | 6.49 | 3.89 |
+| 1.0 | 6.07 | 6.31 | 3.69 |
+| 1.5 | 5.78 | 6.15 | 3.45 |
+| 2.0 | 5.57 | 6.03 | 3.20 |
+| 2.5 | 5.39 | 5.87 | 3.00 |
+| 3.0 | 5.28 | 5.76 | 2.80 |
+
+**Against xraylib.** At Mo Kα alone, μ/ρ of Al is 5.11 cm²/g. No run reaches it, and that is physics, not a mistake. At 21 kV the Mo K lines are barely excited (≈ 5 % of the photons): the beam is bremsstrahlung from λ_min = 59 pm upward, centred near 76 pm (16 keV), softer on average than Mo Kα, so the fit without Zr (5.74 cm²/g) lies above 5.11. Thin Al removes the softest photons first, so μ_eff falls from 6.42 at 0.5 mm to 5.28 at 3 mm (beam hardening). χ²/dof ≫ 1 says the points are not on a line; the ± is only the counting error of a line fitted to a curve. The Zr filter does not turn the beam into Mo Kα. At 21 kV it removes the hard end (59–69 pm, above the Zr K edge at 18.0 keV) and leaves a continuum band at about 69–92 pm. The fit with Zr (6.13 cm²/g) is therefore higher, not closer to 5.11, and the line is only somewhat less curved (μ_eff spread 0.73 instead of 1.15 cm²/g) because the band is narrower. At 35 kV with Zr the lines are strong (≈ 40 % of the photons), but the continuum above the Zr edge (18–35 keV) leaks through and survives the Al best, so μ/ρ drops to 3.17 and keeps falling with d. The counter's dead time (τ = 100 µs, ≈ 9 % loss at the open ≈ 950/s, less behind the absorbers) is not corrected here. It lowers the fitted μ/ρ by about 4 % and μ_eff at 0.5 mm by 6–7 %, and it hides part of the curvature (noise-free true rates give 6.91 → 5.38, `PARAMETERS.md`). The fitted μ depends on the thickness range, U, filter and dead time; a student who quotes it should state them.
+
+The 35 kV row is not in the guide. On a real tube the emission at 0.01 mA may drift, so read R₀ before and after.
+
+**Material plates (run 2a).** 0.4 mm plates at 30 kV, 90 s each, 0.02 mA for the first three and 1 mA for the rest. The open beam is read at 0.02 mA. Each rate is corrected for dead time, the background is subtracted, and the open beam is scaled by the current (`braggsim.analysis.scaled_transmission`). μ/ρ = −ln T/ρx. The error includes the counts of the plate and of the open beam, the dead-time Jacobian and the background error. A real dead-time-limited GM is sub-Poissonian (variance ≈ N (1 − Rτ)²), which roughly cancels that Jacobian, while the simulation draws plain Poisson counts.
+
+| Plate | Z | I (mA) | T | μ/ρ (cm²/g) | xraylib, Mo Kα (cm²/g) |
+|---|---|---|---|---|---|
+| Polystyrene | 6 | 0.02 | 0.97 | 0.60 ± 0.09 | 0.56 |
+| Al | 13 | 0.02 | 0.62 | 4.44 ± 0.04 | 5.11 |
+| Fe | 26 | 0.02 | 0.0031 | 18.37 ± 0.11 | 37.63 |
+| Cu | 29 | 1 | 0.00048 | 21.30 ± 0.03 | 49.11 |
+| Zr | 40 | 1 | 0.0049 | 20.47 ± 0.02 | 16.34 |
+| Ag | 47 | 1 | 0.0014 | 15.71 ± 0.02 | 26.55 |
+
+Each plate gives one effective value, −ln T/ρx, for the beam it actually sees. Fe and Cu pass only 0.05–0.3 %, and what survives is the hard end of the 30 kV continuum (≈ 23–29 keV), where their μ/ρ is far below the Mo Kα value. Ag filters the beam itself: its K edge is at 25.5 keV, so the survivors sit just below it (≈ 22–25 keV), again far below its Mo Kα value. Zr is the anomaly. In the monochromatic column μ/ρ drops from Cu's 49 to Zr's 16 cm²/g, because Mo Kα (17.5 keV) lies below the Zr K edge (18.0 keV): up to Z = 39 the K shell absorbs Mo Kα, from Z = 40 on it cannot. In the measurement the Zr plate transmits more than Fe or Cu because Mo Kα falls in Zr's low-absorption window just below its edge (≈ 70 % of what passes is Mo Kα). It is the only heavy plate above its Mo Kα value because Mo Kα sits near the minimum of Zr's μ/ρ over this beam, so every other photon (softer, below the edge, or harder, above it) is absorbed more. A student's μ/ρ-vs-Z plot should show the drop at Zr and not "fix" it. The light plates and the open beam are read at 1700–2450/s, where the counter loses 17–25 %. Without the dead-time correction Al would give 3.5 instead of 4.4 cm²/g, and τ = 90 µs instead of 100 µs moves it by 2.5 %. The polystyrene point has the largest error because its ρx (0.042 g/cm²) is the smallest: the counting error of ln T is divided by it.

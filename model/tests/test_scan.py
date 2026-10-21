@@ -363,5 +363,5 @@ def test_material_plate_needs_more_current_for_heavy_absorbers():
         assert rates[m][0] > 1000 * bg
         r_true = direct_rate(30.0, 1.0, ((m, areal_density_mg_cm2(m, 0.4)),), true)
         assert r_true * DEFAULT.tau_s > 1  # would paralyse a real GM
-    # Zr transmits more than Fe: the Mo K lines sit below the Zr K edge.
+    # Zr transmits more than Fe: Mo Kα sits just below the Zr K edge.
     assert rates["Zr"][1] > rates["Fe"][1]

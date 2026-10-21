@@ -66,6 +66,7 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 | `analysis.THRESHOLD_HALF_WINDOW_DEG`; the teacher-key sweep | ±0.5°; 22–35 kV in 1 kV steps at 0.1 mA, Δt = 10 s | Line-threshold evaluation (`line_threshold_kv`, `model/scripts/teacher_key.py`). The window's lower end (6.7°) is ≈ 2.3σ above 1st-order Kβ₁,₃. That tail scales with the line, so it rescales the areas without moving U_K. The sweep starts at 22 kV, where the 1st-order Kα is visible, and runs at 0.1 mA to keep dead time small. Noise-free bias budget: straight baseline −0.18 kV, dead time +0.10 kV (0.1 mA) or +0.70 kV and m → 1.35 (1 mA). The fit recovers the model's own power law (m, `source.LINE_EXPONENT_M`), so it validates the method, not the near-threshold physics. Chosen 2026-09-25 |
 | `analysis.EDGE_SPLIT_HALF_WINDOW_DEG`, `EDGE_FIT_HALF_WINDOW_DEG` | 0.3°, 0.5° | Absorption-edge search (`k_edge_deg`). Coarse step: mean T over 0.3° (3 points at Δβ = 0.1°) on each side of every split, ≈ 2.4σ of the instrument width: long enough to average noise, short enough that the two sides see one edge. Fine step: the convolved step-with-slope fit over ±0.5° (≈ 4σ). Window stability, noise-free, 2026-10-20: Ag moves 0.0004° and In 0.005° between ±0.3° and ±0.7°; Zr and Mo move 0.012° and 0.024° (their open spectrum is steep, see below) |
 | `analysis.MAX_EDGE_STEP_DEG` | 0.15° | Coarsest Δβ `k_edge_deg` accepts. At 0.16° the 0.3° split window holds only one point per side (the coarse search needs two) and no edge is found; the ±0.5° fit window then also has fewer than 6 points. Checked noise-free 2026-10-20 with the limit lifted: 0.15° works, 0.16° fails |
+| `analysis.attenuation_fit` (EPN Práctica 1) | ln T = −μ d through the origin, weights = Poisson variance of each R_i; R₀ and background errors propagated as a common (correlated) term; no dead-time correction | T = (R − b)/(R₀ − b) as in the guide. T(0) = 1 is exact, so the line has no free intercept. The common R₀ error would be wrongly shrunk by 1/√N if treated as independent weights. Dead time (non-paralysable, `detector.dead_time_correct` is its inverse) is left to the caller because the guide does not correct it and it bends the data at ≈ 1000/s. For the polychromatic beam μ is an effective value: noise-free Al wheel (0.5 → 3 mm, true rates, 2026-10-20), μ_eff/ρ = 6.91 → 5.38 cm²/g at 21 kV (xraylib Mo Kα alone: 5.11); with the collimator Zr filter 6.97 → 5.91 (21 kV, straighter) and 4.21 → 2.92 (35 kV, not straighter: the spread grows from 1.04 to 1.29). The Pyrex wall at ×0.8 / ×1.2 moves μ_eff by +7.7 / −5.8 % at 0.5 mm and +3.6 / −2.9 % at 3 mm. Added 2026-10-20 |
 
 ## Absorber thicknesses (`filters.FOILS_MM`, `filters.WHEELS_MM`)
 
@@ -107,9 +108,8 @@ dead time or background):
 At the guide's 0.02 mA the four heavy plates would read only 8–80× the 0.2/s background, so the counting statistics and the background
 dominate. At 1 mA (the guide's setting for them) they read 80–780/s, and dead time is negligible. The light plates are the reverse:
 at 1 mA they would paralyse the GM, so the guide counts them at 0.02 mA. This is real, it is why the guide changes I between materials,
-and the app does not hide it (test `test_material_plate_needs_more_current_for_heavy_absorbers`). Zr transmits more than Fe: most of the
-30 kV beam (the Mo K lines at 17.4–19.6 keV and the continuum below 18 keV) sits below the Zr K edge (18.0 keV), so μ vs Z is not monotonic
-across an edge.
+and the app does not hide it (test `test_material_plate_needs_more_current_for_heavy_absorbers`). Zr transmits more than Fe: Mo Kα (17.5 keV) lies just below the Zr K edge (18.0 keV), in Zr's low-absorption window, and the 30 kV beam is rich there (Kα is ≈ 70 % of what passes the Zr plate), while Fe and Cu pass only the weak hard end of the continuum (23–29 keV). Kβ (19.6 keV) lies above the Zr edge and is absorbed. μ/ρ against Z is not monotonic across an edge.
+Dead time still enters the heavy plates' T through the open-beam reference (read at 0.02 mA, Rτ ≈ 0.32, 24 % loss) and must be corrected before the ×50 scaling (`analysis.scaled_transmission`); for Al and polystyrene it is the dominant systematic (Al −20 % uncorrected).
 
 ### Moseley analysis (EPN Práctica 5): known deviations
 
@@ -178,7 +178,7 @@ Added 2026-10-14. No measurement behind any of them.
   their own σ, a pseudo-Voigt profile, and τ ∈ 0–100 µs did not close the gap. We did not add a free peak-sharpness term. The relative
   heights across orders agree within 25 %.
 - **Counter efficiency ε(λ) is constant.** The 559 01 fill gas is unknown, so a λ-dependent ε would be
-  degenerate with the absorber.
+  degenerate with the absorber. A constant ε cancels in T; the direct-beam μ_eff (EPN P1) inherits the Fig. 4-fitted detected shape (ε(λ) included, 35–200 pm); the residual ≈ 1–2 % on μ_eff comes from the crystal's Q(λ) ∝ λ³/μ treated as constant in the fit, not from ε. Not needed now (physics review 2026-10-20).
 - **One σ for every angle and slit.** σ(s₁, s₂) waits until a slit control exists.
 - **Mosaic crystal: Q/2μ taken as constant within an order.** In reality, λ³/μ_NaCl(λ) rises
   ≈ 27 % from 40 to 200 pm. Adding it (xraylib, no free parameter) improves the fit by only 0.0003 dex

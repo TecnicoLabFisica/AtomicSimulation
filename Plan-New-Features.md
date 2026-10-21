@@ -314,8 +314,9 @@ as in LD's example. That shortfall is physics, and the teacher key should say so
 ### L2 — Práctica 1: attenuation vs thickness and material
 
 **Physics:** Lambert's law $T = e^{-\mu d}$ holds for monochromatic X-rays. The tube beam is polychromatic, so at 21 kV
-(mostly continuum, lines barely above U_K) ln T vs d **curves** (beam hardening). With the Zr filter the beam is
-nearly Mo Kα and the line straightens. This is the main teaching point, and the model gives it for free by integrating over λ.
+(mostly continuum, lines barely above U_K) ln T vs d **curves** (beam hardening). At 21 kV the Zr filter removes the
+hard continuum above its K edge and leaves a 69–92 pm band, so ln T vs d is less curved but μ_eff rises; at 35 kV the hard continuum leaks through
+(revised 2026-10-20, physics review; the earlier "nearly Mo Kα, straight" was wrong for the model). This is the main teaching point, and the model gives it for free by integrating over λ.
 Dead time at ~1000 /s also bends the data a little, which is real and worth a note.
 
 #### S1 — Python
@@ -327,11 +328,19 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
       Zr transmits more than Fe (the Mo K lines sit below the Zr edge). Table in `PARAMETERS.md`; test `test_material_plate_needs_more_current_for_heavy_absorbers`.
 - [x] **L2.2** (done in G1.3/G1.4: `direct_per_s` = 2.97e5, `background_per_s` = 0.2, both in `PARAMETERS.md`) Set `K_direct` and `background_per_s` from [[#Calibration anchors]] (no EPN data exists; mark both as anchored to
       published or guide values, not fitted to measurements).
-- [ ] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,
+- [x] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,
       ln T vs d with and without Zr, μ vs Z (log-log), compared with xraylib μ at Mo Kα.
-- [ ] **L2.4** Check whether constant GM efficiency ε biases μ_eff. `physics-reviewer` decides whether ε(λ) is needed now.
+      As built (2026-10-20): `attenuation_fit(d_mm, rate_per_s, rate0_per_s, dt_s, dt0_s, background_per_s, background_dt_s)` → `AttenuationFit`
+      (a weighted line through the origin; the R₀ and b errors are common, correlated terms; per-point T and μ_eff; no dead-time correction).
+      `scaled_transmission` covers single plates read at a different I (dead time first, then b, then I-scaling, with the Jacobian 1/(1−Rτ)²).
+      `detector.dead_time_correct` is new, and the teacher key has an Attenuation section (additive, byte-stable). Key (seed 2026), μ/ρ(Al) in cm²/g: 1a 5.74, 1b (Zr) 6.13,
+      35 kV + Zr 3.17 (at 0.01 mA, not in the guide); xraylib Mo Kα 5.11. Physics review: the code and statistics are correct, but the wording was wrong.
+      The Zr mechanism, the Zr anomaly (Kβ is *above* the Zr edge) and the dead-time size were rewritten (see the revised L2 physics and Done when).
+- [x] **L2.4** Check whether constant GM efficiency ε biases μ_eff. `physics-reviewer` decides whether ε(λ) is needed now.
       Preliminary (2026-10-14): not needed. ε(λ) is folded into the fitted Pyrex over 40–120 pm; the residual bias is ≈ 1.5–2 %.
       Add a test that μ_eff falls with d at 21 kV without a filter (6.91 → 5.38 cm²/g, 0.5 → 3 mm).
+      Verdict (physics review 2026-10-20): ε(λ) is not needed. A constant ε cancels in T, and the direct beam inherits the Fig. 4-fitted *detected* shape.
+      The residual ≈ 1–2 % comes from the crystal's Q(λ), not from ε (`PARAMETERS.md` deviation). The beam-hardening tests are in `test_analysis.py`.
 
 #### S2 — Web
 - [x] **L2.5** Exposure-timer workflow with the wheel: TARGET mode, ADJUST to each position, Δβ = 0, SCAN, REPLAY.
@@ -348,15 +357,17 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
       The control is a second `.tool.csv` button, "Exposiciones (n)", in the spectrum card header. It is hidden until the log is non-empty and labelled a simulation aid.
       The design review comes with L2.6.
 
-**Done when:** ln T vs d is visibly curved without the Zr filter (beam hardening: μ_eff falls with d) and much straighter with it; the key's
-μ(Al) with Zr is compared with the tabulated μ at Mo Kα (5.11 cm²/g) and the gap is explained, not hidden. The physics reviewer (2026-10-14) found
+**Done when:** ln T vs d is visibly curved without the Zr filter (μ_eff falls by ≈ 20–25 % from 0.5 to 3 mm) and less curved with it at 21 kV
+(≈ 12–17 %; the Zr leaves a 69–92 pm continuum band, not Mo Kα); at 35 kV with Zr it is not straighter. The key compares μ(Al) with and without Zr
+against the tabulated 5.11 cm²/g at Mo Kα and explains the gap (above at 21 kV, below at 35 kV), not hides it. (Revised 2026-10-20: "much straighter"
+is not what the physics gives.) The physics reviewer (2026-10-14) found
 μ_eff/ρ with 0.05 mm Zr = 6.97 → 5.91 at 21 kV (lines ≈ 93× weaker than at 35 kV, so the passband is the soft 69–90 pm continuum) and
 4.21 → 2.92 at 35 kV (hard continuum above the Zr edge leaks through). Which U gets closest is a teaching point. Verify the thickness of the
 run-1b collimator Zr filter (0.05 mm is the 554 832 foil value). Keep the Pyrex ±20 % sensitivity (μ_eff ∓5–7 %) in notebook 06.
 
 **Files:** `model/src/braggsim/{scan,analysis}.py`, `model/notebooks/06_attenuation.ipynb`, `web/src/pedagogy/tasks/attenuation-*.ts`, `web/src/pedagogy/csv.ts`
 
-**Verify:** [[#Verify|standard]] + `pytest model -k attenuation`; run `06_attenuation.ipynb` (ln T vs d curved without Zr, straight with it)
+**Verify:** [[#Verify|standard]] + `pytest model -k attenuation`; run `06_attenuation.ipynb` (ln T vs d curved without Zr, less curved with it at 21 kV)
 
 ### L3 — Práctica 6: brass composition by X-ray fluorescence
 

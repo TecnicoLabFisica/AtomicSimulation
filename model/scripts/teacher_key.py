@@ -11,6 +11,7 @@ the same on every run. Generated file: do not edit it by hand.
 from pathlib import Path
 
 import numpy as np
+import xraylib
 
 import braggsim
 from braggsim.analysis import (
@@ -18,18 +19,20 @@ from braggsim.analysis import (
     MAX_STEP_DEG,
     MIN_PROMINENCE_SIGMA,
     THRESHOLD_HALF_WINDOW_DEG,
+    attenuation_fit,
     edge_wavelength_table,
     line_threshold_kv,
     moseley_fit,
     order_means_pm,
     peak_center,
+    scaled_transmission,
     wavelength_table,
 )
 from braggsim.constants import HC_KEV_PM, K_EDGE_KEV, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import sample_counts
-from braggsim.filters import FOILS_MM, areal_density_mg_cm2
-from braggsim.scan import DEFAULT, coupled_betas, expected_rate
+from braggsim.filters import FOILS_MM, WHEELS_MM, areal_density_mg_cm2
+from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate
 from braggsim.source import LINE_EXPONENT_M, lambda_min_pm
 
 OUT = Path(__file__).resolve().parents[2] / "docs" / "teacher-key.md"
@@ -43,6 +46,13 @@ P5_BETA_RANGE_DEG = (3.7, 7.5)
 P5_STEP_DEG = 0.1
 P5_DT_S = 5.0
 P5_Z = {"Zr": 40, "Mo": 42, "Ag": 47, "In": 49}
+# EPN Práctica 1 (attenuation): GM counter in the direct beam, Al wheel and 0.4 mm material plates.
+P1_AL_GATE_S = 90.0  # 3 × 30 s
+P1_ZR_GATE_S = 200.0
+P1_BG_GATE_S = 100.0
+P1_MATERIAL_GATE_S = 90.0
+P1_PLATE_I_MA = {"Polystyrene": 0.02, "Al": 0.02, "Fe": 0.02, "Cu": 1.0, "Zr": 1.0, "Ag": 1.0}
+P1_PLATE_Z = {"Polystyrene": 6, "Al": 13, "Fe": 26, "Cu": 29, "Zr": 40, "Ag": 47}
 LD_EXAMPLE_R_PER_M = 1.056e7  # LD's published Moseley example
 LD_EXAMPLE_SIGMA_K = 2.7
 
@@ -242,6 +252,142 @@ def _threshold_section(rng):
     return out
 
 
+def _attenuation_section(rng):
+    zr = (("Zr", areal_density_mg_cm2("Zr", 0.05)),)
+    d_mm = np.array([mm for _, mm in WHEELS_MM["al"][1:]])
+    rho_al = areal_density_mg_cm2("Al", 1.0) / 100  # g/cm³
+    tau = DEFAULT.tau_s
+
+    def read(U_kV, I_mA, filters, dt_s):
+        return sample_counts(direct_rate(U_kV, I_mA, filters), dt_s, rng) / dt_s
+
+    bg = read(0.0, 0.0, (), P1_BG_GATE_S)
+    runs = {
+        "1a, 21 kV, 0.05 mA, no Zr": (21.0, 0.05, P1_AL_GATE_S, ()),
+        "1b, 21 kV, 0.15 mA, Zr": (21.0, 0.15, P1_ZR_GATE_S, zr),
+        "35 kV, 0.01 mA, Zr (not in the guide)": (35.0, 0.01, P1_ZR_GATE_S, zr),
+    }
+    fits = {}
+    for name, (U, I_mA, dt, f) in runs.items():
+        r0 = read(U, I_mA, f, dt)
+        r = [read(U, I_mA, (*f, ("Al", areal_density_mg_cm2("Al", mm))), dt) for mm in d_mm]
+        fits[name] = (r0, attenuation_fit(d_mm, r, r0, dt, dt, bg, P1_BG_GATE_S))
+    mu_ka = xraylib.CS_Total_CP("Al", HC_KEV_PM / MO_KA_PM)
+    out = [
+        "## Attenuation (EPN Práctica 1)",
+        "",
+        "Al wheel (0.5 → 3.0 mm in 0.5 mm steps) in the direct beam, GM counter at the sensor, "
+        f"background {bg:.2f}/s from a {P1_BG_GATE_S:.0f} s run at 0 kV. T = (R − b)/(R₀ − b); "
+        "μ from ln T = −μ d through the origin, weighted by the counting errors of the points, "
+        "with the common error of R₀ and b propagated (`braggsim.analysis.attenuation_fit`). "
+        "Simulated counts, errors 1σ. μ/ρ = 10 μ/ρ_Al, ρ_Al = "
+        f"{rho_al:.3f} g/cm³.",
+        "",
+        "| Run | R₀ (1/s) | μ (1/mm) | μ/ρ (cm²/g) | χ²/dof |",
+        "|---|---|---|---|---|",
+    ]
+    for name, (r0, f) in fits.items():
+        out.append(
+            f"| {name} | {r0:.0f} | {f.mu_per_mm:.3f} ± {f.mu_err_per_mm:.3f} "
+            f"| {10 * f.mu_per_mm / rho_al:.2f} ± {10 * f.mu_err_per_mm / rho_al:.2f} "
+            f"| {f.chi2_dof:.0f} |"
+        )
+    out += [
+        "",
+        "Per point, μ_eff/ρ = −10 ln T/(ρ d) in cm²/g (beam hardening: it falls with d):",
+        "",
+        "| d (mm) | " + " | ".join(fits) + " |",
+        "|---|" + "---|" * len(fits),
+    ]
+    for j, mm in enumerate(d_mm):
+        cells = " | ".join(f"{10 * f.mu_eff_per_mm[j] / rho_al:.2f}" for _, f in fits.values())
+        out.append(f"| {mm:.1f} | {cells} |")
+    fa = fits["1a, 21 kV, 0.05 mA, no Zr"][1]
+    fz = fits["1b, 21 kV, 0.15 mA, Zr"][1]
+    f35 = fits["35 kV, 0.01 mA, Zr (not in the guide)"][1]
+
+    def mu_rho(f, j=None):
+        return 10 * (f.mu_per_mm if j is None else f.mu_eff_per_mm[j]) / rho_al
+
+    spread_a = mu_rho(fa, 0) - mu_rho(fa, -1)
+    spread_z = mu_rho(fz, 0) - mu_rho(fz, -1)
+    out += [
+        "",
+        f"**Against xraylib.** At Mo Kα alone, μ/ρ of Al is {mu_ka:.2f} cm²/g. No run reaches it, "
+        "and that is physics, not a mistake. At 21 kV the Mo K lines are barely excited (≈ 5 % of "
+        "the photons): the beam is bremsstrahlung from λ_min = 59 pm upward, centred near 76 pm "
+        "(16 keV), softer on average than Mo Kα, so the fit without Zr "
+        f"({mu_rho(fa):.2f} cm²/g) lies above {mu_ka:.2f}. Thin Al removes the softest photons "
+        f"first, so μ_eff falls from {mu_rho(fa, 0):.2f} at 0.5 mm to {mu_rho(fa, -1):.2f} at "
+        "3 mm (beam hardening). χ²/dof ≫ 1 says the points are not on a line; the ± is only the "
+        "counting error of a line fitted to a curve. The Zr filter does not turn the beam into "
+        "Mo Kα. At 21 kV it removes the hard end (59–69 pm, above the Zr K edge at 18.0 keV) and "
+        "leaves a continuum band at about 69–92 pm. The fit with Zr "
+        f"({mu_rho(fz):.2f} cm²/g) is therefore higher, not closer to {mu_ka:.2f}, and the line "
+        f"is only somewhat less curved (μ_eff spread {spread_z:.2f} instead of {spread_a:.2f} "
+        "cm²/g) because the band is narrower. At 35 kV with Zr the lines are strong (≈ 40 % of "
+        "the photons), but the continuum above the Zr edge (18–35 keV) leaks through and "
+        f"survives the Al best, so μ/ρ drops to {mu_rho(f35):.2f} and keeps falling with d. "
+        "The counter's dead time (τ = 100 µs, ≈ 9 % loss at the open ≈ 950/s, less behind the "
+        "absorbers) is not corrected here. It lowers the fitted μ/ρ by about 4 % and μ_eff at "
+        "0.5 mm by 6–7 %, and it hides part of the curvature (noise-free true rates give "
+        "6.91 → 5.38, `PARAMETERS.md`). The fitted μ depends on the thickness range, U, filter "
+        "and dead time; a student who quotes it should state them.",
+        "",
+        "The 35 kV row is not in the guide. On a real tube the emission at 0.01 mA may drift, so "
+        "read R₀ before and after.",
+        "",
+    ]
+    d_plate = 0.4
+    open_obs = read(30.0, 0.02, (), P1_MATERIAL_GATE_S)
+    out += [
+        "**Material plates (run 2a).** 0.4 mm plates at 30 kV, "
+        f"{P1_MATERIAL_GATE_S:.0f} s each, 0.02 mA for the first three and 1 mA for the rest. "
+        "The open beam is read at 0.02 mA. Each rate is corrected for dead time, the background "
+        "is subtracted, and the open beam is scaled by the current "
+        "(`braggsim.analysis.scaled_transmission`). μ/ρ = −ln T/ρx. The error includes the "
+        "counts of the plate and of the open beam, the dead-time Jacobian and the background "
+        "error. A real dead-time-limited GM is sub-Poissonian (variance ≈ N (1 − Rτ)²), which "
+        "roughly cancels that Jacobian, while the simulation draws plain Poisson counts.",
+        "",
+        "| Plate | Z | I (mA) | T | μ/ρ (cm²/g) | xraylib, Mo Kα (cm²/g) |",
+        "|---|---|---|---|---|---|",
+    ]
+    for m, z in P1_PLATE_Z.items():
+        ad = areal_density_mg_cm2(m, d_plate)
+        i = P1_PLATE_I_MA[m]
+        obs = read(30.0, i, ((m, ad),), P1_MATERIAL_GATE_S)
+        T, T_err = scaled_transmission(
+            obs, open_obs, i, 0.02, P1_MATERIAL_GATE_S, P1_MATERIAL_GATE_S, bg, P1_BG_GATE_S, tau
+        )
+        mu_rho = -np.log(T) / (ad / 1000)
+        mu_err = T_err / T / (ad / 1000)
+        ref = xraylib.CS_Total_CP(m, HC_KEV_PM / MO_KA_PM)
+        out.append(f"| {m} | {z} | {i:g} | {T:.2g} | {mu_rho:.2f} ± {mu_err:.2f} | {ref:.2f} |")
+    out += [
+        "",
+        "Each plate gives one effective value, −ln T/ρx, for the beam it actually sees. Fe and "
+        "Cu pass only 0.05–0.3 %, and what survives is the hard end of the 30 kV continuum "
+        "(≈ 23–29 keV), where their μ/ρ is far below the Mo Kα value. Ag filters the beam "
+        "itself: its K edge is at 25.5 keV, so the survivors sit just below it (≈ 22–25 keV), "
+        "again far below its Mo Kα value. Zr is the anomaly. In the monochromatic column μ/ρ "
+        "drops from Cu's 49 to Zr's 16 cm²/g, because Mo Kα (17.5 keV) lies below the Zr K edge "
+        "(18.0 keV): up to Z = 39 the K shell absorbs Mo Kα, from Z = 40 on it cannot. In the "
+        "measurement the Zr plate transmits more than Fe or Cu because Mo Kα falls in Zr's "
+        "low-absorption window just below its edge (≈ 70 % of what passes is Mo Kα). It is the "
+        "only heavy plate above its Mo Kα value because Mo Kα sits near the minimum of Zr's μ/ρ "
+        "over this beam, so every other photon (softer, below the edge, or harder, above it) is "
+        'absorbed more. A student\'s μ/ρ-vs-Z plot should show the drop at Zr and not "fix" '
+        "it. The light plates and the open beam are read at 1700–2450/s, where the counter "
+        "loses 17–25 %. Without the dead-time correction Al would give 3.5 instead of 4.4 "
+        "cm²/g, and τ = 90 µs instead of 100 µs moves it by 2.5 %. The polystyrene point has "
+        "the largest error because its ρx (0.042 g/cm²) is the smallest: the counting error of "
+        "ln T is divided by it.",
+        "",
+    ]
+    return out
+
+
 def main():
     rng = np.random.default_rng(SEED)
     ka3 = _theta(MO_KA_PM, 3)
@@ -268,6 +414,7 @@ def main():
     lines += _threshold_section(rng)
     lines += _leaflet_section(rng)
     lines += _moseley_section(rng)
+    lines += _attenuation_section(rng)
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 

@@ -7,6 +7,7 @@ import braggsim.analysis as analysis
 from braggsim.analysis import (
     MAX_EDGE_STEP_DEG,
     THRESHOLD_HALF_WINDOW_DEG,
+    attenuation_fit,
     edge_wavelength_table,
     find_line_peaks,
     k_edge_deg,
@@ -14,13 +15,14 @@ from braggsim.analysis import (
     moseley_fit,
     order_means_pm,
     peak_center,
+    scaled_transmission,
     wavelength_table,
 )
 from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
 from braggsim.crystal import theta_from_lambda
-from braggsim.detector import sample_counts
-from braggsim.filters import FOILS_MM, areal_density_mg_cm2
-from braggsim.scan import DEFAULT, coupled_betas, expected_rate
+from braggsim.detector import dead_time, sample_counts
+from braggsim.filters import FOILS_MM, WHEELS_MM, areal_density_mg_cm2
+from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate
 from braggsim.source import LINE_EXPONENT_M
 
 # Leaflet settings: 2° → 25°, Δβ = 0.1°, Δt = 10 s, 35 kV, 1 mA (LD P6.3.3.1).
@@ -385,3 +387,147 @@ def test_moseley_fit_rejects_too_few_or_nonphysical_points():
         moseley_fit(z[:2], lam_pm[:2])
     with pytest.raises(ValueError):
         moseley_fit(z, -lam_pm)
+
+
+# EPN Práctica 1: Al wheel, 0.5 … 3.0 mm.
+D_MM = np.arange(0.5, 3.01, 0.5)
+MU_TRUE = 0.35  # 1/mm, a monochromatic beam in some absorber
+
+
+def _mono_rates(r0=900.0, b=0.2):
+    return r0 * np.exp(-MU_TRUE * D_MM) + b
+
+
+def test_attenuation_fit_recovers_noise_free_monochromatic_mu():
+    fit = attenuation_fit(D_MM, _mono_rates(), 900.2, 100.0, background_per_s=0.2)
+    assert fit.mu_per_mm == approx(MU_TRUE, rel=1e-9)
+    assert fit.chi2_dof == approx(0, abs=1e-12)
+    assert fit.mu_eff_per_mm == approx(MU_TRUE, rel=1e-9)
+    assert fit.T == approx(np.exp(-MU_TRUE * D_MM), rel=1e-9)
+
+
+def test_attenuation_fit_is_linear_in_intensity():
+    # Scaling the tube current by 3.7 scales every net rate: T, and so μ, must not move.
+    b = 0.2
+    one = attenuation_fit(D_MM, _mono_rates(), 900.2, 50.0, background_per_s=b)
+    scaled = (_mono_rates() - b) * 3.7 + b
+    two = attenuation_fit(D_MM, scaled, 900.0 * 3.7 + b, 50.0, background_per_s=b)
+    assert two.mu_per_mm == approx(one.mu_per_mm, rel=1e-12)
+
+
+def test_attenuation_fit_pull_is_standard_normal_with_noise():
+    rng = np.random.default_rng(7)
+    dt, b, r0, db = 30.0, 0.2, 900.0, 100.0
+    pulls = []
+    for _ in range(200):
+        r = sample_counts(_mono_rates(r0, b), dt, rng) / dt
+        r_open = sample_counts(r0 + b, 200.0, rng) / 200.0
+        r_bg = sample_counts(b, db, rng) / db
+        fit = attenuation_fit(D_MM, r, r_open, dt, 200.0, r_bg, db)
+        pulls.append((fit.mu_per_mm - MU_TRUE) / fit.mu_err_per_mm)
+    assert abs(np.mean(pulls)) < 0.2
+    assert 0.8 < np.std(pulls) < 1.2
+
+
+def test_attenuation_fit_rejects_a_point_at_or_below_the_background():
+    r = _mono_rates()
+    r[-1] = 0.2
+    with pytest.raises(ValueError, match="background"):
+        attenuation_fit(D_MM, r, 900.2, 100.0, background_per_s=0.2)
+    with pytest.raises(ValueError, match="background"):
+        attenuation_fit(D_MM, _mono_rates(), 0.1, 100.0, background_per_s=0.2)
+
+
+def test_attenuation_fit_rejects_bad_input():
+    r = _mono_rates()
+    with pytest.raises(ValueError):
+        attenuation_fit(D_MM, r, 900.0, 100.0, background_per_s=-0.1)
+    with pytest.raises(ValueError):
+        attenuation_fit(D_MM, r[:-1], 900.0, 100.0)
+    with pytest.raises(ValueError):
+        attenuation_fit(D_MM[:1], r[:1], 900.0, 100.0)
+    with pytest.raises(ValueError):
+        attenuation_fit(np.r_[0.0, D_MM[1:]], r, 900.0, 100.0)
+    with pytest.raises(ValueError):
+        attenuation_fit(D_MM, np.r_[np.nan, r[1:]], 900.0, 100.0)
+
+
+def _al_wheel_mu_eff(U_kV, I_mA, filters=(), params=None):
+    """μ_eff/ρ in cm²/g at each Al wheel thickness, from true (dead-time-free) rates."""
+    params = params or DEFAULT.replace(tau_s=0.0, background_per_s=0.0)
+    d = [mm for _, mm in WHEELS_MM["al"][1:]]
+    r = [
+        direct_rate(U_kV, I_mA, (*filters, ("Al", areal_density_mg_cm2("Al", mm))), params)
+        for mm in d
+    ]
+    r0 = direct_rate(U_kV, I_mA, filters, params)
+    fit = attenuation_fit(d, r, r0, 1.0)
+    rho = areal_density_mg_cm2("Al", 1.0) / 100
+    return 10 * fit.mu_eff_per_mm / rho
+
+
+def test_attenuation_beam_hardening_lowers_mu_eff_with_thickness():
+    mu = _al_wheel_mu_eff(21.0, 0.05)
+    assert np.all(np.diff(mu) < 0)
+    assert mu[0] == approx(6.91, rel=0.03)
+    assert mu[-1] == approx(5.38, rel=0.03)
+    # At 21 kV most of the continuum lies longward of Mo Kα (median ≈ 76 pm), so μ_eff stays above
+    # the Kα value.
+    mu_ka = xraylib.CS_Total_CP("Al", HC_KEV_PM / MO_KA_PM)
+    assert 4.5 < mu_ka < 5.5
+    assert mu[-1] > mu_ka
+
+
+def test_attenuation_zirconium_filter_straightens_the_line_at_21_kv():
+    # At 21 kV Zr removes the hard continuum above its K edge (59–69 pm), leaving a narrower
+    # 69–92 pm band: less curved (spread 0.94 vs 1.52 cm²/g), but μ_eff rises. At 35 kV the spread
+    # grows (1.29 vs 1.04 cm²/g, measured 2026-10-20), so only 21 kV is asserted.
+    zr = ("Zr", areal_density_mg_cm2("Zr", 0.05))
+    bare = _al_wheel_mu_eff(21.0, 0.05)
+    filtered = _al_wheel_mu_eff(21.0, 0.15, (zr,))
+    assert np.all(np.diff(filtered) < 0)
+    assert filtered[0] - filtered[-1] < bare[0] - bare[-1]
+    assert filtered[0] == approx(6.97, rel=0.03)
+    assert filtered[-1] == approx(5.91, rel=0.03)
+
+
+def test_attenuation_scaled_transmission_undoes_dead_time_and_current():
+    tau, b = 1e-4, 0.2
+    t_true = 0.37
+    r_open_true, i_open, i = 1500.0 + b, 0.02, 1.0
+    r_plate_true = t_true * (r_open_true - b) * (i / i_open) + b
+    T, err = scaled_transmission(
+        dead_time(r_plate_true, tau),
+        dead_time(r_open_true, tau),
+        i,
+        i_open,
+        90.0,
+        90.0,
+        b,
+        100.0,
+        tau,
+    )
+    assert T == approx(t_true, rel=1e-12)
+    assert err > 0
+
+
+def test_attenuation_scaled_transmission_error_matches_monte_carlo():
+    rng = np.random.default_rng(3)
+    tau, b, dt = 1e-4, 0.2, 90.0
+    r_open, r_plate, i, i_open = dead_time(1500.2, tau), dead_time(300.0, tau), 1.0, 0.02
+    pull = []
+    T0, err = scaled_transmission(r_plate, r_open, i, i_open, dt, dt, b, None, tau)
+    for _ in range(400):
+        ro = sample_counts(r_open, dt, rng) / dt
+        rp = sample_counts(r_plate, dt, rng) / dt
+        pull.append(scaled_transmission(rp, ro, i, i_open, dt, dt, b, None, tau)[0])
+    # The simulation draws plain Poisson counts, which is what the error propagates.
+    assert np.std(pull) == approx(err, rel=0.15)
+    assert np.mean(pull) == approx(T0, rel=0.05)
+
+
+def test_attenuation_scaled_transmission_rejects_bad_rates():
+    with pytest.raises(ValueError, match="background"):
+        scaled_transmission(0.1, 900.0, 1.0, 1.0, 10.0, 10.0, 0.2)
+    with pytest.raises(ValueError, match="1/tau"):
+        scaled_transmission(1e4, 900.0, 1.0, 1.0, 10.0, 10.0, 0.2, tau_s=1e-4)

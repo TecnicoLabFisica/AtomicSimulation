@@ -413,3 +413,144 @@ def edge_wavelength_table(beta_deg, rate_open_per_s, foil_rates_per_s, dt_s):
             }
         )
     return rows
+
+
+@dataclasses.dataclass(frozen=True)
+class AttenuationFit:
+    mu_per_mm: float  # effective linear attenuation coefficient, 1/mm
+    mu_err_per_mm: float  # 1σ: point counting errors plus the common R0 (and background) error
+    chi2_dof: float  # weighted χ² per degree of freedom (N − 1) of ln T = −μ d, point errors only
+    T: np.ndarray  # background-subtracted transmission of each point
+    T_err: np.ndarray  # 1σ of each T
+    mu_eff_per_mm: np.ndarray  # −ln T_i / d_i, 1/mm: the slope up to point i, shows curvature
+
+
+def attenuation_fit(
+    d_mm, rate_per_s, rate0_per_s, dt_s, dt0_s=None, background_per_s=0.0, background_dt_s=None
+):
+    """Attenuation coefficient μ from the rates behind absorbers of thickness ``d_mm``.
+
+    Lambert's law ln T = −μ d with T_i = (R_i − b)/(R0 − b): R0 is the open-beam rate, b the
+    background run (tube off). The line is fitted **through the origin** (T(0) = 1 by definition),
+    weighted by the Poisson variance of each R_i (``dt_s``: scalar or one gate per point). The
+    errors of R0 (``dt0_s``) and of b (``background_dt_s``) are common to every point, so they are
+    propagated as correlated terms, not as extra weights: a shift δ in ln(R0 − b) moves μ by
+    δ Σw d / Σw d². Without ``dt0_s`` or ``background_dt_s`` that quantity is treated as exact.
+    Returns an ``AttenuationFit``: μ in 1/mm with its 1σ error, χ²/dof, and per point T, its error
+    and μ_eff,i = −ln T_i / d_i.
+
+    Source: EPN Práctica 1. Caveats: (1) the beam is polychromatic (Mo K lines on a bremsstrahlung
+    continuum) and the soft part is absorbed first, so ln T vs d curves upward (beam hardening);
+    μ is then an effective value that depends on the d range, and μ_eff,i falls with d. A
+    monochromatic beam gives a straight line. (2) The counter's dead time is NOT corrected here:
+    the GM is non-paralysable, R_obs = R/(1 + Rτ) (``detector.dead_time``), so rates near
+    1000/s are low by ≈ 10 % and bend the data; correct with ``detector.dead_time_correct`` first
+    if that matters. Mass coefficient: μ/ρ [cm²/g] = 10 · μ [1/mm] / ρ [g/cm³].
+    """
+    d = np.asarray(d_mm, dtype=float)
+    r = np.asarray(rate_per_s, dtype=float)
+    if d.ndim != 1 or d.shape != r.shape:
+        raise ValueError("d_mm and rate_per_s must be 1-D arrays of the same length")
+    if d.size < 2:
+        raise ValueError("need at least 2 points")
+    dt = np.broadcast_to(np.asarray(dt_s, dtype=float), d.shape)
+    if dt.shape != d.shape:
+        raise ValueError("dt_s must be a scalar or match d_mm")
+    scalars = [rate0_per_s, background_per_s] + [
+        x for x in (dt0_s, background_dt_s) if x is not None
+    ]
+    if not (
+        np.all(np.isfinite(d))
+        and np.all(np.isfinite(r))
+        and np.all(np.isfinite(dt))
+        and np.all(np.isfinite(np.asarray(scalars, dtype=float)))
+    ):
+        raise ValueError("all inputs must be finite")
+    if np.any(d <= 0):
+        raise ValueError("d_mm must be > 0 (the open beam is R0, not a point)")
+    if np.any(dt <= 0) or (dt0_s is not None and dt0_s <= 0):
+        raise ValueError("counting times must be > 0")
+    if background_dt_s is not None and background_dt_s <= 0:
+        raise ValueError("counting times must be > 0")
+    if background_per_s < 0:
+        raise ValueError("background_per_s must be >= 0")
+    b, r0 = float(background_per_s), float(rate0_per_s)
+    if r0 - b <= 0 or np.any(r - b <= 0):
+        raise ValueError("a rate is at or below the background: no transmission to take a log of")
+    net, net0 = r - b, r0 - b
+    T = net / net0
+    var_r = _rate_var(r, dt)
+    var0 = 0.0 if dt0_s is None else float(_rate_var(r0, dt0_s))
+    var_b = 0.0 if background_dt_s is None else float(_rate_var(b, background_dt_s))
+    y = np.log(T)
+    w = 1 / (var_r / net**2)  # independent part of σ(ln T_i)
+    s_dd = np.sum(w * d * d)
+    mu = -float(np.sum(w * d * y) / s_dd)
+    # Gradients of μ = −Σ w d y / Σ w d² (w fixed): y_i depends on R_0 and b through ln(R0 − b).
+    g0 = float(np.sum(w * d) / s_dd) / net0  # dμ/dR0
+    gb = float(np.sum(-w * d / s_dd * (-1 / net + 1 / net0)))  # dμ/db
+    var_mu = 1 / s_dd + g0**2 * var0 + gb**2 * var_b
+    chi2_dof = float(np.sum(w * (y + mu * d) ** 2) / (d.size - 1))
+    var_T = var_r / net0**2 + T**2 * var0 / net0**2 + ((r - r0) / net0**2) ** 2 * var_b
+    return AttenuationFit(
+        mu_per_mm=mu,
+        mu_err_per_mm=float(np.sqrt(var_mu)),
+        chi2_dof=chi2_dof,
+        T=T,
+        T_err=np.sqrt(var_T),
+        mu_eff_per_mm=-y / d,
+    )
+
+
+def scaled_transmission(
+    rate_per_s,
+    rate_open_per_s,
+    I_mA,
+    I_open_mA,
+    dt_s,
+    dt_open_s,
+    background_per_s=0.0,
+    background_dt_s=None,
+    tau_s=0.0,
+):
+    """Transmission T and its 1σ error of an absorber read at ``I_mA`` against an open beam read at
+    ``I_open_mA`` (EPN Práctica 1, run 2a: heavy plates at 1 mA, open beam at 0.02 mA).
+
+    Both observed rates are first corrected for the counter's dead time (``tau_s``, non-paralyzable,
+    ``detector.dead_time_correct``), then the background (a true rate) is subtracted, and the open
+    beam is scaled by I/I_open, since the tube emission is linear in the current. So
+    T = (A − b)/((B − b) · I/I_open) with A, B the true rates. The error combines the Poisson
+    variance of each reading, multiplied by the dead-time Jacobian dR/dR_obs = 1/(1 − R_obs τ)², and
+    the background error (``background_dt_s``; exact if None), which is common to both rates.
+    Raises ValueError if a rate is at or below the background or at or above 1/τ.
+
+    Caveat: the Poisson variance used here is that of the counts. A real dead-time-limited GM is
+    sub-Poissonian (variance ≈ N (1 − Rτ)²), which roughly cancels the Jacobian, so these errors
+    are conservative for the open beam at ≈ 0.3 R τ.
+    """
+    r = np.asarray(rate_per_s, dtype=float)
+    r0 = np.asarray(rate_open_per_s, dtype=float)
+    b = float(background_per_s)
+    if not (np.all(np.isfinite(r)) and np.all(np.isfinite(r0)) and np.isfinite(b)):
+        raise ValueError("all inputs must be finite")
+    if I_mA <= 0 or I_open_mA <= 0 or np.any(np.asarray(dt_s) <= 0) or dt_open_s <= 0:
+        raise ValueError("currents and counting times must be > 0")
+    if b < 0 or tau_s < 0:
+        raise ValueError("background_per_s and tau_s must be >= 0")
+    if background_dt_s is not None and background_dt_s <= 0:
+        raise ValueError("counting times must be > 0")
+    if np.any(r * tau_s >= 1) or np.any(r0 * tau_s >= 1):
+        raise ValueError("a rate is at or above 1/tau: it cannot be corrected for dead time")
+    a_true = r / (1 - r * tau_s)
+    b_true = r0 / (1 - r0 * tau_s)
+    if np.any(a_true - b <= 0) or np.any(b_true - b <= 0):
+        raise ValueError("a rate is at or below the background: no transmission")
+    scale = I_mA / I_open_mA
+    num, den = a_true - b, (b_true - b) * scale
+    T = num / den
+    var_a = _rate_var(r, dt_s) / (1 - r * tau_s) ** 4
+    var_o = _rate_var(r0, dt_open_s) / (1 - r0 * tau_s) ** 4
+    var_b = 0.0 if background_dt_s is None else float(_rate_var(b, background_dt_s))
+    dT_db = (a_true - b_true) / ((b_true - b) ** 2 * scale)
+    var_T = var_a / den**2 + (T / (b_true - b)) ** 2 * var_o + dT_db**2 * var_b
+    return T, np.sqrt(var_T)
