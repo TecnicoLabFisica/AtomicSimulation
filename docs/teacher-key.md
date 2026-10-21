@@ -58,3 +58,35 @@ One simulated scan at the leaflet settings (35 kV, 1.00 mA, Δt = 10 s, Δβ = 0
 Prediction question: *the same λ in all three orders*. The order changes the angle, not the wavelength; the spread of λ over the orders above is counting noise.
 
 The task is met by a finished, exported COUPLED scan at steady U and I that holds every line of orders 1–3 with its marked window, uses Δβ ≤ 0.23°, and whose weakest line (3rd-order Kβ) is expected to stand 5σ above its background. At 35 kV and 1 mA, Δt = 1 s falls just short; the leaflet's 10 s is comfortable.
+
+## Moseley's law (task `moseley-k-edges`)
+
+One open scan and one scan per foil (Zr, Mo, Ag, In) at the EPN Práctica 5 settings: COUPLED 3.7° → 7.5°, Δβ = 0.1°, 35 kV, 1.00 mA, Δt = 5 s, the foil at the sensor. Simulated counts, errors are counting statistics (1σ). The K edge is the steepest rise of T = R(foil)/R(open) in β (`braggsim.analysis.k_edge_deg`); θ → λ_K by Bragg's law, first order.
+
+| Foil | Z | θ edge (°) | λ_K (pm) | Tabulated λ_K (pm) | Tabulated θ (°) |
+|---|---|---|---|---|---|
+| Zr | 40 | 6.972 ± 0.006 | 68.46 ± 0.06 | 68.89 | 7.016 |
+| Mo | 42 | 6.261 ± 0.010 | 61.51 ± 0.10 | 61.99 | 6.310 |
+| Ag | 47 | 4.943 ± 0.010 | 48.59 ± 0.10 | 48.59 | 4.943 |
+| In | 49 | 4.499 ± 0.012 | 44.24 ± 0.12 | 44.38 | 4.513 |
+
+Fit of √(1/λ_K) = √R (Z − σ_K):
+
+| Source | R (10⁷ m⁻¹) | σ_K | χ²/dof |
+|---|---|---|---|
+| This simulated measurement | 1.060 ± 0.011 | 2.87 ± 0.20 | 2.1 |
+| The same evaluation, noise-free | 1.058 | 2.84 | 0.2 |
+| Tabulated (xraylib) edges | 1.084 | 3.41 | |
+| LD's published example | 1.056 | 2.7 | |
+| Rydberg constant R∞ (CODATA 2022) | 1.097 | | |
+
+Prediction question: *where does the Ag edge fall compared with Zr?* At a smaller angle (4.94° against 7.02°): Ag has the higher Z, so the higher K binding energy and the shorter λ_K, and a shorter wavelength reflects at a smaller angle.
+
+This simulated measurement lands 3.4 % below R∞. Two causes add up, and the rows above separate them.
+
+- **Physics, 1.3 % (tabulated row).** The straight line absorbs two Z-dependent effects of opposite sign. Relativistic binding alone would raise R (a Dirac 1s fit with constant σ gives ≈ 1.07 R∞), and outer-electron screening that grows with Z outweighs it.
+- **Instrument, 2.3 % (noise-free row against tabulated row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's angular resolution blurs the two spectra before they are divided. The steep open spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts the line (`model/PARAMETERS.md`). A real goniometer does the same.
+
+The quoted ± is the counting error only: a measurement scatters by it around the noise-free row, not around the tabulated one. χ²/dof = 2.1 (noise-free 0.2) with 2 degrees of freedom is consistent with a straight line.
+
+The task is met by the scans, not by the student's R: a COUPLED window that covers 3.7° → 7.5° with Δβ ≤ 0.15°, and all four foils plus an open scan. A student's R scatters by about the error above and sits below R∞.

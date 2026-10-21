@@ -1,18 +1,25 @@
 import numpy as np
 import pytest
+import xraylib
 from pytest import approx
 
+import braggsim.analysis as analysis
 from braggsim.analysis import (
+    MAX_EDGE_STEP_DEG,
     THRESHOLD_HALF_WINDOW_DEG,
+    edge_wavelength_table,
     find_line_peaks,
+    k_edge_deg,
     line_threshold_kv,
+    moseley_fit,
     order_means_pm,
     peak_center,
     wavelength_table,
 )
-from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
+from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import sample_counts
+from braggsim.filters import FOILS_MM, areal_density_mg_cm2
 from braggsim.scan import DEFAULT, coupled_betas, expected_rate
 from braggsim.source import LINE_EXPONENT_M
 
@@ -221,3 +228,160 @@ def test_peak_area_matches_a_known_gaussian():
     assert peak_center(beta, rate, DT_S, 6.0, 8.0).area == approx(
         400 * 0.12 * np.sqrt(2 * np.pi), rel=1e-3
     )
+
+
+# EPN Práctica 5 (Moseley): NaCl, COUPLED 3.7° → 7.5°, Δβ = 0.1°, 35 kV, 1 mA, Δt = 5 s.
+P5_BETA = coupled_betas(3.7, 7.5, 0.1)
+P5_DT_S = 5.0
+P5_Z = {"Zr": 40, "Mo": 42, "Ag": 47, "In": 49}
+P5_OPEN = expected_rate(P5_BETA, 35.0, 1.0)
+
+
+def _foil_rate(el):
+    return expected_rate(
+        P5_BETA, 35.0, 1.0, filters=((el, areal_density_mg_cm2(el, FOILS_MM[el])),)
+    )
+
+
+def _lambda_k_pm(el):
+    return HC_KEV_PM / xraylib.EdgeEnergy(P5_Z[el], xraylib.K_SHELL)
+
+
+def _noise_free_edges():
+    return {el: k_edge_deg(P5_BETA, P5_OPEN, _foil_rate(el), P5_DT_S)[0] for el in P5_Z}
+
+
+def test_noise_free_k_edges_sit_slightly_below_the_tabulated_edge_angle():
+    # The convolved spectra make T = R_foil/R_open rise below θ(λ_K) (PARAMETERS.md, Moseley
+    # analysis). Measured offsets (θ(λ_K) − edge, 2026-10-20): Zr 0.0445°, Mo 0.0397°, Ag 0.0079°,
+    # In 0.0059°, all positive and with the same sign for every fit window from ±0.3° to ±0.7°.
+    # 0.06° is the largest (Zr) plus a 35 % margin; the sign is asserted because it is robust.
+    for el, edge in _noise_free_edges().items():
+        offset = float(theta_from_lambda(_lambda_k_pm(el))) - edge
+        assert 0 < offset <= 0.06, el
+
+
+@pytest.mark.parametrize("el", ["Ag", "In"])
+def test_k_edge_of_a_clean_step_is_stable_against_the_fit_window(monkeypatch, el):
+    # Ag and In sit away from the Mo lines, so the open spectrum is smooth and the fitted edge
+    # should not depend on the window. Measured 2026-10-20: Ag moves by 0.0004° and In by 0.005°
+    # between ±0.3° and ±0.7°; 0.008° is the larger plus a margin (the In σ is 0.012°).
+    edges = []
+    for hw in (0.3, 0.7):
+        monkeypatch.setattr(analysis, "EDGE_FIT_HALF_WINDOW_DEG", hw)
+        edges.append(k_edge_deg(P5_BETA, P5_OPEN, _foil_rate(el), P5_DT_S)[0])
+    assert edges[0] == approx(edges[1], abs=0.008)
+
+
+def test_k_edge_step_limit():
+    # Δβ = 0.15° is the coarsest step with two points per side of the split and ≥ 6 in the fit;
+    # at 0.16° the coarse search finds no edge at all (MAX_EDGE_STEP_DEG).
+    assert MAX_EDGE_STEP_DEG == 0.15
+    for step, ok in ((0.15, True), (0.2, False)):
+        beta = coupled_betas(3.7, 7.5, step)
+        r_open = expected_rate(beta, 35.0, 1.0)
+        zr = (("Zr", areal_density_mg_cm2("Zr", FOILS_MM["Zr"])),)
+        r_foil = expected_rate(beta, 35.0, 1.0, filters=zr)
+        if ok:
+            edge, _ = k_edge_deg(beta, r_open, r_foil, P5_DT_S)
+            assert edge == approx(7.0, abs=0.1)
+        else:
+            with pytest.raises(ValueError, match="too coarse"):
+                k_edge_deg(beta, r_open, r_foil, P5_DT_S)
+
+
+def test_resolution_bias_of_model_edges_moves_the_moseley_fit_little():
+    # The edges land 0.006° (In) to 0.045° (Zr) low (PARAMETERS.md, Moseley analysis). Weighted by
+    # the counting errors (as students and the teacher key fit), measured 2026-10-20: R is 2.3 %
+    # low (1.058e7 against 1.084e7) and σ_K 0.57 low (2.84 against 3.41); the counting error of a
+    # single P5 measurement is ±1.0 % on R and ±0.20 on σ_K, so the bias is ≈ 2.3σ and 2.9σ of
+    # one measurement: a systematic the quoted ± does not cover. rel = 0.03 and abs = 0.7 are
+    # bias bounds (measured plus a margin), not noise bounds. The unweighted fit gives the same
+    # within 0.1 %.
+    z = list(P5_Z.values())
+    R_tab, _, s_tab, _, _ = moseley_fit(z, [_lambda_k_pm(el) for el in P5_Z])
+    rows = edge_wavelength_table(P5_BETA, P5_OPEN, {el: _foil_rate(el) for el in P5_Z}, P5_DT_S)
+    lam = [r["lambda_pm"] for r in rows]
+    R_w, _, s_w, _, chi2 = moseley_fit(z, lam, [r["lambda_err_pm"] for r in rows])
+    R_u, _, s_u, _, chi2_u = moseley_fit(z, lam)
+    for R, s in ((R_w, s_w), (R_u, s_u)):
+        assert R == approx(R_tab, rel=0.03)
+        assert s == approx(s_tab, abs=0.7)
+    assert np.isfinite(chi2) and chi2 < 1  # noise-free edges lie on a line within the errors
+    assert np.isnan(chi2_u)
+
+
+def test_moseley_fit_of_tabulated_k_edges_falls_a_few_percent_below_rydberg():
+    # Real K edges do not follow 1/λ = R (Z − σ)² exactly (Z = 40–49 is far from hydrogen-like);
+    # the fit gives R ≈ 1.084e7 m⁻¹ (0.987 R∞) and σ_K ≈ 3.4, LD's example 1.056e7 and 2.7.
+    R, _, sigma, _, _ = moseley_fit(list(P5_Z.values()), [_lambda_k_pm(el) for el in P5_Z])
+    assert 0.97 < R / R_INF_PER_M < 0.995
+    assert 3.0 < sigma < 4.0
+
+
+def test_k_edge_uncertainties_are_honest():
+    # This checks precision (scatter around the noise-free edge), not accuracy: the resolution
+    # offset of the noise-free edge from θ(λ_K) is tested above.
+    # 30 noisy scan pairs per foil: (edge − noise-free edge)/σ must have unit spread and no bias.
+    # 120 pulls: 1σ of the std is 0.065, of the mean 0.09. A 200-seed run (2026-10-20) gave pull
+    # std 0.94 and per-foil mean edges within 0.2σ of the noise-free ones.
+    truth = _noise_free_edges()
+    pulls = []
+    for el in P5_Z:
+        rf = _foil_rate(el)
+        for seed in range(30):
+            rng = np.random.default_rng([seed, P5_Z[el]])
+            r_open = sample_counts(P5_OPEN, P5_DT_S, rng) / P5_DT_S
+            r_foil = sample_counts(rf, P5_DT_S, rng) / P5_DT_S
+            edge, err = k_edge_deg(P5_BETA, r_open, r_foil, P5_DT_S)
+            pulls.append((edge - truth[el]) / err)
+    assert np.std(pulls) == approx(1.0, abs=0.25)
+    assert np.mean(pulls) == approx(0.0, abs=0.3)  # > 3σ of the mean
+
+
+def test_k_edge_rejects_a_scan_without_a_foil_or_with_bad_input():
+    rng = np.random.default_rng(1)
+    r_open = sample_counts(P5_OPEN, P5_DT_S, rng) / P5_DT_S
+    r_same = sample_counts(P5_OPEN, P5_DT_S, rng) / P5_DT_S  # T flat ≈ 1: no edge
+    with pytest.raises(ValueError):
+        k_edge_deg(P5_BETA, r_open, r_same, P5_DT_S)
+    with pytest.raises(ValueError):
+        k_edge_deg(P5_BETA, P5_OPEN, _foil_rate("Zr")[:-1], P5_DT_S)
+    zero = P5_OPEN.copy()
+    zero[3] = 0.0
+    with pytest.raises(ValueError):
+        k_edge_deg(P5_BETA, zero, _foil_rate("Zr"), P5_DT_S)
+    with pytest.raises(ValueError):
+        k_edge_deg(P5_BETA, P5_OPEN, _foil_rate("Zr"), 0.0)
+
+
+def _synthetic_edges(R=1.0836e7, sigma=3.41):
+    z = np.array([40.0, 42.0, 47.0, 49.0])
+    return z, 1e12 / (R * (z - sigma) ** 2), R, sigma
+
+
+def test_moseley_fit_recovers_r_and_screening_from_exact_edges():
+    z, lam_pm, R, sigma = _synthetic_edges()
+    got = moseley_fit(z, lam_pm)
+    assert got[0] == approx(R, rel=1e-9)
+    assert got[2] == approx(sigma, rel=1e-9)
+    got_w = moseley_fit(z, lam_pm, 0.05 * np.ones(4))
+    assert got_w[0] == approx(R, rel=1e-9)
+    assert got_w[2] == approx(sigma, rel=1e-9)
+    assert got_w[4] == approx(0.0, abs=1e-9)  # exact edges lie on the line
+
+
+def test_moseley_fit_errors_scale_with_the_input_errors():
+    z, lam_pm, _, _ = _synthetic_edges()
+    a = moseley_fit(z, lam_pm, 0.05 * np.ones(4))
+    b = moseley_fit(z, lam_pm, 0.10 * np.ones(4))
+    assert b[1] == approx(2 * a[1], rel=1e-9)
+    assert b[3] == approx(2 * a[3], rel=1e-9)
+
+
+def test_moseley_fit_rejects_too_few_or_nonphysical_points():
+    z, lam_pm, _, _ = _synthetic_edges()
+    with pytest.raises(ValueError):
+        moseley_fit(z[:2], lam_pm[:2])
+    with pytest.raises(ValueError):
+        moseley_fit(z, -lam_pm)

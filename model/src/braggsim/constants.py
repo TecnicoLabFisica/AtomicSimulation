@@ -18,6 +18,9 @@ MO_KB_PM = 63.095
 # hc in keV·pm (CODATA 2018, exact SI value): E [keV] = HC_KEV_PM / λ [pm].
 HC_KEV_PM = 1239.841984
 
+# Rydberg constant R∞ in 1/m (CODATA 2022): the reference for analysis.moseley_fit.
+R_INF_PER_M = 1.0973731568157e7
+
 # Mo K absorption edge: characteristic K lines are excited only above this tube voltage.
 # xraylib.EdgeEnergy(42, K_SHELL).
 MO_K_EDGE_KEV = 19.9995

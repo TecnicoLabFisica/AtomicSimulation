@@ -11,20 +11,25 @@ the same on every run. Generated file: do not edit it by hand.
 from pathlib import Path
 
 import numpy as np
+import xraylib
 
 import braggsim
 from braggsim.analysis import (
+    MAX_EDGE_STEP_DEG,
     MAX_STEP_DEG,
     MIN_PROMINENCE_SIGMA,
     THRESHOLD_HALF_WINDOW_DEG,
+    edge_wavelength_table,
     line_threshold_kv,
+    moseley_fit,
     order_means_pm,
     peak_center,
     wavelength_table,
 )
-from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
+from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import sample_counts
+from braggsim.filters import FOILS_MM, areal_density_mg_cm2
 from braggsim.scan import DEFAULT, coupled_betas, expected_rate
 from braggsim.source import LINE_EXPONENT_M, lambda_min_pm
 
@@ -34,6 +39,13 @@ DT_S = 10.0  # s, leaflet measuring time per step
 SWEEP_U_KV = np.arange(22.0, 35.1, 1.0)
 SWEEP_I_MA = 0.1  # mA; dead-time loss ≈ 2.6 % at the 35 kV peak tip (≈ 21 % at 1 mA)
 LINE_NAMES = {"Ka": "Kα", "Kb": "Kβ"}
+# EPN Práctica 5 (Moseley): NaCl, COUPLED 3.7° → 7.5°, Δβ = 0.1°, 35 kV, 1 mA, Δt = 5 s.
+P5_BETA_RANGE_DEG = (3.7, 7.5)
+P5_STEP_DEG = 0.1
+P5_DT_S = 5.0
+P5_Z = {"Zr": 40, "Mo": 42, "Ag": 47, "In": 49}
+LD_EXAMPLE_R_PER_M = 1.056e7  # LD's published Moseley example
+LD_EXAMPLE_SIGMA_K = 2.7
 
 
 def _theta(lam_pm, n=1):
@@ -75,6 +87,89 @@ def _leaflet_section(rng):
         f"line of orders 1–3 with its marked window, uses Δβ ≤ {MAX_STEP_DEG}°, and whose weakest "
         f"line (3rd-order Kβ) is expected to stand {MIN_PROMINENCE_SIGMA}σ above its background. "
         "At 35 kV and 1 mA, Δt = 1 s falls just short; the leaflet's 10 s is comfortable.",
+        "",
+    ]
+    return out
+
+
+def _moseley_section(rng):
+    beta = coupled_betas(*P5_BETA_RANGE_DEG, P5_STEP_DEG)
+
+    def scan(filters=(), noisy=True):
+        rate = expected_rate(beta, 35.0, 1.0, filters=filters)
+        return sample_counts(rate, P5_DT_S, rng) / P5_DT_S if noisy else rate
+
+    def fit(noisy):
+        r_open = scan(noisy=noisy)
+        foils = {el: scan(((el, areal_density_mg_cm2(el, FOILS_MM[el])),), noisy) for el in P5_Z}
+        rows = edge_wavelength_table(beta, r_open, foils, P5_DT_S)
+        lam = [r["lambda_pm"] for r in rows]
+        return rows, moseley_fit(z, lam, [r["lambda_err_pm"] for r in rows])
+
+    z = list(P5_Z.values())
+    rows, (R, R_err, sigma, sigma_err, chi2) = fit(noisy=True)
+    # The same evaluation on the noise-free scans isolates the resolution bias from the noise.
+    _, (R_exact, _, sigma_exact, _, chi2_exact) = fit(noisy=False)
+    lam_tab = [HC_KEV_PM / xraylib.EdgeEnergy(zz, xraylib.K_SHELL) for zz in z]
+    R_tab, _, sigma_tab, _, _ = moseley_fit(z, lam_tab)
+    th = {el: _theta(lam) for el, lam in zip(P5_Z, lam_tab, strict=True)}
+    out = [
+        "## Moseley's law (task `moseley-k-edges`)",
+        "",
+        f"One open scan and one scan per foil (Zr, Mo, Ag, In) at the EPN Práctica 5 settings: "
+        f"COUPLED {beta[0]:.1f}° → {beta[-1]:.1f}°, Δβ = {P5_STEP_DEG:.1f}°, 35 kV, 1.00 mA, "
+        f"Δt = {P5_DT_S:.0f} s, the foil at the sensor. Simulated counts, errors are counting "
+        "statistics (1σ). The K edge is the steepest rise of T = R(foil)/R(open) in β "
+        "(`braggsim.analysis.k_edge_deg`); θ → λ_K by Bragg's law, first order.",
+        "",
+        "| Foil | Z | θ edge (°) | λ_K (pm) | Tabulated λ_K (pm) | Tabulated θ (°) |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r, zz, lam, el in zip(rows, z, lam_tab, P5_Z, strict=True):
+        out.append(
+            f"| {el} | {zz} | {r['theta_deg']:.3f} ± {r['theta_err_deg']:.3f} "
+            f"| {r['lambda_pm']:.2f} ± {r['lambda_err_pm']:.2f} | {lam:.2f} | {th[el]:.3f} |"
+        )
+    out += [
+        "",
+        "Fit of √(1/λ_K) = √R (Z − σ_K):",
+        "",
+        "| Source | R (10⁷ m⁻¹) | σ_K | χ²/dof |",
+        "|---|---|---|---|",
+        f"| This simulated measurement | {R / 1e7:.3f} ± {R_err / 1e7:.3f} "
+        f"| {sigma:.2f} ± {sigma_err:.2f} | {chi2:.1f} |",
+        f"| The same evaluation, noise-free | {R_exact / 1e7:.3f} | {sigma_exact:.2f} "
+        f"| {chi2_exact:.1f} |",
+        f"| Tabulated (xraylib) edges | {R_tab / 1e7:.3f} | {sigma_tab:.2f} | |",
+        f"| LD's published example | {LD_EXAMPLE_R_PER_M / 1e7:.3f} | {LD_EXAMPLE_SIGMA_K:.1f} | |",
+        f"| Rydberg constant R∞ (CODATA 2022) | {R_INF_PER_M / 1e7:.3f} | | |",
+        "",
+        "Prediction question: *where does the Ag edge fall compared with Zr?* At a smaller "
+        f"angle ({th['Ag']:.2f}° against {th['Zr']:.2f}°): Ag has the higher Z, so the higher "
+        "K binding energy and the shorter λ_K, and a shorter wavelength reflects at a smaller "
+        "angle.",
+        "",
+        f"This simulated measurement lands {100 * (1 - R / R_INF_PER_M):.1f} % below R∞. Two "
+        "causes add up, and the rows above separate them.",
+        "",
+        f"- **Physics, {100 * (1 - R_tab / R_INF_PER_M):.1f} % (tabulated row).** The straight "
+        "line absorbs two Z-dependent effects of opposite sign. Relativistic binding alone would "
+        "raise R (a Dirac 1s fit with constant σ gives ≈ 1.07 R∞), and outer-electron screening "
+        "that grows with Z outweighs it.",
+        f"- **Instrument, {100 * (1 - R_exact / R_tab):.1f} % (noise-free row against tabulated "
+        "row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's "
+        "angular resolution blurs the two spectra before they are divided. The steep open "
+        "spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts "
+        "the line (`model/PARAMETERS.md`). A real goniometer does the same.",
+        "",
+        "The quoted ± is the counting error only: a measurement scatters by it around the "
+        f"noise-free row, not around the tabulated one. χ²/dof = {chi2:.1f} (noise-free "
+        f"{chi2_exact:.1f}) with 2 degrees of freedom is consistent with a straight line.",
+        "",
+        f"The task is met by the scans, not by the student's R: a COUPLED window that covers "
+        f"{P5_BETA_RANGE_DEG[0]}° → {P5_BETA_RANGE_DEG[1]}° with Δβ ≤ {MAX_EDGE_STEP_DEG}°, "
+        "and all four foils plus an open scan. A student's R scatters by about the error above "
+        "and sits below R∞.",
         "",
     ]
     return out
@@ -165,6 +260,7 @@ def main():
     ]
     lines += _threshold_section(rng)
     lines += _leaflet_section(rng)
+    lines += _moseley_section(rng)
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 

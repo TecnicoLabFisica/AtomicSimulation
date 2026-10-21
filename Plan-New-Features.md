@@ -9,10 +9,10 @@ tags:
   - plan
 status: planning
 created: 2026-10-14
-updated: 2026-10-15
+updated: 2026-10-20
 current_phase: L1
-next_task: L1.1
-last_session: 2026-10-15
+next_task: L1.6
+last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
   - "EPN guide Práctica 1: X-ray attenuation vs absorber material and thickness (refs/atenuacion_RX.pdf)"
@@ -54,14 +54,14 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L1.1` (cite the 554 832 foil thicknesses × bulk density in `PARAMETERS.md`; the data half is already exported). Then L1.2 `analysis.k_edge_deg`.
+> **Next:** `L1.6`, the Lab task `moseley-k-edges` (`write-guided-task`). Its success check uses `analysis.MAX_EDGE_STEP_DEG` (0.15°), not the Bragg `MAX_STEP_DEG`.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
 | G0 | Reference facts and scope | ✅ done | 1 | — |
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
-| L1 | Práctica 5: Moseley's law | 🟨 next | 2 | G1 |
+| L1 | Práctica 5: Moseley's law | 🟨 S1 done, S2 next | 2 | G1 |
 | L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
@@ -270,15 +270,18 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
 %% values to verify with xraylib EdgeEnergy in S1; all edges fall inside the 3.7°–7.5° window %%
 
 #### S1 — Python
-- [ ] **L1.1** Foil areal densities in `PARAMETERS.md` from the 554 832 thicknesses above × bulk density (cite the LD catalog).
-- [ ] **L1.2** `analysis.k_edge_deg(betas, R_open, R_foil)`: edge position from the steepest descent of T, with uncertainty.
+- [x] **L1.1** Foil areal densities in `PARAMETERS.md` from the 554 832 thicknesses above × bulk density (cite the LD catalog).
+- [x] **L1.2** `analysis.k_edge_deg(betas, R_open, R_foil)`: edge position from the steepest descent of T, with uncertainty.
       Test: the noise-free edge sits at θ(λ_K) within ≈ 0.03° (the grid smears it by ≤ 0.009°, physics review 2026-10-14).
+      As built: T *rises* with β at the edge. A coarse split search, then a fit of the Gaussian-convolved step with its own plateau slope.
+      The noise-free edge is low by 0.006–0.045°, not ≤ 0.03°: the instrument resolution plus the steep open spectrum beside the Mo lines,
+      decomposed in `PARAMETERS.md` § Moseley analysis. The test bounds it at 0.06°. Δβ ≤ `MAX_EDGE_STEP_DEG` = 0.15°.
       Known deviation for `PARAMETERS.md`: foil K fluorescence (≈ 1–2 % of the absorbed flux) makes the foil look more transparent
       just above the edge (Zr ≈ 0.065 instead of 0.046). The edge position is unchanged, the depth is not. Near Mo, Kβ sits 0.11° above the edge.
-- [ ] **L1.3** `analysis.moseley_fit(Z, lambda_K_pm)` → R∞ and σ with errors.
-- [ ] **L1.4** Notebook `05_moseley.ipynb`: four foil scans with noise → edges → fit. Compare with (a) a fit of the tabulated
+- [x] **L1.3** `analysis.moseley_fit(Z, lambda_K_pm)` → R∞ and σ with errors.
+- [x] **L1.4** Notebook `05_moseley.ipynb`: four foil scans with noise → edges → fit. Compare with (a) a fit of the tabulated
       xraylib edges and (b) LD's published example (R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7; literature R∞ = 1.0974 × 10⁷ m⁻¹, σ_K ≈ 3.6).
-- [ ] **L1.5** Teacher key section in `docs/teacher-key.md` (`teacher_key.py`, seeded).
+- [x] **L1.5** Teacher key section in `docs/teacher-key.md` (`teacher_key.py`, seeded).
 
 #### S2 — Web
 - [ ] **L1.6** Lab task `moseley-k-edges` (`write-guided-task`). Predict where the Ag edge falls relative to Zr, then scan
@@ -287,7 +290,8 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
 - [ ] **L1.8** `pedagogy-reviewer`.
 
 **Done when:** a student can do the whole practice on a phone, and the key's R and σ_K agree with the fit of the tabulated edges
-within the model's error. Real K edges don't follow the simple Moseley formula exactly, so R comes out a few % below R∞,
+within the model's counting error plus its documented instrument bias (R −2.3 %, σ_K −0.57, 2026-10-20; `PARAMETERS.md`). Revised
+2026-10-20 (accepted by the user the same day): the original "within the model's error" cannot hold, because the resolution bias is ≈ 2–3σ of one P5 measurement. Real K edges don't follow the simple Moseley formula exactly, so R comes out a few % below R∞,
 as in LD's example. That shortfall is physics, and the teacher key should say so.
 
 **Files:** `model/src/braggsim/analysis.py`, `model/notebooks/05_moseley.ipynb`, `model/scripts/teacher_key.py`, `docs/teacher-key.md`, `web/src/pedagogy/tasks/moseley-k-edges.ts`
@@ -628,6 +632,21 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-20 · L1 · tasks L1.1–L1.5 (and G1.11 committed)
+- Done: G1.11 committed as `771efa6` (unpushed), with the topbar and document title renamed to X-Ray Lab (user). L1.1: foil ρ/ρx table in
+  `PARAMETERS.md`. L1.2–L1.5 (Sonnet, two rounds): `analysis.k_edge_deg`, `moseley_fit` (with χ²/dof), `edge_wavelength_table`,
+  `MAX_EDGE_STEP_DEG`, `constants.R_INF_PER_M`, 12 new tests, `05_moseley.ipynb`, and the Moseley section of the teacher key (additive).
+- Reviews: physics (needs changes, all accepted). The erf + linear edge model was itself responsible for most of the In offset and depended on
+  the window, so it was replaced by the convolved step with its own plateau slope. Coarse Δβ (≥ 0.16°) failed silently. The R < R∞ wording now
+  separates relativity from screening, and the fluorescence wording is fixed (≈ 63 % re-emitted, 1–2 % reaches the counter).
+- Result (seed 2026): R = 1.060 ± 0.011 × 10⁷ m⁻¹, σ_K = 2.87 ± 0.20. Noise-free 1.058 / 2.84; tabulated edges 1.084 / 3.41;
+  LD 1.056 / 2.7. 1.3 % below R∞ is physics, the other 2.3 % is instrument bias.
+- Verify: pytest 154 · ruff clean · notebook executes · `artifacts/` unchanged · Vitest 96 · build OK (main 77.3 kB gzip). Python only after G1.11.
+- Uncommitted: yes, L1.1–L1.5.
+- Surprises / decisions: the 0.03° edge tolerance and the original L1 "Done when" were not achievable; both were revised (see L1.2 and Done when).
+  Open later: μ/ρ grid nodes at λ_K (moves the edges ≤ 0.009°; changes artifacts and the TS port).
+- Next: L1.6, the `moseley-k-edges` Lab task. Load `write-guided-task`, then check the scans against `MAX_EDGE_STEP_DEG` and the 3.7–7.5° window.
 
 ### 2026-10-15 · G1 · task G1.11
 - Done: design review (Opus) from 22 screenshots; fixes by a Sonnet implementer plus two follow-ups (the select font back to `inherit`, since

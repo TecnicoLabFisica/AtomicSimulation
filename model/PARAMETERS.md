@@ -64,6 +64,8 @@ confirmation. The earlier fit with free r₂, r₃ (0.470, 0.253; 0.051 dex) did
 | `analysis.MIN_PEAK_SEPARATION_DEG` | 0.5° | Of peaks closer than this, only the most prominent is kept. That is above the Kβ₁,₃–Kβ₂ spacing (0.37° in 3rd order, resolved at σ = 0.05°) and below the closest distinct pair (1st-order Kβ–Kα, 0.81°). The whole blend still falls inside its ±0.7° window, so the centroid is unchanged |
 | `analysis.MAX_ORDER_SPREAD_PM`, `MAX_KB_KA_RATIO_DEV` | 3 pm, 3 % | Pairing checks: λ of one line across orders, and λ(Kβ)/λ(Kα) = 0.888 per order. A wrong pairing is off by ≥ 30 pm or ≥ 40 %. These limits also stay above the honest near-edge bias of 1st-order Kβ, so they reject mislabelling, not bias. The scan must also start ≥ `PEAK_HALF_WINDOW_DEG` below 1st-order Kβ and hold at least two orders |
 | `analysis.THRESHOLD_HALF_WINDOW_DEG`; the teacher-key sweep | ±0.5°; 22–35 kV in 1 kV steps at 0.1 mA, Δt = 10 s | Line-threshold evaluation (`line_threshold_kv`, `model/scripts/teacher_key.py`). The window's lower end (6.7°) is ≈ 2.3σ above 1st-order Kβ₁,₃. That tail scales with the line, so it rescales the areas without moving U_K. The sweep starts at 22 kV, where the 1st-order Kα is visible, and runs at 0.1 mA to keep dead time small. Noise-free bias budget: straight baseline −0.18 kV, dead time +0.10 kV (0.1 mA) or +0.70 kV and m → 1.35 (1 mA). The fit recovers the model's own power law (m, `source.LINE_EXPONENT_M`), so it validates the method, not the near-threshold physics. Chosen 2026-09-25 |
+| `analysis.EDGE_SPLIT_HALF_WINDOW_DEG`, `EDGE_FIT_HALF_WINDOW_DEG` | 0.3°, 0.5° | Absorption-edge search (`k_edge_deg`). Coarse step: mean T over 0.3° (3 points at Δβ = 0.1°) on each side of every split, ≈ 2.4σ of the instrument width: long enough to average noise, short enough that the two sides see one edge. Fine step: the convolved step-with-slope fit over ±0.5° (≈ 4σ). Window stability, noise-free, 2026-10-20: Ag moves 0.0004° and In 0.005° between ±0.3° and ±0.7°; Zr and Mo move 0.012° and 0.024° (their open spectrum is steep, see below) |
+| `analysis.MAX_EDGE_STEP_DEG` | 0.15° | Coarsest Δβ `k_edge_deg` accepts. At 0.16° the 0.3° split window holds only one point per side (the coarse search needs two) and no edge is found; the ±0.5° fit window then also has fewer than 6 points. Checked noise-free 2026-10-20 with the limit lifted: 0.15° works, 0.16° fails |
 
 ## Absorber thicknesses (`filters.FOILS_MM`, `filters.WHEELS_MM`)
 
@@ -74,6 +76,65 @@ Areal density = 100 · thickness_mm · ρ (xraylib; polystyrene from the NIST co
 | Foil set 554 832 | Zr 0.05, Mo 0.1, Ag 0.05, In 0.3, Al 0.5, Fe 0.5, Cu 0.07 | LD catalog |
 | 554 834 Al plate | open, Al 0.5, 1.0, 1.5, 2.0, 2.5, 3.0 (slots at 0°, 10° … 60°) | LD catalog |
 | 554 834 material plate | Polystyrene, Al, Fe, Cu, Zr, Ag at 0.4 each, open at 60° | 0.4 mm by user decision (the catalog says 0.5 mm); open slot at 60° is an assumption (open question 10) |
+
+Foil set 554 832 as used (thickness from the LD catalog × bulk density from xraylib `ElementDensity`; added 2026-10-20):
+
+| Foil | Thickness (mm) | ρ (g/cm³) | ρx (mg/cm²) |
+|---|---|---|---|
+| Zr | 0.05 | 6.506 | 32.53 |
+| Mo | 0.1 | 10.22 | 102.2 |
+| Ag | 0.05 | 10.50 | 52.50 |
+| In | 0.3 | 7.31 | 219.3 |
+| Al | 0.5 | 2.699 | 134.9 |
+| Fe | 0.5 | 7.874 | 393.7 |
+| Cu | 0.07 | 8.96 | 62.72 |
+
+Bulk density is an assumption: a rolled foil can be a few % lighter, and every ρx scales T as exp(−μ/ρ·ρx). The Moseley
+practice (P5) reads only the edge *position*, which does not depend on ρx.
+
+### Moseley analysis (EPN Práctica 5): known deviations
+
+The K edge found by `analysis.k_edge_deg` (Gaussian-convolved step with its own plateau slope) differs from the
+tabulated θ(λ_K) = asin(λ_K/2d). Noise-free at P5 settings (35 kV, 1 mA, Δβ = 0.1°, Δt = 5 s, ±0.5° window, measured
+2026-10-20), edge minus θ(λ_K), with the 1σ counting error σ_θ of one P5 scan:
+
+| Foil | Edge − θ(λ_K) | σ_θ | of which (a) resolution | (b) μ/ρ grid ramp | (c) dead time | (d) leak, scatter, background |
+|---|---|---|---|---|---|---|
+| Zr | −0.045° | 0.0055° | main part | +0.006° | ≤ 0.006° | < 0.0003° |
+| Mo | −0.040° | 0.0103° | main part | +0.009° | ≤ 0.006° | < 0.0003° |
+| Ag | −0.008° | 0.0106° | main part | −0.005° | ≤ 0.006° | < 0.0003° |
+| In | −0.006° | 0.0121° | main part | −0.001° | ≤ 0.006° | < 0.0003° |
+
+- **(a) Instrument resolution and the steep open spectrum.** The counter sees the reflected spectrum convolved with the
+  instrument Gaussian (`sigma_deg` = 0.123°), so T = R_foil/R_open is a ratio of two convolved spectra, not a convolved T.
+  The steep open spectrum next to the Mo lines pulls the steepest rise of T low (Zr beside Kα, Mo beside Kβ). A real
+  goniometer has the same effect. It is not tuned away. Zr and Mo shift with the fit window (−0.043° to −0.056° and
+  −0.035° to −0.059° from ±0.7° to ±0.3°); Ag and In hardly do (0.0004° and 0.005°).
+- **(b) μ/ρ grid ramp.** The absorber's μ/ρ is log–log interpolated on `MU_RHO_GRID_PM`, which has no node at λ_K, so the
+  edge is a short ramp rather than a step. It shifts the edge by +0.006 (Zr), +0.009 (Mo), −0.005 (Ag), −0.001° (In) from
+  θ(λ_K). A later fix would add nodes at λ_K·(1 ± 1e-6); that changes `artifacts/` and the TS port, so it is out of scope now.
+- **(c) Dead time.** The observed (dead-time-affected) rates are used, as the students take them. This adds at most
+  0.006° to the offset; its sign varies by foil.
+- **(d) Leak, scatter and background** are negligible (< 0.0003°).
+- **Correlation.** The four foil scans share one open scan, so their edges are slightly correlated (up to ≈ 40 % of T's
+  variance on the Zr plateau); `moseley_fit` treats them as independent.
+
+Effect on the Moseley fit (√(1/λ_K) against Z), weighted by the counting errors as `moseley_fit` is used in the teacher key:
+
+| Edges | R (m⁻¹) | σ_K | χ²/dof |
+|---|---|---|---|
+| Tabulated (xraylib) | 1.0836e7 (0.987 R∞) | 3.41 | |
+| Model, noise-free (weighted) | 1.058e7 (0.964 R∞) | 2.84 | 0.2 |
+
+So the bias is R −2.3 % and σ_K −0.57 against the tabulated edges. A single P5 measurement has a counting error of
+±1.0 % on R and ±0.20 on σ_K, so the bias is ≈ 2.3σ and 2.9σ of one measurement: a systematic the quoted ± does not
+include (the unweighted fit gives the same within 0.1 %). Neither is tuned away.
+
+- **Foil K fluorescence is not modelled.** The foil re-emits ≈ 63 % of the photons absorbed above its edge as K X-rays
+  (Zr: ω_K = 0.734 × (1 − 1/J) with jump factor J = 6.75). Only ≈ 1–2 % of the absorbed flux reaches the counter, after solid
+  angle, self-absorption and detector efficiency, which is how the transmission just above the Zr edge goes from 0.046
+  to ≈ 0.065. This is an estimate (Plan-New-Features physics review, 2026-10-14), not a model output. It changes the
+  depth of the edge, not its position.
 
 ## Apparatus assumptions (web emulator)
 
