@@ -1,5 +1,6 @@
 // Lab mode: the stored scan points as CSV, for the student's own analysis (LD P6.3.3.1 Tables 3–5).
-import type { Apparatus, Mode, ReplayPoint, Setup } from '../apparatus/apparatus'
+import { type Apparatus, type Mode, type ReplayPoint, type Setup } from '../apparatus/apparatus'
+import { WHEELS_MG_CM2 } from '../physics/tables'
 
 /** Stored-value arrays already exported, with how many points they held then (a scan grows while it runs). */
 const exported = new WeakMap<ReplayPoint[], number>()
@@ -41,6 +42,44 @@ export function replayCsv(a: Apparatus, date = new Date()): string | null {
     `${angle},rate_per_s`,
     ...a.replay.map((p) => `${(p.angle / 10).toFixed(1)},${p.rate}`),
   ].join('\n') + '\n'
+}
+
+/** The apparatus' exposure log (EPN P1: one exposure per absorber) as CSV text, one row per exposure;
+ * null if the log is empty. The slot, absorber and its areal density (mg/cm², the unit of the tables: no
+ * thickness in mm is stored) are empty when the wheel frame blocks the beam or no plate is mounted. */
+export function exposureCsv(a: Apparatus, date = new Date()): string | null {
+  if (a.exposureLog.length === 0) return null
+  const rows = a.exposureLog.map((e) => {
+    const { holder, collimatorFilter, sensorFilter } = e.setup
+    const plate = holder === 'alWheel' ? 'al' : holder === 'materialWheel' ? 'material' : null
+    const slot = plate && e.slot !== null ? WHEELS_MG_CM2[plate][e.slot] : null
+    // Open slot: "none", 0; frame in the beam: no slot, "frame"; no plate mounted: all three empty.
+    const absorber = plate === null ? ['', '', ''] : e.slot === null ? ['', 'frame', ''] : [e.slot, slot?.[0] ?? 'none', slot?.[1] ?? 0]
+    return [
+      (e.target / 10).toFixed(1), (e.sensor / 10).toFixed(1), e.mode ?? '', holder, ...absorber,
+      collimatorFilter ?? '', sensorFilter ?? '', (e.u / 10).toFixed(1), (e.i / 100).toFixed(2), e.dt, e.changed ? 1 : 0,
+      Math.round(e.rate * e.dt), e.rate,
+    ].join(',')
+  }) // prettier-ignore
+  return [
+    '# Exposure series, simulated LD X-ray apparatus 554 800 (not measured data)',
+    `# ${date.toISOString()}`,
+    '# U_kV and I_mA are the values when counting started; changed = 1 if either changed while counting',
+    '# rate_per_s is the mean rate over dt, as REPLAY shows it (counts / dt); areal_density_mg_cm2 is that of the absorber in the beam',
+    'target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s',
+    ...rows,
+  ].join('\n') + '\n'
+}
+
+/** Save the exposure series as a file download. */
+export function downloadExposureCsv(a: Apparatus): void {
+  const csv = exposureCsv(a)
+  if (csv === null) return
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+  link.download = `xray-exposures-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
 
 /** Save the CSV as a file download. */

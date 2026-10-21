@@ -334,10 +334,19 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
       Add a test that μ_eff falls with d at 21 kV without a filter (6.91 → 5.38 cm²/g, 0.5 → 3 mm).
 
 #### S2 — Web
-- [ ] **L2.5** Exposure-timer workflow with the wheel: TARGET mode, ADJUST to each position, Δβ = 0, SCAN, REPLAY.
+- [x] **L2.5** Exposure-timer workflow with the wheel: TARGET mode, ADJUST to each position, Δβ = 0, SCAN, REPLAY.
       Check that the existing 554 800 behaviour covers it, then fill the gaps.
+      As built (2026-10-20): the device side already worked (runs 1a, 1b, 2a and the 0 kV background). The gap was memory. `passSafety` drops
+      `lastScan` for an exposure, so a simulation-aid `Apparatus.exposureLog` (`ExposureRecord`: target, sensor, slot, mode, setup, U, I, Δt, rate, `changed`)
+      now grows by one per *finished* exposure. RESET keeps it, as it keeps the setup, and a task restart clears it. There is an exported pure `wheelSlot(holder, angle)`.
+      U and I are noted at the first counted second (not during positioning), and `finish()` (instant mode) now also flags a U/I change, for scans too.
+      `apparatus-reviewer`: approve after fixes, all applied (the SENSOR-mode exposure named the wrong slot; the sensor angle, `changed`, and counts were missing).
 - [ ] **L2.6** Tasks: `attenuation-thickness` (predict whether ln T vs d is straight), `attenuation-material` (μ vs Z), `background`.
-- [ ] **L2.7** CSV export of exposure-mode results (one row per position).
+- [x] **L2.7** CSV export of exposure-mode results (one row per position).
+      As built: `csv.exposureCsv`/`downloadExposureCsv` (`xray-exposures-<date>.csv`). Columns are `target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,
+      collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s`. An open slot reads `none,0` and the frame reads `frame`. The tables hold mg/cm², not mm.
+      The control is a second `.tool.csv` button, "Exposiciones (n)", in the spectrum card header. It is hidden until the log is non-empty and labelled a simulation aid.
+      The design review comes with L2.6.
 
 **Done when:** ln T vs d is visibly curved without the Zr filter (beam hardening: μ_eff falls with d) and much straighter with it; the key's
 μ(Al) with Zr is compared with the tabulated μ at Mo Kα (5.11 cm²/g) and the gap is explained, not hidden. The physics reviewer (2026-10-14) found

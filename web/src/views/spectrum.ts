@@ -5,7 +5,7 @@ import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import type { Apparatus, Setup } from '../apparatus/apparatus'
 import { t } from '../i18n'
-import { downloadCsv } from '../pedagogy/csv'
+import { downloadCsv, downloadExposureCsv } from '../pedagogy/csv'
 import { showHints } from '../pedagogy/mode'
 import { HC_KEV_PM, K_EDGE_KEV, MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { lambdaFromTheta, thetaFromLambda } from '../physics/crystal'
@@ -68,7 +68,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
         <button data-log="0" aria-pressed="${!log}">${s.linear}</button>
         <button data-log="1" aria-pressed="${log}">${s.log}</button>
       </div>
-      <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}" disabled>${s.csv}</button>`
+      <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}" disabled>${s.csv}</button>
+      <button class="tool csv" data-csv-exp hidden></button>`
     empty.firstElementChild!.textContent = s.spectrumEmpty
     const readout = head.querySelector<HTMLElement>('[data-readout]')!
     const explore = showHints()
@@ -196,6 +197,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   }
 
   root.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-csv-exp]')) return downloadExposureCsv(a)
     if ((e.target as HTMLElement).closest('[data-csv]')) return downloadCsv(a)
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-log]')
     if (!b || (b.dataset.log === '1') === log) return
@@ -219,6 +221,16 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     const n = scan ? a.replay.length : 0
     const csv = head.querySelector<HTMLButtonElement>('[data-csv]')!
     if (csv.disabled !== (n === 0)) csv.disabled = n === 0
+    // Simulation aid: the exposure series (EPN P1) has its own export, shown once an exposure is logged.
+    const exp = head.querySelector<HTMLButtonElement>('[data-csv-exp]')!
+    const m = a.exposureLog.length
+    if (exp.dataset.n !== String(m)) {
+      exp.dataset.n = String(m)
+      exp.hidden = m === 0
+      exp.textContent = t().csvExposures(m)
+      exp.title = t().csvExposuresLabel(m)
+      exp.setAttribute('aria-label', exp.title)
+    }
     if (n === shown) return
     if (n < shown) xs.length = ys.length = shown = 0
     for (; shown < n; shown++) {

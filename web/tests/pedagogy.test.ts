@@ -1,7 +1,7 @@
 // Guided tasks: their success conditions on real apparatus runs, the CSV export, and the lab-mode leak guard.
 import { beforeAll, describe, expect, test } from 'vitest'
 import { Apparatus, OK_S, SAFE_S } from '../src/apparatus/apparatus'
-import { clearExports, exportedScans, markExported, replayCsv } from '../src/pedagogy/csv'
+import { clearExports, exportedScans, exposureCsv, markExported, replayCsv } from '../src/pedagogy/csv'
 import { en } from '../src/pedagogy/i18n/en'
 import { es } from '../src/pedagogy/i18n/es'
 import { applyInitial, type GuidedTask } from '../src/pedagogy/task'
@@ -269,4 +269,58 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
     for (const leak of ['7.0', '6.3', '4.9', '4.5', '68', '62.0', '48', '44', '17.9', '25.5', '27.9'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
   }
+})
+
+describe('exposureCsv', () => {
+  beforeAll(loadAbsorbers)
+
+  test('header, one row per exposure, null when the log is empty', () => {
+    const a = new Apparatus(mulberry32(1234))
+    expect(exposureCsv(a)).toBeNull()
+    a.setDoors(false)
+    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: 'Zr' })
+    a.setDoors(true)
+    a.timeScale = Infinity
+    a.press('TARGET')
+    a.adjust(200)
+    ;[a.u, a.i, a.dt, a.dBeta] = [210, 5, 4, 0]
+    a.press('SCAN')
+    a.tick(SAFETY_S)
+    a.adjust(0)
+    a.press('TARGET')
+    a.adjust(-150) // 5°: the frame blocks the beam
+    a.press('SCAN')
+    a.tick(SAFETY_S)
+    const lines = exposureCsv(a, new Date(0))!.trimEnd().split('\n')
+    expect(lines.slice(0, 2)).toEqual([
+      '# Exposure series, simulated LD X-ray apparatus 554 800 (not measured data)',
+      '# 1970-01-01T00:00:00.000Z',
+    ])
+    expect(lines[3]).toBe('# rate_per_s is the mean rate over dt, as REPLAY shows it (counts / dt); areal_density_mg_cm2 is that of the absorber in the beam')
+    expect(lines[4]).toBe('target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s')
+    expect(lines).toHaveLength(5 + 2)
+    expect(lines[5]).toMatch(/^20\.0,0\.0,TARGET,alWheel,2,Al,269\.89,,Zr,21\.0,0\.05,4,0,\d+,\d+(\.\d+)?$/)
+    expect(lines[6]).toMatch(/^5\.0,0\.0,TARGET,alWheel,,frame,,,Zr,21\.0,0\.05,4,0,\d+,\d+(\.\d+)?$/)
+  })
+
+  test('open slot, no plate, and a COUPLED crystal exposure with both angles', () => {
+    const a = new Apparatus(mulberry32(1))
+    a.setDoors(false)
+    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: null })
+    a.setDoors(true)
+    a.timeScale = Infinity
+    ;[a.u, a.i, a.dt, a.dBeta] = [210, 5, 4, 0]
+    a.press('SCAN')
+    a.tick(SAFETY_S)
+    a.setDoors(false)
+    a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: null })
+    a.setDoors(true)
+    a.press('COUPLED')
+    a.adjust(72)
+    a.press('SCAN')
+    a.tick(SAFETY_S)
+    const lines = exposureCsv(a, new Date(0))!.trimEnd().split('\n')
+    expect(lines[5]).toMatch(/^0\.0,0\.0,,alWheel,0,none,0,,,21\.0,/)
+    expect(lines[6]).toMatch(/^7\.2,14\.4,COUPLED,crystal,,,,,,21\.0,0\.05,4,0,/)
+  })
 })

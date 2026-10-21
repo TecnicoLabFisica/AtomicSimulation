@@ -119,6 +119,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     }
     applyInitial(a, k.initial)
     clearExports(a) // a restart begins fresh
+    a.clearExposureLog()
     void loadAbsorbers() // the foils the task mounts
     onFocus(k.controls)
     go(0)
