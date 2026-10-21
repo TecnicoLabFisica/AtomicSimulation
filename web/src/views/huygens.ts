@@ -209,7 +209,7 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
       : `<span>${s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
     const eqKey = `${eqText} ${hints} ${met} ${forbidden}`
     if (eqKey !== shownEq) {
-      eq.innerHTML = `${eqText} <strong class="met" data-met="${verdict}">${!hints ? '' : forbidden ? s.braggForbidden(n) : met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
+      eq.innerHTML = `${eqText} <strong class="met" data-met="${verdict}">${!hints ? '' : forbidden ? s.braggForbidden(LINES[line].label, n) : met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
       shownEq = eqKey
     }
 

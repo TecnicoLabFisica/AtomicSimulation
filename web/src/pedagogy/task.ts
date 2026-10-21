@@ -13,7 +13,10 @@ export type GuidedTask = {
   initial: { U_kV?: number; I_mA?: number; mode?: Mode; dt_s?: number; dBeta_deg?: number; limits_deg?: [number, number] }
   /** A number with a unit, or one of the task's `options` strings (by index). */
   predict: { kind: 'number'; unit: string } | { kind: 'choice'; answer: number }
-  success: (a: Apparatus) => boolean
+  /** `from` is the exposure-log length when the act step opened: the exposure tasks count only the records at or after it. */
+  success: (a: Apparatus, from?: number) => boolean
+  /** True for the tasks that read the exposure log (the act step then says how many earlier exposures it ignores). */
+  countsExposures?: boolean
   /** Crystal preset the teacher puts on the crystal holder at the start (default 'NaCl'). */
   crystal?: string
   /** The setup tray's crystal picker stays on `crystal` while the task is active (default true). */
@@ -21,7 +24,7 @@ export type GuidedTask = {
   /** What the teacher puts on the target holder at the start; undefined leaves it (the attenuation tasks keep their wheel). */
   holder?: Holder
   /** Optional checklist shown under the act text: what the task has collected so far, by label key. */
-  progress?: (a: Apparatus) => { key: string; done: boolean }[]
+  progress?: (a: Apparatus, from?: number) => { key: string; done: boolean }[]
 }
 
 /** Start from the device defaults (RESET: HV off, arms driven home), then the task's settings. */
@@ -36,7 +39,7 @@ export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal 
     const closed = a.doorsClosed
     if (!a.setDoors(false)) throw new Error('bench not safe to prepare')
     try {
-      a.mount(want)
+      if (!a.mount(want)) throw new Error('bench not safe to prepare')
     } finally {
       a.setDoors(closed)
     }
@@ -57,4 +60,6 @@ export const foilsOf = (setup: Setup): [string, number][] =>
 let active: GuidedTask | null = null
 export const setActiveTask = (k: GuidedTask | null): void => void (active = k)
 /** The crystal the active task fixes on the picker, or null when none is active or the task allows a choice. */
+/** A guided task is on the card and holds its locks (the weak-signal aid then leaves the filter alone). */
+export const hasActiveTask = (): boolean => active !== null
 export const lockedCrystal = (): string | null => (active && active.crystalLocked !== false ? (active.crystal ?? 'NaCl') : null)

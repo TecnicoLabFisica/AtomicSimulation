@@ -13,6 +13,7 @@ export const task: GuidedTask = {
   controls: ['U', 'I', 'DT', 'DBETA', 'SCAN', 'REPLAY'],
   initial: { U_kV: 0, I_mA: 0, dt_s: 100, dBeta_deg: 0 },
   predict: { kind: 'choice', answer: 1 },
-  // A finished exposure with the tube off (U = 0 or I = 0), steady, of at least the guide's 100 s.
-  success: (a) => a.exposureLog.some((r) => (r.u === 0 || r.i === 0) && !r.changed && r.dt >= BACKGROUND_MIN_DT_S),
+  // A finished exposure with the tube off (U = 0 or I = 0), steady, of at least the guide's 100 s, taken since the act step opened.
+  countsExposures: true,
+  success: (a, from = 0) => a.exposureLog.slice(from).some((r) => (r.u === 0 || r.i === 0) && !r.changed && r.dt >= BACKGROUND_MIN_DT_S),
 }

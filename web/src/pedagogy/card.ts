@@ -32,6 +32,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   let prediction: string | null = null // the number as typed, or the chosen option's index
   let loading = false // the task's crystal table is on its way
   let notice = '' // a load failure, shown on the list
+  let actFrom = 0 // exposure-log length when the act step opened: the exposure tasks count only newer records
   const teacher = new URLSearchParams(location.search).has('teacher')
 
   const listHtml = () => {
@@ -59,7 +60,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
 
   /** The task's checklist as a list, "abierto ✓", "Zr –", …; done items in the text colour (element symbols stay as they are). */
   const progressItems = (k: GuidedTask) =>
-    k.progress!(a).map(({ key, done }) => ({
+    k.progress!(a, actFrom).map(({ key, done }) => ({
       text: `${(pt().progressLabels as Record<string, string>)[key] ?? key} ${done ? '✓' : '–'}`,
       done,
     }))
@@ -82,7 +83,8 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     if (step === 1) {
       const line = k.progress ? `<ul class="progress" data-progress>${progressHtml(progressItems(k))}</ul>` : ''
       const help = (x as { actHelp?: string }).actHelp
-      return `<p>${x.act}</p>${line}${help ? `<p class="hint">${help}</p>` : ''}<p class="hint">${p.waiting}</p>`
+      const earlier = k.countsExposures && actFrom > 0 ? `<p class="hint">${p.earlierExposures(actFrom)}</p>` : ''
+      return `<p>${x.act}</p>${line}${earlier}${help ? `<p class="hint">${help}</p>` : ''}<p class="hint">${p.waiting}</p>`
     }
     if (step === 2) {
       return `<p class="done">✓ ${p.done}</p><p>${x.observe}</p>
@@ -119,6 +121,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   }
   const go = (next: number) => {
     step = next
+    if (next === 1) actFrom = a.exposureLog.length
     setHints(next >= 2) // the expected angles would give the answer away before it is found
     if (task) lock(next < 2)
     build()
@@ -126,6 +129,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     if (next === 1) onAct()
   }
   const start = (k: GuidedTask) => {
+    if (a.busy && !window.confirm(pt().busyConfirm)) return // preparing the bench would cut the running measurement short
     const restart = task === k // a free-pick task started over keeps the student's crystal
     task = k
     step = 0 // the previous task's step never renders with this one
@@ -195,13 +199,14 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   /** Per frame: the act step waits for the task's success condition. True when it was just met (the
    * caller brings the sheet back, since the student is at the instrument then). */
   const render = (): boolean => {
+    if (a.exposureLog.length < actFrom) actFrom = 0 // the log was cleared meanwhile
     if (task?.progress && step === 1) {
       const el = root.querySelector<HTMLElement>('[data-progress]')
       const items = progressItems(task)
       const text = items.map((x) => x.text).join('')
       if (el && el.textContent !== text) el.innerHTML = progressHtml(items) // calm live region: only on change
     }
-    if (!task || step !== 1 || !task.success(a)) return false
+    if (!task || step !== 1 || !task.success(a, actFrom)) return false
     go(2)
     return true
   }

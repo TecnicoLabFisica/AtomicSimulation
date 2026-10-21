@@ -3,14 +3,18 @@
 import { beforeAll, describe, expect, test, vi } from 'vitest'
 import { Apparatus, OK_S, SAFE_S } from '../src/apparatus/apparatus'
 import { markExported } from '../src/pedagogy/csv'
+import { setMode } from '../src/pedagogy/mode'
+import { crystalAllowed, crystalPicker } from '../src/views/setup'
 import { mountLearn } from '../src/pedagogy/card'
 import { applyInitial, lockedCrystal, setActiveTask } from '../src/pedagogy/task'
 import { task as background } from '../src/pedagogy/tasks/background'
+import { task as lif } from '../src/pedagogy/tasks/lif-kalpha-angle'
 import { task as kalpha } from '../src/pedagogy/tasks/kalpha-third-order'
 import { task as lambda3 } from '../src/pedagogy/tasks/lambda-three-orders'
 import { task as threshold } from '../src/pedagogy/tasks/line-threshold'
 import { task as moseley } from '../src/pedagogy/tasks/moseley-k-edges'
 import { mulberry32 } from '../src/physics/detector'
+import { task as attThickness } from '../src/pedagogy/tasks/attenuation-thickness'
 import { loadAbsorbers, loadCrystals, retryableOnce } from '../src/physics/tables'
 import type { Key } from '../src/apparatus/apparatus'
 
@@ -135,6 +139,123 @@ describe('the task card', () => {
     expect(lockedCrystal()).toBe('NaCl') // a restart takes the locks up again
     learn.sheetClosed() // at predict: released
     expect(lockedCrystal()).toBeNull()
+    setActiveTask(null)
+  })
+})
+
+describe('Q1.8: the task lock and the act-step watermark', () => {
+  const stubRoot = () => {
+    const h: Record<string, (e: unknown) => void> = {}
+    const root = { innerHTML: '', addEventListener: (k: string, f: (e: unknown) => void) => void (h[k] = f), querySelector: () => ({ disabled: false, focus() {} }) }
+    return { root: root as unknown as HTMLElement, h, click: (data: Record<string, string>) => h.click({ target: { closest: () => ({ dataset: data }) } }) }
+  }
+  vi.stubGlobal('location', { search: '' })
+  vi.stubGlobal('document', { documentElement: { dataset: {} } })
+  const hooks = { onMode() {}, onFocus() {}, onAct() {} }
+
+  test('crystalPicker: off only while the locked crystal is mounted; otherwise it offers the way back', () => {
+    const all = ['NaCl', 'LiF', 'Si']
+    expect(crystalPicker(null, 'Si', all)).toEqual({ disabled: false, ids: all })
+    expect(crystalPicker('LiF', 'LiF', all)).toEqual({ disabled: true, ids: all })
+    expect(crystalPicker('LiF', 'NaCl', all)).toEqual({ disabled: false, ids: ['NaCl', 'LiF'] })
+    expect(crystalAllowed('LiF', 'NaCl')).toBe(false)
+    expect(crystalAllowed('LiF', 'LiF')).toBe(true)
+    expect(crystalAllowed(null, 'NaCl')).toBe(true)
+  })
+
+  test('a NaCl mounted while the sheet was closed at predict does not deadlock lif-kalpha-angle', () => {
+    setMode('explore')
+    const a = new Apparatus(mulberry32(1234))
+    const { root, h, click } = stubRoot()
+    const learn = mountLearn(root, a, hooks)
+    click({ task: 'lif-kalpha-angle' })
+    learn.sheetClosed() // step 0: the lock is released
+    expect(lockedCrystal()).toBeNull()
+    mounted(a, { crystal: 'NaCl' })
+    h.input({ target: { dataset: { predict: '' }, value: '10.2' } })
+    click({ commit: '' }) // the lock is back, with NaCl on the holder
+    expect(lockedCrystal()).toBe('LiF')
+    const picker = crystalPicker(lockedCrystal(), a.setup.crystal, ['NaCl', 'LiF'])
+    expect(picker.disabled).toBe(false)
+    expect(picker.ids).toContain('LiF')
+    expect(crystalAllowed(lockedCrystal(), 'LiF')).toBe(true)
+    mounted(a, { crystal: 'LiF' }) // what the picker's change handler does
+    expect(a.setup.crystal).toBe('LiF')
+    expect(crystalPicker(lockedCrystal(), a.setup.crystal, ['NaCl', 'LiF']).disabled).toBe(true)
+    ;[a.limitLo, a.limitHi, a.dt] = [85, 125, 10]
+    a.dBeta = 1
+    scan(a)
+    expect(lif.success(a)).toBe(true)
+    expect(learn.render()).toBe(true)
+    setActiveTask(null)
+  })
+
+  /** A 100 s exposure with the tube off, as the background task asks. */
+  const background100 = (a: Apparatus) => {
+    a.timeScale = Infinity
+    a.press('SCAN')
+    a.tick(SAFETY_S + 101)
+  }
+  test('a restarted background task counts only the exposures taken since its act step opened', () => {
+    setMode('explore') // the stub document takes the mode switches
+    const a = new Apparatus(mulberry32(1234))
+    const { root, click } = stubRoot()
+    const learn = mountLearn(root, a, hooks)
+    click({ task: 'background' })
+    click({ choice: '1' })
+    click({ commit: '' })
+    background100(a)
+    expect(a.exposureLog).toHaveLength(1)
+    expect(learn.render()).toBe(true)
+    click({ restart: '' })
+    click({ choice: '1' })
+    click({ commit: '' }) // act step again, with the old exposure in the log
+    expect(background.success(a)).toBe(true) // the log alone would pass it ...
+    expect(learn.render()).toBe(false) // ... the card does not
+    expect((root as unknown as { innerHTML: string }).innerHTML).toContain('exposición anterior') // the act step says what it ignores
+    background100(a)
+    expect(a.exposureLog).toHaveLength(2)
+    expect(learn.render()).toBe(true)
+    setActiveTask(null)
+    setMode('explore')
+  })
+
+  test('the thickness task counts only the new exposures too (progress and success take the watermark)', () => {
+    const a = new Apparatus(mulberry32(1))
+    applyInitial(a, attThickness.initial, attThickness.crystal, 'alWheel')
+    expect(attThickness.progress!(a, a.exposureLog.length).every((x) => !x.done)).toBe(true)
+  })
+
+  test('starting a task while a measurement runs asks first; cancel keeps everything', () => {
+    const a = new Apparatus(mulberry32(1234))
+    applyInitial(a, background.initial)
+    a.press('SCAN') // a 100 s background exposure
+    a.tick(SAFETY_S + 1)
+    expect(a.busy).toBe(true)
+    const ask = vi.fn(() => false)
+    vi.stubGlobal('window', { confirm: ask })
+    const { root, click } = stubRoot()
+    mountLearn(root, a, hooks)
+    click({ task: 'kalpha-third-order' })
+    expect(ask).toHaveBeenCalledOnce()
+    expect(a.busy).toBe(true)
+    expect(lockedCrystal()).toBeNull() // nothing was prepared
+    vi.unstubAllGlobals()
+    vi.stubGlobal('location', { search: '' })
+    vi.stubGlobal('document', { documentElement: { dataset: {} } })
+  })
+
+  test('after start(moseley) a foil mounts through the tray and a scan carries it', () => {
+    const a = new Apparatus(mulberry32(1234))
+    const { root, click } = stubRoot()
+    mountLearn(root, a, hooks)
+    click({ task: 'moseley-k-edges' })
+    expect(lockedCrystal()).toBeNull() // the picker is free here
+    a.setDoors(false)
+    expect(a.mount({ ...a.setup, sensorFilter: 'Zr' })).toBe(true)
+    a.setDoors(true)
+    scan(a)
+    expect(a.lastScan?.setup.sensorFilter).toBe('Zr')
     setActiveTask(null)
   })
 })

@@ -105,11 +105,34 @@ button, select { font: inherit; color: inherit; }
 .view-tools { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-inline-start: auto; }
 .view-tools .tool { padding: 0 var(--space-3); background: var(--fill); }
 .view-tools .tool:disabled { color: var(--label-3); }
-.view-tools .tool[hidden] { display: none; }
-@media (max-width: 399px) { .view-tools .seg button, .view-tools .tool { padding-inline: var(--space-2); } }
-.view-head .weak { flex: 1 0 100%; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.view-tools .tool[hidden], .view-tools .seg[hidden] { display: none; }
+@media (max-width: 399px) {
+  .view-tools .seg button, .view-tools .tool { padding-inline: var(--space-2); }
+  .view-tools .seg button { min-width: calc(var(--touch) - 4px); } /* 40 px look, the hit area below reaches 44 px */
+  .view-tools .seg button::after { inset: -2px; }
+  .view-tools { gap: var(--space-1); }
+  .spectrum .view-head h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } /* the card title is the tab name */
+}
+.view-head .weak { flex: 1 0 100%; display: flex; align-items: center; flex-wrap: nowrap; gap: var(--space-3); }
 .view-head .weak[hidden] { display: none; }
-.view-head .weak .tool { padding: 0 var(--space-3); background: var(--fill); }
+.view-head .weak > span { flex: 1 1 auto; min-width: 0; }
+.view-head .weak .tool { flex: none; padding: 0 var(--space-3); background: var(--fill); color: var(--label); font: var(--text-callout); }
+.view-head .weak .tool[hidden] { display: none; }
+/* Export and data popover of the spectrum header */
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; z-index: var(--z-sheet); top: calc(100% + var(--space-1)); right: 0; min-width: 14rem; padding: var(--space-1);
+  background: var(--surface); border-radius: var(--radius-m); box-shadow: var(--shadow-sheet); border: 1px solid var(--separator);
+}
+.menu[hidden], .menu [hidden] { display: none; }
+.menu button {
+  display: block; width: 100%; min-height: var(--touch); padding: 0 var(--space-3); border: none; border-radius: var(--radius-s);
+  background: transparent; text-align: start; font: var(--text-callout); cursor: pointer; touch-action: manipulation;
+}
+.menu button:hover { background: var(--fill); }
+.menu button:disabled { color: var(--label-3); cursor: not-allowed; background: transparent; }
+.menu button.danger { color: var(--danger); }
+.menu hr { border: none; border-top: var(--stroke-hair) solid var(--separator); margin: var(--space-1) 0; }
 .readout { position: absolute; top: 0; right: 0; z-index: var(--z-overlay); pointer-events: none; font: var(--text-footnote); color: var(--label-2); font-variant-numeric: tabular-nums; text-align: right; }
 .plot { position: relative; overflow: hidden; min-height: 0; }
 .plot .uplot { position: absolute; inset: 0; }
@@ -125,12 +148,12 @@ button, select { font: inherit; color: inherit; }
 /* ── Segmented controls, keys ──────────────────────────────────────────── */
 .seg { display: flex; gap: var(--space-1); background: var(--fill); border-radius: var(--radius-full); padding: 2px; }
 .seg button {
-  min-height: calc(var(--touch) - 4px); min-width: var(--touch); padding: 0 var(--space-3); border: none;
+  position: relative; min-height: calc(var(--touch) - 4px); min-width: var(--touch); padding: 0 var(--space-3); border: none;
   border-radius: var(--radius-full); background: transparent; cursor: pointer; touch-action: manipulation;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 .seg button[aria-pressed='true'] { background: var(--surface); box-shadow: var(--shadow-1); font-weight: 600; }
-.seg button:disabled { color: var(--label-3); cursor: not-allowed; }
+.seg button::after { content: ''; position: absolute; inset: -2px 0; } /* 44 px hit area, 40 px look */
 .seg .line-ka { color: var(--phys-kalpha-text); }
 .seg .line-kb { color: var(--phys-kbeta); }
 

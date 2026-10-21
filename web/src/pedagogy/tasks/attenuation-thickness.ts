@@ -1,7 +1,7 @@
 // Lab mode: the Al plate wheel at one (U, I), an exposure per slot (EPN Práctica 1, run 1a). Misconception:
 // "Lambert's law always gives a straight ln T vs d line": the beam is polychromatic and hardens with depth.
 // The app checks the exposures taken, never the student's μ: beam hardening must be resolvable from their dt.
-import type { Apparatus, ExposureRecord } from '../../apparatus/apparatus'
+import type { ExposureRecord } from '../../apparatus/apparatus'
 import { MIN_PROMINENCE_SIGMA } from '../../physics/analysis'
 import { WHEELS_MG_CM2 } from '../../physics/tables'
 import type { GuidedTask } from '../task'
@@ -36,7 +36,7 @@ function hardeningStands(m: Map<number, ExposureRecord>): boolean {
   return !!thin && !!thick && (thin.mu - thick.mu) / Math.sqrt(thin.var + thick.var) >= MIN_PROMINENCE_SIGMA
 }
 
-const groupOf = (a: Apparatus, last: ExposureRecord) => bySlot(plateRuns(a.exposureLog, 'alWheel').filter((r) => sameBeam(r, last) && !isSaturated(expectedOf(r) ?? 0)))
+const groupOf = (log: readonly ExposureRecord[], last: ExposureRecord) => bySlot(plateRuns(log, 'alWheel').filter((r) => sameBeam(r, last) && !isSaturated(expectedOf(r) ?? 0)))
 
 export const task: GuidedTask = {
   id: 'attenuation-thickness',
@@ -48,13 +48,15 @@ export const task: GuidedTask = {
   predict: { kind: 'choice', answer: 1 },
   // At one (U, I) and filters, steady, unsaturated exposures on all seven slots, and with their Δt the fall of μ_eff from the
   // thinnest to the thickest plate stands MIN_PROMINENCE_SIGMA in the expected rates.
-  success: (a) => plateRuns(a.exposureLog, 'alWheel').some((last) => {
-    const m = groupOf(a, last)
+  countsExposures: true,
+  success: (a, from = 0) => plateRuns(a.exposureLog.slice(from), 'alWheel').some((last) => {
+    const m = groupOf(a.exposureLog.slice(from), last)
     return SLOTS.every((k) => m.has(k)) && hardeningStands(m)
   }),
-  progress: (a) => {
-    const last = plateRuns(a.exposureLog, 'alWheel').at(-1)
-    const m = last ? groupOf(a, last) : new Map<number, ExposureRecord>()
+  progress: (a, from = 0) => {
+    const log = a.exposureLog.slice(from)
+    const last = plateRuns(log, 'alWheel').at(-1)
+    const m = last ? groupOf(log, last) : new Map<number, ExposureRecord>()
     return SLOTS.map((k) => ({ key: KEYS[k], done: m.has(k) }))
   },
 }

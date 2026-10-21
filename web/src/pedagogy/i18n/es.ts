@@ -8,8 +8,10 @@ export const es = {
   steps: ['Predice', 'Actúa', 'Observa', 'Explica'],
   predictNumber: 'Tu valor',
   commit: 'Fijar mi predicción',
-  loading: 'Preparando el banco…',
-  loadFailed: 'No se pudo cargar el cristal de la tarea. Reintenta.',
+  loading: 'Preparando el montaje…',
+  loadFailed: 'No se pudieron cargar los datos del cristal. Revisa la conexión y vuelve a abrir la tarea.',
+  busyConfirm: 'Hay una medición en curso. ¿Detenerla y preparar la tarea?',
+  earlierExposures: (n: number) => `Hay ${n} ${n === 1 ? 'exposición anterior' : 'exposiciones anteriores'}; la tarea cuenta solo las nuevas (el CSV las incluye todas).`,
   waiting: 'La tarea se completa sola cuando lo logres.',
   done: 'Logrado',
   explainNext: 'Ver la explicación',
@@ -73,14 +75,14 @@ export const es = {
     'lif-kalpha-angle': {
       title: 'Kα con otro cristal',
       concept: 'La ley de Bragg y el cristal',
-      predict: 'Con NaCl (d = 282.0 pm), la línea Kα del Mo aparece en primer orden en θ = 7.24°. En esta tarea el cristal es de LiF, con d = 201.35 pm. ¿En qué ángulo θ esperas Kα de primer orden?',
+      predict: 'Con NaCl (d = 282.01 pm), la línea Kα del Mo aparece en primer orden en θ = 7.24°. En esta tarea el cristal es de LiF, con d = 201.35 pm. ¿En qué ángulo θ esperas Kα de primer orden?',
       options: [] as string[],
       act: 'En modo COUPLED (β = θ), haz un barrido desde 1.5° por debajo de tu ángulo hasta 1° por encima, con Δβ = 0.1° o menor, y pulsa SCAN. Así entran Kα y Kβ. Si el pico de Kα no aparece, corrige la ventana y repite.',
       observe: 'El pico de Kα queda a la derecha de los 7.24° del NaCl, y Kβ, a su izquierda, también se ha movido: los dos picos están más separados. En «Diferencia de camino» (botón λ), 2d sen θ = λ con la d del LiF.',
       explain:
         'La λ de Kα es la misma, 71.1 pm: la emite el tubo, y el cristal solo elige en qué ángulo llega al contador. En primer orden, la ley de Bragg da sen θ = λ / (2d): con una d menor, sen θ y θ crecen. Con LiF, θ = 10.17°; con NaCl, 7.24°. Por eso Kα y Kβ quedan más separados con LiF (1.15° frente a 0.82°): un cristal de d menor separa mejor las longitudes de onda.',
       teacher:
-        'Respuesta: θ = arcsen(71.08 / (2 × 201.35)) = arcsen(0.1765) = 10.17° (NaCl: arcsen(71.08 / 564.02) = 7.24°). Con LiF, Kβ cae en 9.01°. Error típico: «el ángulo depende solo del tubo» (7.24°). Otro: escalar θ y no sen θ con el cociente de d; da 10.14°, casi igual a ángulos pequeños, pero en 3.er orden daría 31.1° en vez de 32.0°. Otro más: usar a₀ = 402.7 pm en vez de d = a₀/2 (da 5.06°). El modelo incluye extinción secundaria con una dispersión de mosaico supuesta: en él, el LiF da ≈ 1.1 veces la altura del NaCl; una pieza real puede diferir (su mosaico es desconocido), así que la altura no sirve para comparar cristales. La tarea se cumple con un barrido COUPLED sobre LiF que cubra la línea ±0.7°, con Δβ ≤ 0.23° y a 5 σ sobre el fondo según el modelo; no se revisa el número del estudiante. Para discutir: ¿hasta qué orden permite la geometría ver Kα con LiF? (nλ ≤ 2d, n ≤ 5).',
+        'Respuesta: θ = arcsen(71.08 / (2 × 201.35)) = arcsen(0.1765) = 10.17° (NaCl: arcsen(71.08 / 564.02) = 7.24°). Con LiF, Kβ cae en 9.01°. Error típico: «el ángulo depende solo del tubo» (7.24°). Otro: escalar θ y no sen θ con el cociente de d; da 10.14°, casi igual a ángulos pequeños, pero en 3.er orden daría 31.1° en vez de 32.0°. Otro más: usar a₀ = 402.7 pm en vez de d = a₀/2 (da 5.06°). El modelo incluye extinción secundaria con una dispersión de mosaico supuesta: en él, el LiF da ≈ 1.1 veces la altura del NaCl; una pieza real puede diferir (su mosaico es desconocido), así que la diferencia de ≈ 10 % entre LiF y NaCl no significa nada; la de ≈ 25× con Si o calcita (cristal perfecto frente a mosaico) sí es física. La tarea se cumple con un barrido COUPLED sobre LiF que cubra la línea ±0.7°, con Δβ ≤ 0.23° y a 5 σ sobre el fondo según el modelo; no se revisa el número del estudiante. Para discutir: ¿hasta qué orden permite la geometría ver Kα con LiF? (nλ ≤ 2d, n ≤ 5).',
     },
     'line-threshold': {
       title: 'Umbral de las líneas',

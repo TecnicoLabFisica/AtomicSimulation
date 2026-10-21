@@ -9,8 +9,10 @@ export const en: PedagogyDict = {
   steps: ['Predict', 'Act', 'Observe', 'Explain'],
   predictNumber: 'Your value',
   commit: 'Lock in my prediction',
-  loading: 'Preparing the bench…',
-  loadFailed: 'Could not load the task crystal. Try again.',
+  loading: 'Preparing the setup…',
+  loadFailed: 'Could not load the crystal data. Check your connection and open the task again.',
+  busyConfirm: 'A measurement is running. Stop it and prepare the task?',
+  earlierExposures: (n: number) => `${n} earlier ${n === 1 ? 'exposure is' : 'exposures are'} logged; the task counts only new ones (the CSV includes them all).`,
   waiting: 'The task completes by itself once you get there.',
   done: 'Done',
   explainNext: 'Show the explanation',
@@ -74,14 +76,14 @@ export const en: PedagogyDict = {
     'lif-kalpha-angle': {
       title: 'Kα with another crystal',
       concept: 'Bragg’s law and the crystal',
-      predict: 'With NaCl (d = 282.0 pm), the Mo Kα line shows up in first order at θ = 7.24°. In this task the crystal is LiF, with d = 201.35 pm. At which angle θ do you expect first-order Kα?',
+      predict: 'With NaCl (d = 282.01 pm), the Mo Kα line shows up in first order at θ = 7.24°. In this task the crystal is LiF, with d = 201.35 pm. At which angle θ do you expect first-order Kα?',
       options: [],
       act: 'In COUPLED mode (β = θ), scan from 1.5° below your angle to 1° above it, with Δβ = 0.1° or smaller, and press SCAN. That way both Kα and Kβ fit in. If the Kα peak does not show up, correct the window and repeat.',
       observe: 'The Kα peak sits to the right of NaCl’s 7.24°, and Kβ, on its left, has moved too: the two peaks are further apart. In “Path difference” (λ button), 2d sin θ = λ with the LiF d.',
       explain:
         'The Kα wavelength is the same, 71.1 pm: the tube emits it, and the crystal only picks the angle at which it reaches the counter. In first order, Bragg’s law gives sin θ = λ / (2d): with a smaller d, sin θ and θ grow. With LiF, θ = 10.17°; with NaCl, 7.24°. That is why Kα and Kβ are further apart with LiF (1.15° against 0.82°): a crystal with a smaller d spreads the wavelengths further.',
       teacher:
-        'Answer: θ = arcsin(71.08 / (2 × 201.35)) = arcsin(0.1765) = 10.17° (NaCl: arcsin(71.08 / 564.02) = 7.24°). With LiF, Kβ falls at 9.01°. Typical mistake: “the angle depends only on the tube” (7.24°). Another: scaling θ, not sin θ, by the ratio of d; that gives 10.14°, nearly right at small angles, but in 3rd order it would give 31.1° instead of 32.0°. Another still: using a₀ = 402.7 pm instead of d = a₀/2 (gives 5.06°). The model includes secondary extinction with an assumed mosaic spread: in it, LiF reads ≈ 1.1 times NaCl’s height; a real piece may differ (its mosaic spread is unknown), so do not use the height to compare crystals. The task is met by a COUPLED scan on LiF that covers the line ±0.7°, with Δβ ≤ 0.23° and 5 σ above the background according to the model; the student’s number is not checked. To discuss: up to which order does the geometry allow Kα with LiF? (nλ ≤ 2d, n ≤ 5).',
+        'Answer: θ = arcsin(71.08 / (2 × 201.35)) = arcsin(0.1765) = 10.17° (NaCl: arcsin(71.08 / 564.02) = 7.24°). With LiF, Kβ falls at 9.01°. Typical mistake: “the angle depends only on the tube” (7.24°). Another: scaling θ, not sin θ, by the ratio of d; that gives 10.14°, nearly right at small angles, but in 3rd order it would give 31.1° instead of 32.0°. Another still: using a₀ = 402.7 pm instead of d = a₀/2 (gives 5.06°). The model includes secondary extinction with an assumed mosaic spread: in it, LiF reads ≈ 1.1 times NaCl’s height; a real piece may differ (its mosaic spread is unknown), so the ≈ 10 % difference between LiF and NaCl means nothing; the ≈ 25× gap to Si or calcite (perfect versus mosaic crystal) is real physics. The task is met by a COUPLED scan on LiF that covers the line ±0.7°, with Δβ ≤ 0.23° and 5 σ above the background according to the model; the student’s number is not checked. To discuss: up to which order does the geometry allow Kα with LiF? (nλ ≤ 2d, n ≤ 5).',
     },
     'line-threshold': {
       title: 'Line threshold',

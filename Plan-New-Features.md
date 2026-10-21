@@ -583,7 +583,7 @@ found the items below; baseline pytest 203, Vitest 167.
 - [x] **Q1.7** Student-flow bugs (`b81d74e`): leftover foils between tasks, Bragg checks blind to the scan's setup, the exposure log wiped on task start,
       Huygens verdict while hints are hidden, failed lazy loads cached forever, a late crystal pick racing a task mount, a stale step on task start, locks
       never released, a restarted free-pick task losing the student's crystal, a CSV hint for Excel (standard CSV kept, user's choice).
-- [ ] **Q1.8** Reviews: physics, apparatus, design, pedagogy.
+- [x] **Q1.8** Reviews: physics, apparatus, design, pedagogy.
 - [ ] **Q1.9** This note, session log, `graphify update`.
 
 **Done when:** every item above is fixed or documented as a limit; NaCl fixtures byte-identical (except an explained Q1.5 grid change); a Si scan
