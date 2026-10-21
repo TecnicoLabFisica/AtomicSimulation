@@ -3,11 +3,12 @@
 // R̄ = dead_time( scale · Σ_n r_n [continuum_n + lines_n](θ) · rocking + tube · (leak + scatter) ),
 // θ = |sensor| / 2; see the Python module docstring for the physics of each term. Every fitted value
 // in DEFAULT is documented in model/PARAMETERS.md.
-import { D_NACL_PM, MO_KA_COMPONENTS, MO_KB_COMPONENTS } from './constants'
+import { D_NACL_PM, MO_KA_COMPONENTS, MO_KB_COMPONENTS, NACL_THERMAL_B_A2 } from './constants'
 import {
   NACL,
   dPm,
   isNacl,
+  extinctionRatio,
   muFactor,
   type Crystal,
   dlambdaDthetaPmPerDeg,
@@ -94,13 +95,14 @@ export function maxOrder(crystal: Crystal = NACL, UkV: number = U_MAX_KV): numbe
 }
 
 /** port of ModelParams.order_strengths: r_n for n = 1 … maxOrder(crystal) (index n − 1), relative to NaCl order 1.
- * k = cell_scale · exp(2 B_fit / (2 d_NaCl)²) for the non-anchor crystals; B is the fitted value for the anchor
- * and 0 for the others. The λ-dependent muFactor is applied per λ in the scan. */
+ * k = cell_scale · exp(2 B_NaCl,th / (2 d_NaCl)²) for the non-anchor crystals (B_NaCl,th = 130 pm², NaCl's thermal B,
+ * not the fitted one); B is the fitted value for the anchor and 0 for the others. The λ-dependent muFactor and
+ * extinctionRatio are applied per λ in the scan. */
 export function orderStrengths(params: ModelParams, crystal: Crystal = NACL): number[] {
   const s1Sq = (1 / (2 * dPm(crystal))) ** 2
   const b = crystal.fitted_debye_waller ? params.debye_waller_pm2 : 0
   let k = crystal.cell_scale
-  if (!crystal.fitted_debye_waller) k *= Math.exp((2 * params.debye_waller_pm2) / (2 * D_NACL_PM) ** 2)
+  if (!crystal.fitted_debye_waller) k *= Math.exp((2 * NACL_THERMAL_B_A2 * 100) / (2 * D_NACL_PM) ** 2)
   const n = maxOrder(crystal)
   // the exported f_sq_rel is sized for U_MAX_KV and BETA_MAX_DEG: a longer series would need a re-export
   if (n > crystal.f_sq_rel.length) throw new RangeError(`${crystal.name}: f_sq_rel stops at n = ${crystal.f_sq_rel.length}`)
@@ -176,7 +178,7 @@ function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filte
         const spec = continuum(lam, UkV, ImA)
         if (spec > 0) {
           const term = r * spec * transmissionTotal(lam, params, filters) * dlambdaDthetaPmPerDeg(th, n, d) * lorentzPolarization(th)
-          density[j] += anchor ? term : term * muFactor(crystal, lam)
+          density[j] += anchor ? term : term * muFactor(crystal, lam) * extinctionRatio(crystal, n, lam)
         }
       }
     })
@@ -192,7 +194,7 @@ function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filte
       const theta = thetaFromLambda(lam, i + 1, d)
       if (rate === 0 || Number.isNaN(theta)) continue
       const weight = r * rate * transmissionTotal(lam, params, filters) * lorentzPolarization(theta)
-      lines.push({ theta, weight: anchor ? weight : weight * muFactor(crystal, lam) })
+      lines.push({ theta, weight: anchor ? weight : weight * (muFactor(crystal, lam) * extinctionRatio(crystal, i + 1, lam)) })
     }
   })
   cache = {

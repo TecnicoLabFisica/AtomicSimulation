@@ -750,6 +750,6 @@ describe('crystal picker (C2.2)', () => {
       while (a.moving) a.tick(0.5)
     }
     expect(x.expectedRate()).not.toBe(y.expectedRate())
-    expect(x.crystal.d_pm).toBeCloseTo(201.4, 1)
+    expect(x.crystal.d_pm).toBeCloseTo(201.35, 2)
   })
 })

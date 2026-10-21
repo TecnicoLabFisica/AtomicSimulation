@@ -55,7 +55,9 @@ export type Crystal = Readonly<{
   f_sq_rel: readonly number[] // |F_n|²/|F_1|², n = 1 … max_order
   mu_per_cm: readonly number[] // linear attenuation on MU_RHO_GRID_PM; empty for the built-in NACL
   fitted_debye_waller: boolean // true only for the NaCl anchor
-  reflectivity_model: string
+  reflectivity_model: string // 'ideal_mosaic' | 'darwin' | 'mosaic_extinction'
+  mosaic_fwhm_deg: number | null // only for 'mosaic_extinction'
+  extinction: readonly (readonly number[])[] // y rows (index n − 1) on the first nodes of MU_RHO_GRID_PM; NaCl: order 1 only
   source: string
 }>
 
@@ -65,7 +67,8 @@ export const NACL: Crystal = Object.freeze({
   name: 'NaCl', a_pm: 564.02, b_pm: 564.02, c_pm: 564.02, alpha_deg: 90, beta_deg: 90, gamma_deg: 90,
   cut: [2, 0, 0], d_pm: D_NACL_PM, density_g_cm3: 2.1641351917042018, max_order: 15, cell_scale: 1,
   f_sq_rel: STRUCTURE_FACTOR_SQ_REL.slice(0, 15), mu_per_cm: [], fitted_debye_waller: true,
-  reflectivity_model: 'ideal_mosaic', source: 'LD P6.3.3.1 (a0 = 564.02 pm, d = 282.01 pm)',
+  reflectivity_model: 'mosaic_extinction', mosaic_fwhm_deg: 0.2, extinction: [],
+  source: 'LD P6.3.3.1 (a0 = 564.02 pm, d = 282.01 pm)',
 }) // prettier-ignore
 
 /** Python tests `crystal is NACL`: the built-in constant, or the loaded table's NaCl entry (same data, other object). */
@@ -104,4 +107,32 @@ export function muFactor(crystal: Crystal, lambdaPm: number): number {
   const nacl = CRYSTALS.NaCl
   if (!nacl) throw new Error('crystals not loaded (await loadCrystals())')
   return linearAttenuationPerCm(nacl, lambdaPm) / linearAttenuationPerCm(crystal, lambdaPm)
+}
+
+const logExtinctionCache = new WeakMap<Crystal, Float64Array[]>()
+function logExtinction(crystal: Crystal): Float64Array[] {
+  let t = logExtinctionCache.get(crystal)
+  if (!t) {
+    if (crystal.extinction.length === 0) throw new Error(`${crystal.name}: no extinction table (await loadCrystals())`)
+    logExtinctionCache.set(crystal, (t = crystal.extinction.map((row) => Float64Array.from(row, Math.log))))
+  }
+  return t
+}
+
+/** port of braggsim.crystal.extinction_factor: y ∈ (0, 1] of order n at λ, log–log interpolation of the exported
+ * (rounded) table on the first nodes of MU_RHO_GRID_PM, end values held. NaCl has order 1 only (the reference y);
+ * needs loadCrystals(). */
+export function extinctionFactor(crystal: Crystal, n: number, lambdaPm: number): number {
+  const rows = logExtinction(crystal)
+  if (!(n >= 1 && n <= rows.length)) throw new RangeError(`${crystal.name}: no extinction table for order ${n} (1 … ${rows.length})`)
+  const row = rows[n - 1]
+  return Math.exp(interp(Math.log(lambdaPm), LOG_MU_RHO_GRID.subarray(0, row.length), row))
+}
+
+/** port of braggsim.crystal.extinction_ratio: y_X,n(λ) / y_NaCl,1(λ), 1 for NaCl and any fitted-B anchor. Needs loadCrystals(). */
+export function extinctionRatio(crystal: Crystal, n: number, lambdaPm: number): number {
+  if (isNacl(crystal) || crystal.fitted_debye_waller) return 1
+  const nacl = CRYSTALS.NaCl
+  if (!nacl) throw new Error('crystals not loaded (await loadCrystals())')
+  return extinctionFactor(crystal, n, lambdaPm) / extinctionFactor(nacl, 1, lambdaPm)
 }

@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from 'vitest'
-import { NACL, dPm, lambdaFromTheta, muFactor, thetaFromLambda } from '../src/physics/crystal'
+import { NACL, dPm, extinctionFactor, extinctionRatio, lambdaFromTheta, muFactor, thetaFromLambda } from '../src/physics/crystal'
 import { DEFAULT, expectedRate, maxOrder, orderReflectivity, orderStrengths } from '../src/physics/scan'
 import { CRYSTALS, crystalsLoaded, loadCrystals } from '../src/physics/tables'
 
@@ -21,18 +21,18 @@ test('NaCl is the anchor: μ factor 1, same d, same r_n and rates as the loaded 
   expect(Array.from(expectedRate(b, 35, 1, DEFAULT, null, [], CRYSTALS.NaCl))).toEqual(Array.from(expectedRate(b, 35, 1)))
 })
 
-test('LiF: d = 201.4 pm, first-order Kα at θ = asin(λ/2d)', () => {
+test('LiF: d = 201.35 pm, first-order Kα at θ = asin(λ/2d)', () => {
   const lif = CRYSTALS.LiF
-  expect(dPm(lif)).toBeCloseTo(201.4, 9)
+  expect(dPm(lif)).toBeCloseTo(201.35, 9)
   expect(maxOrder(lif)).toBe(lif.max_order)
   const theta = thetaFromLambda(71.08, 1, dPm(lif))
-  expect(theta).toBeCloseTo((Math.asin(71.08 / (2 * 201.4)) * 180) / Math.PI, 12)
+  expect(theta).toBeCloseTo((Math.asin(71.08 / (2 * 201.35)) * 180) / Math.PI, 12)
   expect(lambdaFromTheta(theta, 1, dPm(lif))).toBeCloseTo(71.08, 9)
   expect(muFactor(lif, 71.08)).toBeGreaterThan(1) // LiF absorbs far less than NaCl
 })
 
 test('the built-in NACL matches the loaded table entry (no drift)', () => {
-  expect({ ...NACL, mu_per_cm: [], source: '' }).toEqual({ ...CRYSTALS.NaCl, mu_per_cm: [], source: '' }) // source text differs on purpose
+  expect({ ...NACL, mu_per_cm: [], extinction: [], source: '' }).toEqual({ ...CRYSTALS.NaCl, mu_per_cm: [], extinction: [], source: '' }) // source text differs on purpose; NACL carries no tables
 })
 
 test('isNacl is identity: a look-alike named NaCl still gets muFactor (needs its own μ table)', async () => {
@@ -47,4 +47,21 @@ test('crystalByName throws on unknown names, NaCl needs no table', async () => {
   expect(crystalByName('LiF')).toBe(CRYSTALS.LiF)
   expect(() => crystalByName('lif')).toThrow(RangeError)
   expect(Object.isFrozen(CRYSTALS.LiF.f_sq_rel)).toBe(true)
+})
+
+test('extinctionFactor reads the exported y table: Mo Kα, order 1 (reference values of the Python model)', () => {
+  // Spec values at 71.08 pm (Darwin–Prins for Si, calcite, muscovite; secondary extinction for LiF, NaCl).
+  const y = (name: string, n = 1) => extinctionFactor(CRYSTALS[name], n, 71.08)
+  expect(y('Si')).toBeCloseTo(0.035, 3)
+  expect(y('calcite')).toBeCloseTo(0.0472, 3)
+  expect(y('muscovite')).toBeCloseTo(0.165, 2)
+  expect(y('LiF')).toBeCloseTo(0.31, 2)
+  expect(y('NaCl')).toBeCloseTo(0.81, 1)
+  expect(y('LiF', 2)).toBeGreaterThan(y('LiF', 1)) // higher orders are weaker, so less extinguished
+})
+
+test('extinctionRatio: 1 for NaCl, y_X,n / y_NaCl,1 otherwise; every tabulated y is in (0, 1]', () => {
+  expect(extinctionRatio(NACL, 1, 71.08)).toBe(1)
+  expect(extinctionRatio(CRYSTALS.Si, 1, 71.08)).toBeCloseTo(extinctionFactor(CRYSTALS.Si, 1, 71.08) / extinctionFactor(CRYSTALS.NaCl, 1, 71.08), 14)
+  for (const c of Object.values(CRYSTALS)) for (const row of c.extinction) for (const v of row) expect(v > 0 && v <= 1).toBe(true)
 })

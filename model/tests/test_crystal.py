@@ -4,7 +4,7 @@ from pytest import approx
 from xraylib import FF_Rayl
 
 from braggsim import scan
-from braggsim.constants import D_NACL_PM, MO_KA_PM, MO_KB_PM
+from braggsim.constants import D_NACL_PM, HC_KEV_PM, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import (
     CALCITE,
     LIF,
@@ -13,13 +13,20 @@ from braggsim.crystal import (
     PRESETS,
     SI,
     Crystal,
+    _chis,
+    _y_darwin,
     build_basis,
+    cell_scale,
     cell_volume_A3,
     d_pm,
     density_g_cm3,
     dlambda_dtheta_pm_per_deg,
+    extinction_factor,
+    extinction_ratio,
+    extinction_table,
     lambda_from_theta,
     linear_attenuation_per_cm,
+    lorentz_polarization,
     structure_factor_sq,
     structure_factor_sq_hkl,
     structure_factor_sq_rel,
@@ -101,7 +108,7 @@ def test_crystal_nacl_is_the_anchor_with_exact_d_and_fitted_thermal_motion():
     ("crystal", "d", "theta"),
     [
         (NACL, 282.01, 7.2399),
-        (LIF, 201.4, 10.1639),
+        (LIF, 201.35, 10.1665),
         (SI, 313.560, 6.5081),
         (CALCITE, 303.51, 6.7246),
         (MUSCOVITE, 998.5, 2.0397),
@@ -229,10 +236,12 @@ def test_crystal_non_fitted_presets_keep_their_own_thermal_motion_not_the_fitted
     p = scan.DEFAULT
     hot = p.replace(debye_waller_pm2=p.debye_waller_pm2 * 3)
     a, b = p.order_strengths(SI), hot.order_strengths(SI)
-    # r_n / r_1 of Si does not depend on B_fit; r_1 moves with NaCl's exp(-2 B s_1²) in `scale`
+    # Neither r_n / r_1 nor r_1 of Si depends on B_fit any more (Q1.3): the cross-crystal
+    # reference uses NaCl's physical thermal B (1.3 Å²), not the fitted effective one.
     assert [b[n] / b[1] for n in (2, 3)] == approx([a[n] / a[1] for n in (2, 3)], rel=1e-12)
+    assert b[1] == a[1]
     s1_sq = (1 / (2 * D_NACL_PM)) ** 2
-    assert b[1] / a[1] == approx(np.exp(2 * 2 * p.debye_waller_pm2 * s1_sq), rel=1e-12)
+    assert a[1] / cell_scale(SI) == approx(np.exp(2 * 130.0 * s1_sq), rel=1e-12)
     assert hot.order_strengths(NACL) != p.order_strengths(NACL)
     assert set(PRESETS) == {"NaCl", "LiF", "Si", "calcite", "muscovite"}
 
@@ -273,11 +282,161 @@ def test_crystal_preset_scans_peak_at_their_bragg_angles(name):
             assert has_max, f"{name} n={n}"
 
 
-def test_crystal_order_1_bragg_only_heights_are_ordered_lif_nacl_si_calcite_muscovite():
+def test_crystal_order_1_bragg_only_heights_with_extinction():
+    # Q1.2/Q1.3: the old test expected the ideal-mosaic order LiF > NaCl > Si > calcite > muscovite,
+    # with Si at 0.68 of NaCl. With extinction Si and calcite sit at ≈ 0.035 of NaCl, so their
+    # mutual order is no longer physical content: only the groups are.
     bragg = scan.DEFAULT.replace(leak_amp_per_s=0.0, scatter_per_s=0.0, background_per_s=0.0)
     h = {}
     for name, c in PRESETS.items():
         t = float(theta_from_lambda(MO_KA_PM, 1, d_pm(c)))
         h[name] = scan.expected_rate([t], 35.0, 1.0, bragg, crystal=c)[0]
-    order = sorted(h, key=h.get, reverse=True)
-    assert order == ["LiF", "NaCl", "Si", "calcite", "muscovite"], h
+    assert h["LiF"] > h["NaCl"] > 5 * max(h["Si"], h["calcite"])
+    assert h["Si"] == approx(h["calcite"], rel=0.1)
+    assert h["muscovite"] < min(h["Si"], h["calcite"])
+
+
+# --------------------------------------------------------------------------------------------
+# Q1.2 / Q1.3: extinction factor y (reference values: X0h, queried 2026-10-21, and xraylib)
+# --------------------------------------------------------------------------------------------
+
+MO_KA_E_KEV = 17.479
+
+
+def _si_chis(n, lam_pm=HC_KEV_PM / MO_KA_E_KEV):
+    return _chis(SI, n, lam_pm)
+
+
+def test_extinction_si_structure_factors_match_xraylib():
+    import xraylib
+
+    cr = xraylib.Crystal_GetCrystal("Si")
+    th111 = float(np.radians(theta_from_lambda(MO_KA_PM, 1, d_pm(SI))))
+    for n, expected in ((1, 59.348), (3, 33.090), (4, 33.320)):
+        chi0, chi_h, _, theta, _ = _si_chis(n)
+        gamma = (
+            2.8179403262e-3 * (HC_KEV_PM / MO_KA_E_KEV) ** 2 / (np.pi * cell_volume_A3(SI) * 1e6)
+        )
+        assert abs(chi_h) / gamma == approx(expected, rel=1e-3), n
+    # and the library's own F_H at the same energy and Debye-Waller factor (test only)
+    debye = np.exp(-0.476 * (1 / (2 * d_pm(SI) / 100)) ** 2)  # xraylib takes exp(−B s²)
+    f_h = xraylib.Crystal_F_H_StructureFactor(cr, MO_KA_E_KEV, 1, 1, 1, debye, 1.0)
+    assert abs(f_h) == approx(59.347, rel=1e-3)
+    assert th111 > 0
+
+
+def test_extinction_si_chi_matches_x0h():
+    chi0, chi_h, chi_hb, _, _ = _si_chis(1)
+    assert chi0.real == approx(-3.1741e-6, rel=1e-3)
+    assert abs(np.sqrt(chi_h * chi_hb)) == approx(1.6723e-6, rel=1e-3)
+
+
+@pytest.mark.parametrize(
+    ("n", "sigma_urad", "pi_urad"), [(1, 14.883, 14.502), (3, 2.923, None), (4, 2.330, None)]
+)
+def test_extinction_darwin_plateau_widths_match_x0h(n, sigma_urad, pi_urad):
+    _, chi_h, chi_hb, theta, _ = _si_chis(n)
+    width = 2 * abs(np.sqrt(chi_h * chi_hb)) / np.sin(2 * theta) * 1e6
+    assert width == approx(sigma_urad, rel=5e-3)
+    if pi_urad:
+        assert width * abs(np.cos(2 * theta)) == approx(pi_urad, rel=5e-3)
+
+
+def test_extinction_darwin_no_absorption_limit_is_8_over_3_of_the_plateau():
+    # Perfect crystal without absorption: ∫R dθ = (8/3) C|S| / sin 2θ (Zachariasen 1945). Probe it
+    # with a real χ_h = χ_h̄ (no f″) and an absorption 1e-9 of |χ_h|; _y_darwin returns that
+    # integral over the ideal-mosaic one (∝ 1/Im χ_0), so undo the ratio.
+    _, chi_h, _, theta, _ = _si_chis(1)
+    chi_h = abs(chi_h)
+    chi0 = complex(-3e-6, 1e-9 * chi_h)
+    y = _y_darwin(chi0, chi_h, chi_h, theta)
+    c = abs(np.cos(2 * theta))
+    r_dar = 8 / 3 * chi_h / np.sin(2 * theta) * (1 + c)
+    r_mos = np.pi * chi_h**2 / (4 * np.sin(2 * theta) * chi0.imag) * (1 + c**2)
+    assert y == approx(r_dar / r_mos, rel=1e-3)
+
+
+def test_extinction_si_111_integrated_reflectivity_and_y():
+    chi0, chi_h, chi_hb, theta, _ = _si_chis(1)
+    y = _y_darwin(chi0, chi_h, chi_hb, theta)
+    assert y == approx(0.0349, rel=0.02)
+    c = abs(np.cos(2 * theta))
+    r_mos = np.pi * abs(chi_h) ** 2 / (4 * np.sin(2 * theta) * chi0.imag) * (1 + c**2) / 2
+    assert r_mos * 1e6 == approx(548, rel=0.02)
+    assert y * r_mos * 1e6 == approx(19.12, rel=0.02)
+
+
+@pytest.mark.parametrize(
+    ("crystal", "n", "y"),
+    [
+        (SI, 1, 0.0350), (CALCITE, 1, 0.0472), (MUSCOVITE, 1, 0.165), (LIF, 1, 0.310),
+        (NACL, 1, 0.81), (SI, 3, 0.067), (SI, 4, 0.071), (CALCITE, 2, 0.126),
+        (LIF, 2, 0.77), (LIF, 3, 0.94),
+    ],
+)  # fmt: skip
+def test_extinction_factor_at_mo_ka(crystal, n, y):
+    assert float(extinction_factor(crystal, n, MO_KA_PM)) == approx(
+        y, rel=0.012 if y < 0.5 else 0.02
+    )
+
+
+def test_extinction_kinematic_limit_gives_one():
+    chi0, chi_h, chi_hb, theta, _ = _si_chis(1)
+    assert _y_darwin(chi0, chi_h * 1e-4, chi_hb * 1e-4, theta) == approx(0.99999, abs=2e-5)
+
+
+def test_extinction_forbidden_reflection_is_one_and_y_stays_in_unit_interval():
+    assert float(extinction_factor(SI, 2, MO_KA_PM)) == 1.0  # (222) vanishes for spherical atoms
+    for c in PRESETS.values():
+        for row in extinction_table(c):
+            assert np.all((row > 0) & (row <= 1.0))
+    assert len(extinction_table(NACL)) == 1  # the reference y only
+
+
+def test_extinction_secondary_extinction_is_monotone_in_the_mosaic_spread():
+    import dataclasses
+
+    broad = dataclasses.replace(LIF, name="LiF broad", mosaic_fwhm_deg=0.5)
+    narrow = dataclasses.replace(LIF, name="LiF narrow", mosaic_fwhm_deg=0.01)
+    ys = [float(extinction_factor(c, 1, MO_KA_PM)) for c in (narrow, LIF, broad)]
+    assert ys[0] < ys[1] < ys[2] <= 1.0
+
+
+def test_extinction_table_is_what_the_function_reads():
+    row = extinction_table(SI)[0]
+    from braggsim.filters import MU_RHO_GRID_PM
+
+    assert float(extinction_factor(SI, 1, MU_RHO_GRID_PM[10])) == approx(row[10], rel=1e-12)
+    assert float(extinction_factor(SI, 1, 1e4)) == approx(row[-1], rel=1e-12)  # end value held
+    with pytest.raises(ValueError, match="order"):
+        extinction_factor(NACL, 2, MO_KA_PM)
+    assert extinction_ratio(NACL, 1, MO_KA_PM) == 1.0
+
+
+def test_extinction_crystal_validation():
+    import dataclasses
+
+    with pytest.raises(ValueError, match="mosaic_fwhm_deg"):
+        dataclasses.replace(LIF, mosaic_fwhm_deg=None)
+    with pytest.raises(ValueError, match="mosaic_fwhm_deg"):
+        dataclasses.replace(LIF, mosaic_fwhm_deg=float("nan"))
+    with pytest.raises(ValueError, match="mosaic_fwhm_deg"):
+        dataclasses.replace(SI, mosaic_fwhm_deg=0.1)
+    with pytest.raises(ValueError, match="reflectivity_model"):
+        dataclasses.replace(SI, reflectivity_model="bogus")
+
+
+def test_extinction_order_1_ka_line_weights_relative_to_nacl():
+    # Order-1 Kα line weight (r_1 · μ-factor · y ratio · Lorentz-polarization) over NaCl's.
+    # Reviewer's values 1.27 / 0.034 / 0.035 / 0.0166 included the old exp(+2 B_fit s²) = 1.040;
+    # with the NaCl-thermal reference (1.0008) they are 4 % lower.
+    def weight(c):
+        th = float(theta_from_lambda(MO_KA_PM, 1, d_pm(c)))
+        w = scan.DEFAULT.order_strengths(c)[1] * float(lorentz_polarization(th))
+        if c is not NACL:
+            w *= float(scan.mu_factor(c, MO_KA_PM) * extinction_ratio(c, 1, MO_KA_PM))
+        return w
+
+    for c, expected in ((LIF, 1.27), (SI, 0.034), (CALCITE, 0.035), (MUSCOVITE, 0.0166)):
+        assert weight(c) / weight(NACL) == approx(expected / 1.040, rel=0.05), c.name
+        assert weight(c) / weight(NACL) == approx(expected, rel=0.06), c.name

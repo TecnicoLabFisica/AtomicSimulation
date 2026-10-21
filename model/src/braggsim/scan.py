@@ -26,9 +26,11 @@ import numpy as np
 from braggsim.constants import MO_KA_COMPONENTS, MO_KB_COMPONENTS
 from braggsim.crystal import (
     NACL,
+    NACL_THERMAL_B_A2,
     cell_scale,
     d_pm,
     dlambda_dtheta_pm_per_deg,
+    extinction_ratio,
     lambda_from_theta,
     lorentz_polarization,
     mu_factor,
@@ -103,19 +105,22 @@ class ModelParams:
     def order_strengths(self, crystal=NACL):
         """{n: r_n} of ``crystal``, relative to NaCl order 1, up to ``max_order(crystal)``:
         r_n = k · |F_n|²/|F_1|² · exp(−2B (s_n² − s_1²)), s_n = n/(2d) in pm⁻¹ (Debye–Waller
-        factor, Warren ch. 3), k = ``cell_scale`` · exp(+2 B_fit s_1,NaCl²) (1 for NaCl). B is the
-        fitted ``debye_waller_pm2`` for the NaCl anchor (``fitted_debye_waller``), 0 for the others,
-        whose literature B is already inside F. The λ-dependent absorption part of the
-        cross-crystal scale is ``crystal.mu_factor`` (applied per λ in the scan). Orders with
-        n λ > 2d are skipped later."""
+        factor, Warren ch. 3), k = ``cell_scale`` · exp(+2 B_NaCl,th s_1,NaCl²) (1 for NaCl).
+        B is the fitted ``debye_waller_pm2`` for the NaCl anchor (``fitted_debye_waller``), 0 for
+        the others, whose literature B is already inside F. B_NaCl,th (``NACL_THERMAL_B_A2``,
+        1.3 Å² = 130 pm²) is NaCl's room-temperature B, the same one the NaCl reference
+        extinction y_NaCl,1 is computed with. The λ-dependent parts of the cross-crystal scale are
+        ``crystal.mu_factor`` and ``crystal.extinction_ratio`` y_X,n(λ)/y_NaCl,1(λ) (applied per λ
+        in the scan). Orders with n λ > 2d are skipped later."""
         d = d_pm(crystal)
         s1_sq = (1 / (2 * d)) ** 2
         b = self.debye_waller_pm2 if crystal.fitted_debye_waller else 0.0
         k = cell_scale(crystal)
         if not crystal.fitted_debye_waller:
-            # NaCl's fitted scale already contains exp(−2 B_fit s_1²); the other crystals' thermal
-            # |F|² is divided by NaCl's at-rest |F|², so put that factor back (it moves with B_fit).
-            k *= math.exp(2 * self.debye_waller_pm2 / (2 * d_pm(NACL)) ** 2)
+            # The other crystals' thermal |F|² is divided by NaCl's at-rest |F|², but NaCl's scale
+            # is its thermal one: put exp(+2 B_NaCl,th s_1²) back, with NaCl's physical B (not the
+            # effective B_fit, which absorbs more than the thermal motion), in pm².
+            k *= math.exp(2 * NACL_THERMAL_B_A2 * 100 / (2 * d_pm(NACL)) ** 2)
         return {
             n: k * f * math.exp(-2 * b * (n * n - 1) * s1_sq)
             for n, f in enumerate(
@@ -187,7 +192,9 @@ def _continuum_density(beta_deg, U_kV, I_mA, params, filters=(), crystal=NACL):
                 r_n * spec[on] * _transmission(lam[on], params, filters)
                 * dlambda_dtheta_pm_per_deg(theta[on], n, d) * lorentz_polarization(theta[on])
             )  # fmt: skip
-            density[on] += term if crystal is NACL else term * mu_factor(crystal, lam[on])
+            if crystal is not NACL:
+                term = term * mu_factor(crystal, lam[on]) * extinction_ratio(crystal, n, lam[on])
+            density[on] += term
     k = THETA_STEP_DEG * np.arange(-half, half + 1)
     kernel = _gaussian(k, params.sigma_deg)
     smoothed = np.convolve(density, kernel / kernel.sum(), mode="same")
@@ -209,7 +216,7 @@ def _line_density(beta_deg, U_kV, I_mA, params, filters=(), crystal=NACL):
                 continue
             weight = r_n * rate * _transmission(lam, params, filters) * lorentz_polarization(theta)
             if crystal is not NACL:
-                weight = weight * float(mu_factor(crystal, lam))
+                weight = weight * float(mu_factor(crystal, lam) * extinction_ratio(crystal, n, lam))
             out += weight * _gaussian(beta_deg - theta, params.sigma_deg)
     return out
 
@@ -266,7 +273,10 @@ def expected_rate(beta_deg, U_kV, I_mA, params=DEFAULT, sensor_deg=None, filters
 
     ``crystal``: a ``crystal.Crystal`` (default NaCl, the calibrated anchor). Others scale the
     reflected signal by the kinematic mosaic-crystal ratio to NaCl (``ModelParams.order_strengths``,
-    ``crystal.mu_factor``); leak, scatter and background do not depend on the crystal.
+    ``crystal.mu_factor``) times the extinction ratio y_X,n(λ)/y_NaCl,1(λ)
+    (``crystal.extinction_ratio``:
+    Darwin–Prins for the near-perfect crystals, secondary extinction for LiF); leak, scatter and
+    background do not depend on the crystal.
     """
     beta = np.asarray(beta_deg, dtype=float)
     if sensor_deg is None:

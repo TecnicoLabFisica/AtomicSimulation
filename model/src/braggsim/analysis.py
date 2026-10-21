@@ -526,8 +526,10 @@ def scaled_transmission(
     Raises ValueError if a rate is at or below the background or at or above 1/τ.
 
     Caveat: the Poisson variance used here is that of the counts. A real dead-time-limited GM is
-    sub-Poissonian (variance ≈ N (1 − Rτ)²), which roughly cancels the Jacobian, so these errors
-    are conservative for the open beam at ≈ 0.3 R τ.
+    sub-Poissonian: for a non-paralyzable counter Var N ≈ m (1 − x)² with x = R_obs τ. The
+    Jacobian² 1/(1 − x)⁴ applied to the Poisson variance therefore overstates the variance by
+    1/(1 − x)² and the error by a factor 1/(1 − x) (≈ 1.43 at x = 0.3); it does not cancel. The
+    errors are conservative, mostly for the open beam.
     """
     r = np.asarray(rate_per_s, dtype=float)
     r0 = np.asarray(rate_open_per_s, dtype=float)

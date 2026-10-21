@@ -568,8 +568,13 @@ found the items below; baseline pytest 203, Vitest 167.
       LiF → secondary extinction, η = 0.05° (assumption, 0.01–0.2°); the NaCl cross-crystal reference gets its own extinction (η 0.2°, B_th 1.3 Å²,
       assumptions; evidence: B_fit 0.63 Å² < thermal 1.2–1.5 Å²). Checked against X0h (Si Darwin widths ≤ 0.2 %) and xraylib |F| (1e-4).
       Muscovite is the least certain (a mosaic sheet would be 3.6–4.4× brighter): a bench check. Beam overfill at small θ: not modellable, a documented limit.
-- [ ] **Q1.2** `crystal.extinction_factor(crystal, n, λ)` and its use in `scan.py`; LiF a = 402.7 pm; `PARAMETERS.md` (models, assumptions, limits, stale numbers).
-- [ ] **Q1.3** `crystals.json` y tables, fixtures, TS port, teacher key, notebook 08.
+- [x] **Q1.2** `crystal.extinction_factor(crystal, n, λ)` and its use in `scan.py`; LiF a = 402.7 pm; `PARAMETERS.md` (models, assumptions, limits, stale numbers).
+- [x] **Q1.3** `crystals.json` y tables, fixtures, TS port, teacher key, notebook 08.
+      As built (2026-10-21): y at Mo Kα, n = 1/2/3: LiF 0.310/0.769/0.942, Si 0.035/–/0.067, calcite 0.047/0.126/0.119, muscovite 0.165/0.126/0.058;
+      NaCl reference 0.812. Order-1 Kα line weight vs NaCl: LiF 1.22, Si 0.033, calcite 0.034, muscovite 0.016 (Si/calcite Kα peaks ≈ 120/s at 35 kV 1 mA,
+      vs 2600/s on NaCl). k now uses B_NaCl,th (exp(+2B s₁²) = 1.0008, not B_fit's 1.040). LiF a = 402.7 pm (d 201.35). y rounded to 4 significant digits
+      (Python reads the same rounded table): `crystals` lazy chunk 125 kB gzip (was 48 kB; 7 digits gave 192 kB). Deferred: one chunk per crystal.
+      NaCl fixtures byte-identical; the teacher key unchanged; pytest 226, Vitest 176.
 - [ ] **Q1.4** Orders with F = 0 (Si (222), (666)) and muscovite orders > 10: Python line analysis takes `d_pm` and allowed orders; spectrum, goniometer
       and Huygens markers skip forbidden orders and cover every order in range; Huygens says "forbidden" instead of "met".
 - [ ] **Q1.5** Gated: K-edge nodes in the μ/ρ grid (an interpolation smear of ≈ +0.07 pm on the edges), only if Fig. 4 holds.

@@ -4,6 +4,8 @@
 // NaCl monocrystal, LD P6.3.3.1: lattice constant and (200) lattice-plane spacing d = a0/2.
 export const A0_NACL_PM = 564.02
 export const D_NACL_PM = 282.01
+/** port of braggsim.crystal.NACL_THERMAL_B_A2: NaCl's room-temperature B in Å² (assumption; the reference extinction of the cross-crystal scale). */
+export const NACL_THERMAL_B_A2 = 1.3
 
 // Mo characteristic lines, LD P6.3.3.1 Table 1.
 export const MO_KA_KEV = 17.443

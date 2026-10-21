@@ -27,6 +27,7 @@ from braggsim.crystal import (
     cell_scale,
     d_pm,
     density_g_cm3,
+    extinction_table,
     mu_per_cm_table,
     structure_factor_sq_rel,
     structure_factor_sq_rel_crystal,
@@ -164,7 +165,8 @@ def _crystal_tables():
     r_n(params) = k · f_sq_rel[n−1] · exp(−2 B (n²−1) s_1²) with k = cell_scale, times
     exp(2 B_fit / (2 d_NaCl)²) when ``fitted_debye_waller`` is false, B = params.debye_waller_pm2
     when it is true and 0 otherwise (scan.ModelParams.order_strengths). The μ_X(λ) tables are the
-    very ones Python interpolates log–log (crystal.mu_per_cm_table), so mu_factor agrees exactly.
+    very ones Python interpolates log–log (crystal.mu_per_cm_table), so mu_factor agrees exactly;
+    the same holds for ``extinction`` (crystal.extinction_table, already rounded to 7 digits).
     """
     out = {}
     for name, c in PRESETS.items():
@@ -175,6 +177,8 @@ def _crystal_tables():
             "d_pm": d_pm(c),
             "density_g_cm3": density_g_cm3(c),
             "reflectivity_model": c.reflectivity_model,
+            "mosaic_fwhm_deg": c.mosaic_fwhm_deg,
+            "extinction": [_floats(row) for row in extinction_table(c)],
             "fitted_debye_waller": c.fitted_debye_waller,
             "source": c.source,
             "max_order": scan.max_order(c),
@@ -439,7 +443,12 @@ def build():
                 "convolution, and per line component at its own λ. "
                 "mu_per_cm = linear attenuation in 1/cm "
                 "on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = "
-                "mu_per_cm[NaCl] / mu_per_cm[X] per λ",
+                "mu_per_cm[NaCl] / mu_per_cm[X] per λ. Non-NaCl crystals are also multiplied by "
+                "extinction_ratio = y_X,n(λ)/y_NaCl,1(λ) at the same λ (crystal.extinction_ratio) "
+                "and k uses exp(2 B_th/(2 d_NaCl)²) with B_th = 130 pm² (1.3 Å², NaCl thermal) "
+                "instead of B_fit. extinction[n−1] = y of order n on the first len(row) nodes of "
+                "lambda_pm of mu_rho.json (λ ≤ 2d sin85°/n plus one node; NaCl has order 1 only, "
+                "the reference y); interpolate log y vs log λ, end values held",
                 "source": f"xraylib {xraylib.__version__} CS_Total, FF_Rayl, AtomicWeight",
                 "crystals": _crystal_tables(),
             }
