@@ -92,8 +92,9 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
           <button data-log="0" aria-pressed="${!log}">${s.linear}</button>
           <button data-log="1" aria-pressed="${log}">${s.log}</button>
         </div>
-        <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}" disabled>${s.csv}</button>
+        <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}. ${s.csvHint}" disabled>${s.csv}</button>
         <button class="tool csv" data-csv-exp hidden></button>
+        <button class="tool csv" data-csv-clear hidden>${s.clearExposures}</button>
       </div>`
     emptyText = ''
     setEmpty()
@@ -231,6 +232,10 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
 
   root.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('[data-csv-exp]')) return downloadExposureCsv(a)
+    if ((e.target as HTMLElement).closest('[data-csv-clear]')) {
+      if (window.confirm(t().clearExposuresConfirm(a.exposureLog.length))) a.clearExposureLog()
+      return
+    }
     if ((e.target as HTMLElement).closest('[data-csv]')) return downloadCsv(a)
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-log]')
     if (!b || (b.dataset.log === '1') === log) return
@@ -264,7 +269,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       exp.dataset.n = String(m)
       exp.hidden = m === 0
       exp.textContent = t().csvExposures(m)
-      exp.title = t().csvExposuresLabel(m)
+      exp.title = `${t().csvExposuresLabel(m)}. ${t().csvHint}`
+      head.querySelector<HTMLButtonElement>('[data-csv-clear]')!.hidden = m === 0
       exp.setAttribute('aria-label', exp.title)
     }
     if (n === shown) return

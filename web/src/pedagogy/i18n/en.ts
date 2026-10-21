@@ -9,6 +9,8 @@ export const en: PedagogyDict = {
   steps: ['Predict', 'Act', 'Observe', 'Explain'],
   predictNumber: 'Your value',
   commit: 'Lock in my prediction',
+  loading: 'Preparing the bench…',
+  loadFailed: 'Could not load the task crystal. Try again.',
   waiting: 'The task completes by itself once you get there.',
   done: 'Done',
   explainNext: 'Show the explanation',

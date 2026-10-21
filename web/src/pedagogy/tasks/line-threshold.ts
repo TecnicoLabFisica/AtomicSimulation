@@ -21,6 +21,7 @@ export const task: GuidedTask = {
     const s = a.lastScan
     const r = a.replay
     if (!s || s.mode !== 'COUPLED' || s.changed || a.busy || s.i === 0 || r.length < 2) return false
+    if (s.setup.holder !== 'crystal' || s.setup.crystal !== 'NaCl') return false // the scan's own setup
     const U = s.u / 10
     const theta = thetaFromLambda(MO_KA_PM)
     const margin = 3 * DEFAULT.sigma_deg

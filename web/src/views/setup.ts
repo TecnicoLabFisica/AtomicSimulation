@@ -11,6 +11,9 @@ const FIELDS = ['holder', 'crystal', 'collimatorFilter', 'sensorFilter'] as cons
 
 export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
   let loaded = false
+  let failed = false // the last table load failed: one line says so until the next success
+  const fail = () => void (failed = true)
+  let token = 0 // each change handler run; a later run or a task's lock voids an earlier one's pending mount
   const build = () => {
     const s = t()
     const foils = [['', s.noFilter], ...Object.keys(FOILS_MG_CM2).sort().map((k) => [k, k])]
@@ -28,22 +31,32 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
   root.addEventListener('toggle', async () => {
     if (!root.open) return
     if (!loaded) {
-      await loadAbsorbers()
+      try {
+        await loadAbsorbers()
+      } catch {
+        fail() // the selects stay off; closing and opening the tray tries again
+        return
+      }
       loaded = true
       build() // the filter options exist now
     }
+    failed = false
     root.scrollIntoView({ block: 'nearest' }) // the opened rows, not just the summary, in view
   })
   root.addEventListener('change', async () => {
     const [holder, crystal, c, f] = FIELDS.map((k) => field(k).value)
+    const mine = ++token
     let ok = true
     if (crystal !== 'NaCl') {
       try {
         await loadCrystals() // the NaCl default never needs the table
+        failed = false
       } catch {
         ok = false // offline: the picker goes back to what is mounted
+        fail()
       }
     }
+    if (mine !== token || (lockedCrystal() !== null && crystal !== a.setup.crystal)) ok = false // a task started meanwhile
     if (!ok || !a.mount({ holder: holder as Holder, crystal, collimatorFilter: c || null, sensorFilter: f || null })) {
       const sel = field('crystal')
       sel.value = a.setup.crystal
@@ -58,9 +71,11 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     const onCrystal = a.setup.holder === 'crystal'
     // Lab mode: the crystal's name only, as on a real bench.
     const holderText = onCrystal ? s.setupCrystal(s.crystals[a.setup.crystal]) : s.holders[a.setup.holder]
-    setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${holderText}`)
+    const mounted = [a.setup.collimatorFilter, a.setup.sensorFilter].filter((n) => n !== null)
+    const filterText = mounted.length ? ` · ${s.setupFilters(mounted.join(' + '))}` : ''
+    setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${holderText}${filterText}`)
     root.querySelector<HTMLElement>('[data-crystal-row]')!.hidden = !onCrystal
-    setText(root.querySelector<HTMLElement>('[data-locked]')!, a.doorsClosed ? s.setupLocked : '')
+    setText(root.querySelector<HTMLElement>('[data-locked]')!, failed ? s.loadFailed : a.doorsClosed ? s.setupLocked : '')
     // One line under the crystal row: the task's lock, else (Explore only, not NaCl, whose heights are fitted) the heights note.
     const lock = lockedCrystal() // a guided task fixes the crystal: the picker shows its name, disabled
     const note = root.querySelector<HTMLElement>('[data-crystal-note]')!

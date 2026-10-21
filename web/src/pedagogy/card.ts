@@ -2,7 +2,7 @@
 // (predict → act → observe → explain). The act step ends by itself when the task's success(a) holds.
 import type { Apparatus, Key } from '../apparatus/apparatus'
 import { getLang, t } from '../i18n'
-import { loadAbsorbers, loadCrystals } from '../physics/tables'
+import { crystalsLoaded, loadAbsorbers, loadCrystals } from '../physics/tables'
 import { en } from './i18n/en'
 import { es } from './i18n/es'
 import { clearExports } from './csv'
@@ -30,6 +30,8 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   let task: GuidedTask | null = null
   let step = 0 // 0 predict · 1 act · 2 observe · 3 explain
   let prediction: string | null = null // the number as typed, or the chosen option's index
+  let loading = false // the task's crystal table is on its way
+  let notice = '' // a load failure, shown on the list
   const teacher = new URLSearchParams(location.search).has('teacher')
 
   const listHtml = () => {
@@ -41,6 +43,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
         ${MODES.map((m) => `<button data-mode="${m}" aria-pressed="${getMode() === m}">${s.modes[m]}</button>`).join('')}
       </div>
       <p class="note">${s.modeHint[getMode()]}</p>
+      ${notice ? `<p class="hint" role="alert">${notice}</p>` : ''}
       <h3>${p.tasks}</h3>
       <ul class="task-list">
         ${TASKS.map((k) => {
@@ -101,41 +104,55 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       <div class="view-head"><h2>${x.title}</h2><span class="chip">${x.concept}</span></div>
       <ol class="steps">${p.steps.map((st, i) =>
         `<li ${i === step ? 'aria-current="step"' : ''} ${i < step ? 'data-past' : ''}>${st}</li>`).join('')}</ol>
-      <div class="task-body" aria-live="polite">${bodyHtml(k)}</div>
+      <div class="task-body" aria-live="polite">${loading ? `<p class="hint">${p.loading}</p>` : bodyHtml(k)}</div>
       ${teacher ? `<details class="teacher"><summary>${p.teacher}</summary><p>${x.teacher}</p></details>` : ''}`
   }
 
   const build = () => {
     root.innerHTML = task ? cardHtml(task) : listHtml()
   }
+  /** The task's crystal lock and panel focus hold until its act step has succeeded (step ≥ 2); a card back at
+   * predict or act takes them up again. */
+  const lock = (on: boolean) => {
+    setActiveTask(on ? task : null)
+    onFocus(on && task ? task.controls : null)
+  }
   const go = (next: number) => {
     step = next
     setHints(next >= 2) // the expected angles would give the answer away before it is found
+    if (task) lock(next < 2)
     build()
     root.querySelector<HTMLElement>('.task-body input, .task-body button')?.focus()
     if (next === 1) onAct()
   }
   const start = (k: GuidedTask) => {
+    const restart = task === k // a free-pick task started over keeps the student's crystal
     task = k
+    step = 0 // the previous task's step never renders with this one
     prediction = null
+    notice = ''
     if (getMode() !== k.mode) {
       setMode(k.mode)
       onMode()
     }
     const begin = () => {
       if (task !== k) return // the student went back while the crystal table loaded
-      applyInitial(a, k.initial, k.crystal, k.holder)
-      setActiveTask(k) // after the mount, so the lock never names a crystal not yet on the holder
-      clearExports(a) // a restart begins fresh
-      a.clearExposureLog()
-      void loadAbsorbers() // the foils the task mounts
-      onFocus(k.controls)
+      loading = false
+      applyInitial(a, k.initial, k.crystal, k.holder, k.crystalLocked !== false || !restart)
+      clearExports(a) // a restart begins fresh; the exposure log stays (the attenuation tasks read it)
+      void loadAbsorbers().catch(() => {}) // the foils the task mounts; retried when the tray opens
       go(0)
     }
-    if (k.crystal && k.crystal !== 'NaCl') {
+    if (k.crystal && k.crystal !== 'NaCl' && !crystalsLoaded()) {
+      loading = true
+      build()
       loadCrystals().then(begin, () => {
+        if (task !== k) return
         task = null // offline: the list stays, nothing half-prepared
-        setActiveTask(null)
+        loading = false
+        notice = pt().loadFailed
+        lock(false)
+        build()
       })
     } else begin()
   }
@@ -151,9 +168,10 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     } else if (d.task) start(TASKS.find((k) => k.id === d.task)!)
     else if (d.back !== undefined) {
       task = null
-      setActiveTask(null)
+      loading = false
+      notice = ''
+      lock(false)
       setHints(true)
-      onFocus(null)
       build()
     } else if (d.choice) {
       prediction = d.choice
@@ -192,5 +210,9 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   const actText = () => (task && step === 1 ? pt().task[task.id as keyof ReturnType<typeof pt>['task']].act : null)
 
   build()
-  return { build, render, actText }
+  /** The Learn sheet was closed by the student: release the task's locks unless the act step is under way. */
+  const sheetClosed = () => {
+    if (task && step !== 1) lock(false)
+  }
+  return { build, render, actText, sheetClosed }
 }

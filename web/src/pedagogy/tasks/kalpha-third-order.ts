@@ -19,5 +19,5 @@ export const task: GuidedTask = {
   predict: { kind: 'number', unit: '°' },
   // HV on, crystal at rest on the step nearest the Bragg angle, counter coupled at 2θ.
   success: (a) =>
-    a.hvOn && !a.moving && wrapTarget(a.target) === THETA_STEP && a.sensor === 2 * THETA_STEP,
+    a.setup.holder === 'crystal' && a.setup.crystal === 'NaCl' && a.hvOn && !a.moving && wrapTarget(a.target) === THETA_STEP && a.sensor === 2 * THETA_STEP,
 }

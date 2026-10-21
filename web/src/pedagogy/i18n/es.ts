@@ -8,6 +8,8 @@ export const es = {
   steps: ['Predice', 'Actúa', 'Observa', 'Explica'],
   predictNumber: 'Tu valor',
   commit: 'Fijar mi predicción',
+  loading: 'Preparando el banco…',
+  loadFailed: 'No se pudo cargar el cristal de la tarea. Reintenta.',
   waiting: 'La tarea se completa sola cuando lo logres.',
   done: 'Logrado',
   explainNext: 'Ver la explicación',

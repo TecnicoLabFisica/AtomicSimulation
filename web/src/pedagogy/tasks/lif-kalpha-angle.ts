@@ -5,7 +5,7 @@ import { MAX_STEP_DEG, MIN_PROMINENCE_SIGMA, PEAK_HALF_WINDOW_DEG } from '../../
 import { MO_KA_PM, MO_KB_PM } from '../../physics/constants'
 import { crystalByName, dPm, thetaFromLambda } from '../../physics/crystal'
 import { DEFAULT, expectedRate } from '../../physics/scan'
-import type { GuidedTask } from '../task'
+import { foilsOf, type GuidedTask } from '../task'
 
 const CRYSTAL = 'LiF'
 const W = PEAK_HALF_WINDOW_DEG
@@ -33,7 +33,7 @@ export const task: GuidedTask = {
     const th = thetaFromLambda(MO_KA_PM, 1, dPm(crystal))
     const thB = thetaFromLambda(MO_KB_PM, 1, dPm(crystal))
     if (r[0].angle / 10 > th - W || r.at(-1)!.angle / 10 < th + W) return false
-    const [peak, lo, hi] = expectedRate([th, Math.max(th - W, (th + thB) / 2), th + W], s.u / 10, s.i / 100, DEFAULT, null, [], crystal)
+    const [peak, lo, hi] = expectedRate([th, Math.max(th - W, (th + thB) / 2), th + W], s.u / 10, s.i / 100, DEFAULT, null, foilsOf(s.setup), crystal)
     return (peak - Math.max(lo, hi)) * s.dt >= MIN_PROMINENCE_SIGMA * Math.sqrt(Math.max(peak * s.dt, 1))
   },
 }

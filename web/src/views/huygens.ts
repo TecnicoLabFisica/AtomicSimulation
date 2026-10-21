@@ -4,6 +4,7 @@
 // pm: plane spacing d, λ of the selected Mo line.
 import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
 import { t } from '../i18n'
+import { showHints } from '../pedagogy/mode'
 import { D_NACL_PM, MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { lambdaFromTheta, thetaFromLambda, type Crystal } from '../physics/crystal'
 import { DEFAULT } from '../physics/scan'
@@ -192,30 +193,32 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const valid = thetaDeg > 0 && thetaDeg < 90
     const n = valid ? nearestOrder(thetaDeg, lambdaPm, dPm) : 0
     const met = valid && Math.abs(thetaDeg - thetaFromLambda(lambdaPm, n, dPm)) < DEFAULT.sigma_deg
+    const hints = showHints() // a guided task hides the verdict (and the nλ it compares with) until its act step is done
+    const verdict = met && hints
 
     const s = t()
     const eqText = valid
       ? [
           s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut), // Explore panel: showing d is fine here
           `θ = β = ${thetaDeg.toFixed(1)}°`,
-          `${s.pathDiff} = ${lambdaFromTheta(thetaDeg, 1, dPm).toFixed(1)} pm ${met ? '≈' : '≠'} nλ = ${n} × ${lambdaPm.toFixed(1)} = ${(n * lambdaPm).toFixed(1)} pm`,
+          `${s.pathDiff} = ${lambdaFromTheta(thetaDeg, 1, dPm).toFixed(1)} pm${hints ? ` ${met ? '≈' : '≠'} nλ = ${n} × ${lambdaPm.toFixed(1)} = ${(n * lambdaPm).toFixed(1)} pm` : ''}`,
         ]
           .map((part) => `<span>${part.replaceAll(' ', '\u00a0')}</span>`)
           .join('')
       : `<span>${s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
-    const eqKey = `${eqText} ${met}`
+    const eqKey = `${eqText} ${hints} ${met}`
     if (eqKey !== shownEq) {
-      eq.innerHTML = `${eqText} <strong class="met" data-met="${met}">${met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
+      eq.innerHTML = `${eqText} <strong class="met" data-met="${verdict}">${!hints ? '' : met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
       shownEq = eqKey
     }
 
     const animate = valid && !reducedMotion()
     if (animate) phasePm = (phasePm + CREST_PM_PER_S * dtS) % lambdaPm
     else phasePm = 0
-    const key = `${thetaDeg} ${line} ${met} ${paletteVersion} ${s.pathDiff} ${c.name}`
+    const key = `${thetaDeg} ${line} ${verdict} ${paletteVersion} ${s.pathDiff} ${c.name}`
     if (!resized && !animate && key === drawn) return
     ;[drawn, resized] = [key, false]
-    draw(thetaDeg, lambdaPm, met, c)
+    draw(thetaDeg, lambdaPm, verdict, c)
   }
 
   watchSize(canvas, () => {

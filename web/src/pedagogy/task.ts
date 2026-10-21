@@ -1,6 +1,7 @@
 // A guided task: predict → act → observe → explain (write-guided-task skill). Its success condition asks
 // the physics model or the apparatus, never a hand-tuned number.
-import type { Apparatus, Holder, Key, Mode } from '../apparatus/apparatus'
+import type { Apparatus, Holder, Key, Mode, Setup } from '../apparatus/apparatus'
+import { FOILS_MG_CM2 } from '../physics/tables'
 import type { AppMode } from './mode'
 
 export type GuidedTask = {
@@ -24,16 +25,18 @@ export type GuidedTask = {
 }
 
 /** Start from the device defaults (RESET: HV off, arms driven home), then the task's settings. */
-export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal = 'NaCl', holder?: Holder): void {
+export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal = 'NaCl', holder?: Holder, crystalLocked = true): void {
   a.press('RESET')
   // The task setup is the teacher preparing the bench: the doors are opened through the guarded API (RESET left
   // the HV off and the arms idle) and put back as they were. A non-NaCl preset must be loaded first (loadCrystals()).
-  // The holder is left alone unless the task names one: the attenuation tasks have a plate wheel there.
-  if (a.setup.crystal !== crystal || (holder && a.setup.holder !== holder)) {
+  // The holder is left alone unless the task names one (the attenuation tasks have a plate wheel there); a task
+  // that lets the student pick the crystal keeps the one mounted; no task starts with a foil left over.
+  const want = { holder: holder ?? a.setup.holder, crystal: crystalLocked ? crystal : a.setup.crystal, collimatorFilter: null, sensorFilter: null }
+  if ((Object.keys(want) as (keyof typeof want)[]).some((k) => a.setup[k] !== want[k])) {
     const closed = a.doorsClosed
     if (!a.setDoors(false)) throw new Error('bench not safe to prepare')
     try {
-      a.mount({ ...a.setup, crystal, ...(holder && { holder }) })
+      a.mount(want)
     } finally {
       a.setDoors(closed)
     }
@@ -45,6 +48,10 @@ export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal 
   if (init.mode) a.press(init.mode)
   if (init.limits_deg) [a.limitLo, a.limitHi] = init.limits_deg.map((d) => Math.round(d * 10))
 }
+
+/** The foils a stored setup had in the beam, as expectedRate takes them (as Apparatus.foils()). */
+export const foilsOf = (setup: Setup): [string, number][] =>
+  [setup.collimatorFilter, setup.sensorFilter].filter((n) => n !== null).map((n) => [n, FOILS_MG_CM2[n]])
 
 // The task on the card, so the setup tray can lock its crystal picker without importing the card.
 let active: GuidedTask | null = null

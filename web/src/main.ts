@@ -161,6 +161,7 @@ function doorLabel() {
 labels()
 
 function openSheet(sheet: HTMLElement, open: boolean, moveFocus = true) {
+  if (!open && moveFocus && sheet === learnSheet) learn.sheetClosed() // the student closed it (not the act step stepping aside)
   sheet.dataset.open = String(open)
   // One inspector at a time: Learn and Huygens share the right-hand column (the bottom sheet on phones).
   for (const o of inspectors) {
