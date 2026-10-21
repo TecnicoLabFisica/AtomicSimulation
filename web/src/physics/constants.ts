@@ -6,6 +6,8 @@ export const A0_NACL_PM = 564.02
 export const D_NACL_PM = 282.01
 /** port of braggsim.crystal.NACL_THERMAL_B_A2: NaCl's room-temperature B in Å² (assumption; the reference extinction of the cross-crystal scale). */
 export const NACL_THERMAL_B_A2 = 1.3
+/** port of braggsim.crystal.NACL_THERMAL_B_PM2: the same B in pm² (1 Å² = 10⁴ pm²), for the pm⁻¹ scale of the order strengths. */
+export const NACL_THERMAL_B_PM2 = 13000
 
 // Mo characteristic lines, LD P6.3.3.1 Table 1.
 export const MO_KA_KEV = 17.443

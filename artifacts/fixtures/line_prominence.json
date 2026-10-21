@@ -30,8 +30,8 @@
   },
   {
    "expected": {
-    "sigma": 8.819191360139934,
-    "strongest_rate_per_s": 121.37370424188663
+    "sigma": 9.193498975897569,
+    "strongest_rate_per_s": 131.01349520236096
    },
    "inputs": {
     "I_mA": 1.0,
@@ -58,8 +58,8 @@
   },
   {
    "expected": {
-    "sigma": 1.9579683227363258,
-    "strongest_rate_per_s": 6.329239625290873
+    "sigma": 2.044606422630274,
+    "strongest_rate_per_s": 6.8229782775603
    },
    "inputs": {
     "I_mA": 0.05,
@@ -86,8 +86,8 @@
   },
   {
    "expected": {
-    "sigma": 11.999371145889091,
-    "strongest_rate_per_s": 19.477509134215072
+    "sigma": 12.510908840408767,
+    "strongest_rate_per_s": 21.057199717570786
    },
    "inputs": {
     "I_mA": 0.5,
@@ -119,8 +119,8 @@
   },
   {
    "expected": {
-    "sigma": 5.940912699299886,
-    "strongest_rate_per_s": 881.9066930107533
+    "sigma": 6.201162276031322,
+    "strongest_rate_per_s": 80.70453179243721
    },
    "inputs": {
     "I_mA": 1.0,
@@ -176,7 +176,7 @@
   {
    "expected": {
     "sigma": 0.0,
-    "strongest_rate_per_s": 0.7449213691817134
+    "strongest_rate_per_s": 0.0
    },
    "inputs": {
     "I_mA": 1.0,
@@ -184,6 +184,62 @@
     "beta_hi_deg": 40.0,
     "beta_lo_deg": 2.0,
     "crystal": "NaCl",
+    "dt_s": 1.0,
+    "filters": [],
+    "params": {
+     "absorber_mg_cm2": 326.0,
+     "background_per_s": 0.2,
+     "debye_waller_pm2": 6260.0,
+     "direct_per_s": 297000.0,
+     "leak_amp_per_s": 118000.0,
+     "leak_width_deg": 1.161,
+     "line_to_cont": 0.00743,
+     "scale": 167600.0,
+     "scatter_per_s": 5.34,
+     "sigma_deg": 0.1228,
+     "tau_s": 0.0001
+    }
+   }
+  },
+  {
+   "expected": {
+    "sigma": 0.0,
+    "strongest_rate_per_s": 0.0
+   },
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 19.5,
+    "beta_hi_deg": 9.0,
+    "beta_lo_deg": 5.0,
+    "crystal": "NaCl",
+    "dt_s": 1.0,
+    "filters": [],
+    "params": {
+     "absorber_mg_cm2": 326.0,
+     "background_per_s": 0.2,
+     "debye_waller_pm2": 6260.0,
+     "direct_per_s": 297000.0,
+     "leak_amp_per_s": 118000.0,
+     "leak_width_deg": 1.161,
+     "line_to_cont": 0.00743,
+     "scale": 167600.0,
+     "scatter_per_s": 5.34,
+     "sigma_deg": 0.1228,
+     "tau_s": 0.0001
+    }
+   }
+  },
+  {
+   "expected": {
+    "sigma": 0.0,
+    "strongest_rate_per_s": 323.8757556658667
+   },
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "beta_hi_deg": 3.0,
+    "beta_lo_deg": 1.0,
+    "crystal": "muscovite",
     "dt_s": 1.0,
     "filters": [],
     "params": {

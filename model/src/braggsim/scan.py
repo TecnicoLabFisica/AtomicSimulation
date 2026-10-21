@@ -26,7 +26,7 @@ import numpy as np
 from braggsim.constants import MO_KA_COMPONENTS, MO_KB_COMPONENTS
 from braggsim.crystal import (
     NACL,
-    NACL_THERMAL_B_A2,
+    NACL_THERMAL_B_PM2,
     cell_scale,
     d_pm,
     dlambda_dtheta_pm_per_deg,
@@ -107,8 +107,8 @@ class ModelParams:
         r_n = k · |F_n|²/|F_1|² · exp(−2B (s_n² − s_1²)), s_n = n/(2d) in pm⁻¹ (Debye–Waller
         factor, Warren ch. 3), k = ``cell_scale`` · exp(+2 B_NaCl,th s_1,NaCl²) (1 for NaCl).
         B is the fitted ``debye_waller_pm2`` for the NaCl anchor (``fitted_debye_waller``), 0 for
-        the others, whose literature B is already inside F. B_NaCl,th (``NACL_THERMAL_B_A2``,
-        1.3 Å² = 130 pm²) is NaCl's room-temperature B, the same one the NaCl reference
+        the others, whose literature B is already inside F. B_NaCl,th (``NACL_THERMAL_B_PM2``,
+        1.3 Å² = 13 000 pm²) is NaCl's room-temperature B, the same one the NaCl reference
         extinction y_NaCl,1 is computed with. The λ-dependent parts of the cross-crystal scale are
         ``crystal.mu_factor`` and ``crystal.extinction_ratio`` y_X,n(λ)/y_NaCl,1(λ) (applied per λ
         in the scan). Orders with n λ > 2d are skipped later."""
@@ -120,7 +120,7 @@ class ModelParams:
             # The other crystals' thermal |F|² is divided by NaCl's at-rest |F|², but NaCl's scale
             # is its thermal one: put exp(+2 B_NaCl,th s_1²) back, with NaCl's physical B (not the
             # effective B_fit, which absorbs more than the thermal motion), in pm².
-            k *= math.exp(2 * NACL_THERMAL_B_A2 * 100 / (2 * d_pm(NACL)) ** 2)
+            k *= math.exp(2 * NACL_THERMAL_B_PM2 / (2 * d_pm(NACL)) ** 2)
         return {
             n: k * f * math.exp(-2 * b * (n * n - 1) * s1_sq)
             for n, f in enumerate(

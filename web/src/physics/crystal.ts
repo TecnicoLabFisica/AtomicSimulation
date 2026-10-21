@@ -53,6 +53,7 @@ export type Crystal = Readonly<{
   max_order: number // at 35 kV
   cell_scale: number // (|F_1|²/V²) / (|F_1|²/V²)_NaCl
   f_sq_rel: readonly number[] // |F_n|²/|F_1|², n = 1 … max_order
+  allowed_orders: readonly number[] // orders 1 … max_order that are not systematically absent (lookup, from Python)
   mu_per_cm: readonly number[] // linear attenuation on MU_RHO_GRID_PM; empty for the built-in NACL
   fitted_debye_waller: boolean // true only for the NaCl anchor
   reflectivity_model: string // 'ideal_mosaic' | 'darwin' | 'mosaic_extinction'
@@ -66,7 +67,7 @@ export type Crystal = Readonly<{
 export const NACL: Crystal = Object.freeze({
   name: 'NaCl', a_pm: 564.02, b_pm: 564.02, c_pm: 564.02, alpha_deg: 90, beta_deg: 90, gamma_deg: 90,
   cut: [2, 0, 0], d_pm: D_NACL_PM, density_g_cm3: 2.1641351917042018, max_order: 15, cell_scale: 1,
-  f_sq_rel: STRUCTURE_FACTOR_SQ_REL.slice(0, 15), mu_per_cm: [], fitted_debye_waller: true,
+  f_sq_rel: STRUCTURE_FACTOR_SQ_REL.slice(0, 15), allowed_orders: Array.from({ length: 15 }, (_, i) => i + 1), mu_per_cm: [], fitted_debye_waller: true,
   reflectivity_model: 'mosaic_extinction', mosaic_fwhm_deg: 0.2, extinction: [],
   source: 'LD P6.3.3.1 (a0 = 564.02 pm, d = 282.01 pm)',
 }) // prettier-ignore
@@ -83,13 +84,11 @@ export function crystalByName(name: string): Crystal {
   return CRYSTALS[name]
 }
 
-/** port of braggsim.crystal.ALLOWED_F_SQ_REL_MIN: an order with |F_n|²/|F_1|² not above this is extinct (F = 0 up to rounding). */
-export const ALLOWED_F_SQ_REL_MIN = 1e-6
-
-/** port of braggsim.crystal.allowed_orders: the orders n = 1 … max_order of the cut series that are not extinct,
- * ascending (Si (111): 1, 3, 4, 5, 7 …). The model gives exactly nothing at the others; a real wafer may show a very weak (222). */
-export const allowedOrders = (crystal: Crystal): number[] =>
-  crystal.f_sq_rel.flatMap((f, i) => (f > ALLOWED_F_SQ_REL_MIN ? [i + 1] : []))
+/** port of braggsim.crystal.allowed_orders: the orders n = 1 … max_order of the cut series that are not systematically
+ * absent, ascending (Si (111): 1, 3, 4, 5, 7 …), read from the exported list (Python judges the at-rest |F|², so a
+ * Debye–Waller-damped order such as LiF n = 11 stays allowed). The model gives exactly nothing at the absent orders; a
+ * real wafer may show a very weak (222). */
+export const allowedOrders = (crystal: Crystal): number[] => [...crystal.allowed_orders]
 
 /** port of braggsim.crystal.d_pm: spacing in pm of the first reflection of the cut series. */
 export const dPm = (crystal: Crystal): number => crystal.d_pm

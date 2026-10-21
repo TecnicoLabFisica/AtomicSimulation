@@ -199,14 +199,14 @@ def density_g_cm3(crystal):
     return mass_g_mol / (AVOGADRO_PER_MOL * cell_volume_A3(crystal) * 1e-24)
 
 
-def _f_sq(crystal, hkl, q_inv_A):
+def _f_sq(crystal, hkl, q_inv_A, thermal=True):
     """|F|² (electrons²) of reflection ``hkl`` at s = sin θ/λ = ``q_inv_A`` in Å⁻¹:
-    |Σ occ f(s) e^{−B s²} e^{2πi (h x + k y + l z)}|²."""
+    |Σ occ f(s) e^{−B s²} e^{2πi (h x + k y + l z)}|²; ``thermal=False`` puts the atoms at rest
+    (B = 0)."""
     atoms = np.array(crystal.basis, dtype=float)
     f = {int(z): xraylib.FF_Rayl(int(z), q_inv_A) for z in set(atoms[:, 0])}
-    amp = (
-        np.array([f[int(z)] for z in atoms[:, 0]]) * atoms[:, 5] * np.exp(-atoms[:, 4] * q_inv_A**2)
-    )
+    b = atoms[:, 4] if thermal else 0.0
+    amp = np.array([f[int(z)] for z in atoms[:, 0]]) * atoms[:, 5] * np.exp(-b * q_inv_A**2)
     phase = 2 * np.pi * atoms[:, 1:4] @ np.asarray(hkl, dtype=float)
     return float(abs(np.sum(amp * np.exp(1j * phase))) ** 2)
 
@@ -214,6 +214,19 @@ def _f_sq(crystal, hkl, q_inv_A):
 def _f_sq_forward_limit(crystal):
     """(Σ occ Z)²: the |F|² of a hypothetical in-phase reflection at q = 0, to judge 'absent'."""
     return sum(occ * z for z, *_, occ in crystal.basis) ** 2
+
+
+@functools.cache
+def order_is_absent(crystal, n):
+    """True if order ``n`` of the cut series is systematically absent (e.g. Si (222)): the
+    at-rest |F|² (B = 0) is below 1e-12 (Σ occ Z)². Judged at rest so that a reflection merely
+    damped by a large Debye–Waller factor (LiF n = 11, muscovite 53) is not called extinct. NaCl
+    (200) has every order. The one criterion of ``allowed_orders`` and of the extinction table."""
+    if crystal is NACL:
+        return False
+    hkl = tuple(n * i for i in crystal.cut)
+    f_sq = _f_sq(crystal, hkl, n / (2 * d_pm(crystal) / 100), thermal=False)
+    return f_sq < 1e-12 * _f_sq_forward_limit(crystal)
 
 
 @functools.cache
@@ -273,8 +286,10 @@ def cell_scale(crystal):
     ideal mosaic is lower by the extinction factor y (``extinction_factor``, a per-order, per-λ
     factor in (0, 1]); scan.py multiplies by y_X,n(λ)/y_NaCl,1(λ), so that the NaCl-anchored scale
     carries the same extinction in the numerator and the denominator. At Mo Kα, order 1 the
-    resulting order-1 Kα line weights relative to NaCl are ≈ 1.27 (LiF), 0.034 (Si), 0.035
-    (calcite) and 0.017 (muscovite); this ``cell_scale`` alone (y = 1) would give ≈ 0.68 for Si.
+    resulting order-1 Kα line weights relative to NaCl (r_1 · Lorentz-polarization · μ ratio ·
+    y ratio) are ≈ 1.32 (LiF), 0.036 (Si), 0.037 (calcite) and 0.017 (muscovite). For Si,
+    ``cell_scale`` itself is 0.597 and the y = 1 line weight (the same product without the y
+    ratio) would be 0.83.
     Computed, not fitted; check on the bench by comparing the order-1 Kα peak with NaCl at equal
     tube settings.
     """
@@ -304,11 +319,11 @@ def structure_factor_sq_rel_crystal(crystal, n_max):
     return tuple(x / f[0] for x in f)
 
 
-# An order whose |F_n|²/|F_1|² is not above this is systematically absent (F = 0 up to rounding,
-# e.g. Si (222)); every consumer, from peak pairing to the web markers, uses this one criterion.
-# The model gives exactly nothing there; a real wafer shows a very weak (222) (bonding charge,
-# Renninger multiple diffraction), which no kinematic structure factor of spherical atoms contains.
-ALLOWED_F_SQ_REL_MIN = 1e-6
+# An order whose at-rest |F|² is below 1e-12 (Σ occ Z)² is systematically absent (F = 0 up to
+# rounding, e.g. Si (222)): ``order_is_absent``, the one criterion for every consumer, from peak
+# pairing to the web markers. The model gives exactly nothing there; a real wafer shows a very
+# weak (222) (bonding charge, Renninger multiple diffraction), which no kinematic structure factor
+# of spherical atoms contains.
 
 
 def allowed_orders(crystal):
@@ -319,8 +334,7 @@ def allowed_orders(crystal):
     from braggsim.scan import max_order
 
     n_max = max_order(crystal)
-    f = structure_factor_sq_rel_crystal(crystal, n_max)
-    return tuple(n for n, x in enumerate(f, start=1) if x > ALLOWED_F_SQ_REL_MIN)
+    return tuple(n for n in range(1, n_max + 1) if not order_is_absent(crystal, n))
 
 
 # --------------------------------------------------------------------------------------------
@@ -331,6 +345,7 @@ RE_PM = 2.8179403262e-3  # classical electron radius, pm (CODATA 2018)
 NACL_THERMAL_B_A2 = (
     1.3  # B of Na and Cl at room temperature in Å², used only for the NaCl reference y
 )
+NACL_THERMAL_B_PM2 = 13000.0  # the same B in pm² (1 Å² = 10⁴ pm²), for the pm⁻¹ scale of scan.py
 EXTINCTION_N_POINTS = 2001  # quadrature points of the Darwin and the mosaic integrals
 SIGNIFICANT_DIGITS = 4  # of the exported y tables, which Python itself interpolates
 MAX_THETA_B_DEG = 88.0  # the dynamical formulas are not evaluated closer to backscattering
@@ -441,9 +456,7 @@ def _extinction_raw(crystal, n, lambda_pm):
     if not 0 < sin_theta <= math.sin(math.radians(MAX_THETA_B_DEG)):
         raise ValueError(f"{crystal.name}: order {n} at {lam} pm has θ_B beyond {MAX_THETA_B_DEG}°")
     chi0, chi_h, chi_hb, theta, mu = _chis(crystal, n, lam)
-    f_sq_forbidden = 1e-12 * _f_sq_forward_limit(crystal)
-    gamma = RE_PM * lam**2 / (math.pi * cell_volume_A3(crystal) * 1e6)
-    if abs(chi_h) ** 2 / gamma**2 < f_sq_forbidden:  # |F_h|² ≈ 0: nothing to extinguish
+    if order_is_absent(crystal, n):  # |F_h|² ≈ 0: nothing to extinguish
         return 1.0
     if crystal.reflectivity_model == "ideal_mosaic":
         return 1.0
@@ -474,7 +487,9 @@ def extinction_table(crystal):
     up to λ ≤ 2 d sin 85° / n plus one node, rounded to 4 significant digits
     (the assumptions behind y are far coarser; it keeps the lazy table small). A tuple of read-only
     float arrays. The node past 88° is evaluated at the 88° wavelength (the formulas are not
-    used near backscattering); only the sliver between 85° and the first node past it is affected.
+    used near backscattering). The grid is 0.3 % in λ, so the interpolation (log y vs log λ) between
+    the last node below 85° and the node past it is a coarse chord, not exact physics: near θ = 85°
+    it can be off by a few % (up to 2 % for LiF n = 1–3 at ~84.5°).
     This rounded table, not the raw physics, is what ``extinction_factor`` and the web port read.
     """
     from braggsim.filters import MU_RHO_GRID_PM

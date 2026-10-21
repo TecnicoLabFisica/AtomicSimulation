@@ -10,11 +10,14 @@ from braggsim.crystal import (
     LIF,
     MUSCOVITE,
     NACL,
+    NACL_THERMAL_B_A2,
+    NACL_THERMAL_B_PM2,
     PRESETS,
     SI,
     Crystal,
     _chis,
     _y_darwin,
+    allowed_orders,
     build_basis,
     cell_scale,
     cell_volume_A3,
@@ -30,6 +33,7 @@ from braggsim.crystal import (
     structure_factor_sq,
     structure_factor_sq_hkl,
     structure_factor_sq_rel,
+    structure_factor_sq_rel_crystal,
     theta_from_lambda,
 )
 
@@ -241,7 +245,9 @@ def test_crystal_non_fitted_presets_keep_their_own_thermal_motion_not_the_fitted
     assert [b[n] / b[1] for n in (2, 3)] == approx([a[n] / a[1] for n in (2, 3)], rel=1e-12)
     assert b[1] == a[1]
     s1_sq = (1 / (2 * D_NACL_PM)) ** 2
-    assert a[1] / cell_scale(SI) == approx(np.exp(2 * 130.0 * s1_sq), rel=1e-12)
+    assert a[1] / cell_scale(SI) == approx(np.exp(2 * 13000.0 * s1_sq), rel=1e-12)
+    assert NACL_THERMAL_B_PM2 == 1e4 * NACL_THERMAL_B_A2  # 1 Å² = 10⁴ pm²
+    assert a[1] / cell_scale(SI) == approx(1.0852, rel=1e-4)
     assert hot.order_strengths(NACL) != p.order_strengths(NACL)
     assert set(PRESETS) == {"NaCl", "LiF", "Si", "calcite", "muscovite"}
 
@@ -428,8 +434,6 @@ def test_extinction_crystal_validation():
 
 def test_extinction_order_1_ka_line_weights_relative_to_nacl():
     # Order-1 Kα line weight (r_1 · μ-factor · y ratio · Lorentz-polarization) over NaCl's.
-    # Reviewer's values 1.27 / 0.034 / 0.035 / 0.0166 included the old exp(+2 B_fit s²) = 1.040;
-    # with the NaCl-thermal reference (1.0008) they are 4 % lower.
     def weight(c):
         th = float(theta_from_lambda(MO_KA_PM, 1, d_pm(c)))
         w = scan.DEFAULT.order_strengths(c)[1] * float(lorentz_polarization(th))
@@ -437,6 +441,16 @@ def test_extinction_order_1_ka_line_weights_relative_to_nacl():
             w *= float(scan.mu_factor(c, MO_KA_PM) * extinction_ratio(c, 1, MO_KA_PM))
         return w
 
-    for c, expected in ((LIF, 1.27), (SI, 0.034), (CALCITE, 0.035), (MUSCOVITE, 0.0166)):
-        assert weight(c) / weight(NACL) == approx(expected / 1.040, rel=0.05), c.name
-        assert weight(c) / weight(NACL) == approx(expected, rel=0.06), c.name
+    # Hand values: exp(+2 B_NaCl,th s_1²) = exp(2 · 1.3 · 0.1773²) = 1.0852 (B in Å², s in Å⁻¹).
+    for c, expected in ((LIF, 1.32), (SI, 0.0357), (CALCITE, 0.0370), (MUSCOVITE, 0.0173)):
+        assert weight(c) / weight(NACL) == approx(expected, rel=0.02), c.name
+
+
+def test_debye_waller_damped_but_allowed_orders_are_not_called_extinct():
+    # LiF (200) n = 11 has a tiny thermal |F|²/|F_1|² (< 1e-6) but its at-rest F is far from zero;
+    # only the structurally forbidden orders (Si 2, 6, 10 …) are absent.
+    assert 11 in allowed_orders(LIF)
+    assert allowed_orders(LIF) == tuple(range(1, scan.max_order(LIF) + 1))
+    assert structure_factor_sq_rel_crystal(LIF, 11)[10] < 1e-6
+    assert 2 not in allowed_orders(SI) and 3 in allowed_orders(SI)
+    assert allowed_orders(NACL) == tuple(range(1, scan.max_order(NACL) + 1))

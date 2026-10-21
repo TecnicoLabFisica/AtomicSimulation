@@ -56,7 +56,7 @@ test('extinctionFactor reads the exported y table: Mo Kα, order 1 (reference va
   expect(y('calcite')).toBeCloseTo(0.0472, 3)
   expect(y('muscovite')).toBeCloseTo(0.165, 2)
   expect(y('LiF')).toBeCloseTo(0.31, 2)
-  expect(y('NaCl')).toBeCloseTo(0.81, 1)
+  expect(y('NaCl')).toBeCloseTo(0.81, 2)
   expect(y('LiF', 2)).toBeGreaterThan(y('LiF', 1)) // higher orders are weaker, so less extinguished
 })
 
@@ -70,6 +70,10 @@ test('allowedOrders drops the extinct orders of Si (111): 2, 6, 10 …', () => {
   const orders = allowedOrders(CRYSTALS.Si)
   expect(orders.slice(0, 6)).toEqual([1, 3, 4, 5, 7, 8])
   expect(orders.some((n) => n % 4 === 2)).toBe(false)
+})
+
+test('allowedOrders keeps the Debye–Waller-damped LiF order 11', () => {
+  expect(allowedOrders(CRYSTALS.LiF)).toContain(11)
 })
 
 test('allowedOrders keeps every order of NaCl', () => {

@@ -24,6 +24,7 @@ from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import (
     NACL,
     PRESETS,
+    allowed_orders,
     cell_scale,
     d_pm,
     density_g_cm3,
@@ -163,10 +164,12 @@ def _crystal_tables():
     """Everything the port needs for ``expected_rate(..., crystal=X)`` without xraylib.
 
     r_n(params) = k · f_sq_rel[n−1] · exp(−2 B (n²−1) s_1²) with k = cell_scale, times
-    exp(2 B_fit / (2 d_NaCl)²) when ``fitted_debye_waller`` is false, B = params.debye_waller_pm2
-    when it is true and 0 otherwise (scan.ModelParams.order_strengths). The μ_X(λ) tables are the
+    exp(2 B_th / (2 d_NaCl)²), B_th = 13 000 pm² (NaCl thermal), when ``fitted_debye_waller`` is
+    false, B = params.debye_waller_pm2 when it is true and 0 otherwise
+    (scan.ModelParams.order_strengths). The μ_X(λ) tables are the
     very ones Python interpolates log–log (crystal.mu_per_cm_table), so mu_factor agrees exactly;
-    the same holds for ``extinction`` (crystal.extinction_table, already rounded to 7 digits).
+    the same holds for ``extinction`` (crystal.extinction_table, already rounded to 4 significant
+    digits). ``allowed_orders`` is lookup data (crystal.allowed_orders), not recomputed in TS.
     """
     out = {}
     for name, c in PRESETS.items():
@@ -184,6 +187,7 @@ def _crystal_tables():
             "max_order": scan.max_order(c),
             "cell_scale": cell_scale(c),
             "f_sq_rel": list(structure_factor_sq_rel_crystal(c, scan.max_order(c))),
+            "allowed_orders": list(allowed_orders(c)),
             "mu_per_cm": _floats(mu_per_cm_table(c)),
         }  # fmt: skip
     return out
@@ -267,6 +271,8 @@ def _prominence_case():
         ("muscovite", mus, 1.0, 12.0, 35.0, 1.0, 1.0, ()),
         ("NaCl", NACL, 1.0, 3.0, 35.0, 1.0, 1.0, ()),  # no line in the window: 0
         ("NaCl", NACL, 2.0, 40.0, 15.0, 1.0, 1.0, ()),  # below the K edge
+        ("NaCl", NACL, 5.0, 9.0, 19.5, 1.0, 1.0, ()),  # just below U_K: no line emitted, 0
+        ("muscovite", mus, 1.0, 3.0, 35.0, 1.0, 1.0, ()),  # negative raw σ (leak): clamped to 0
     ]
     cases = []
     for name, c, lo, hi, u_kv, i_ma, dt, filters in rows:
@@ -471,8 +477,8 @@ def build():
         "tables/crystals.json": _dump(
             {
                 "description": "Crystal presets (braggsim.crystal.PRESETS). r_n = k f_sq_rel[n−1] "
-                "exp(−2B(n²−1)s_1²), s_1 = 1/(2 d_pm): k = cell_scale (× exp(2 B_fit/(2 d_NaCl)²) "
-                "if not fitted_debye_waller; B_fit = params.debye_waller_pm2, in pm², s in pm⁻¹), "
+                "exp(−2B(n²−1)s_1²), s_1 = 1/(2 d_pm): k = cell_scale (× exp(2 B_th/(2 d_NaCl)²) "
+                "if not fitted_debye_waller; B_th = 13 000 pm², s in pm⁻¹), B in pm², "
                 "B = params.debye_waller_pm2 if fitted_debye_waller else 0 "
                 "(scan.ModelParams.order_strengths). mu_factor is applied only for non-NaCl "
                 "crystals, per order at λ_n = 2d sinθ/n on the θ grid before the Gaussian "
@@ -481,10 +487,12 @@ def build():
                 "on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = "
                 "mu_per_cm[NaCl] / mu_per_cm[X] per λ. Non-NaCl crystals are also multiplied by "
                 "extinction_ratio = y_X,n(λ)/y_NaCl,1(λ) at the same λ (crystal.extinction_ratio) "
-                "and k uses exp(2 B_th/(2 d_NaCl)²) with B_th = 130 pm² (1.3 Å², NaCl thermal) "
+                "and k uses exp(2 B_th/(2 d_NaCl)²) with B_th = 13 000 pm² (1.3 Å², NaCl thermal) "
                 "instead of B_fit. extinction[n−1] = y of order n on the first len(row) nodes of "
                 "lambda_pm of mu_rho.json (λ ≤ 2d sin85°/n plus one node; NaCl has order 1 only, "
-                "the reference y); interpolate log y vs log λ, end values held",
+                "the reference y); interpolate log y vs log λ, end values held. "
+                "allowed_orders = orders 1 … max_order that are not systematically absent "
+                "(crystal.order_is_absent: at-rest |F|² ≥ 1e-12 (Σ occ Z)²)",
                 "source": f"xraylib {xraylib.__version__} CS_Total, FF_Rayl, AtomicWeight",
                 "crystals": _crystal_tables(),
             }

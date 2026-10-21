@@ -25,7 +25,7 @@ from braggsim.crystal import (
     theta_from_lambda,
 )
 from braggsim.scan import DEFAULT, expected_rate
-from braggsim.source import LINE_EXPONENT_M
+from braggsim.source import LINE_EXPONENT_M, line_rates
 
 # A characteristic line is at most this wide (FWHM ≈ 0.3° at the leaflet's slits); the
 # bremsstrahlung hump near 5° is several degrees wide and must not count as a line.
@@ -136,8 +136,13 @@ def line_prominences(
     ``wavelength_table``; every line of the crystal counts as a neighbour, scanned or not). The
     prominence is (peak − background)·Δt / √max(peak·Δt, 1), in units of the Poisson σ of the
     counts: the criterion ``MIN_PROMINENCE_SIGMA`` that the find-peaks step applies to noisy data,
-    here applied to the expectation, so it never depends on a random draw.
+    here applied to the expectation, so it never depends on a random draw. σ is negative for a
+    line that sits below its own background (e.g. the direct-beam leak of a low-angle window).
+    Below the Mo K threshold (``source.line_rates`` is zero) the tube emits no line, so there is
+    none to list: the result is ``[]``.
     """
+    if not any(line_rates(U_kV, I_mA, params.line_to_cont)):
+        return []
     d = d_pm(crystal)
     lines = sorted(
         float(th)
@@ -167,19 +172,23 @@ def line_prominences(
 def line_prominence_sigma(
     beta_lo_deg, beta_hi_deg, U_kV, I_mA, dt_s, filters=(), crystal=NACL, params=DEFAULT
 ):
-    """The largest ``line_prominences`` σ in the window (0.0 when no line lies in it)."""
+    """The largest ``line_prominences`` σ in the window, clamped at 0: 0.0 when no line stands
+    above its background (none in the window, none emitted below the K threshold, or every one
+    below its own background)."""
     rows = line_prominences(beta_lo_deg, beta_hi_deg, U_kV, I_mA, dt_s, filters, crystal, params)
-    return float(max((r[2] for r in rows), default=0.0))
+    return max(0.0, float(max((r[2] for r in rows), default=0.0)))
 
 
 def strongest_line_rate_per_s(
     beta_lo_deg, beta_hi_deg, U_kV, I_mA, filters=(), crystal=NACL, params=DEFAULT
 ):
-    """Expected peak rate R̄ (counts/s) of the strongest Mo K line in the window (0.0 if none).
+    """Expected peak rate R̄ (counts/s) of the most prominent Mo K line in the window (0.0 if none).
 
-    Sets the display gain: the line a student should be able to see on the plot."""
+    "Strongest" means the largest prominence σ (Δt = 1 s), not the largest R̄: the direct-beam
+    leak at low θ can carry a higher R̄ than any line yet stand below its own background. Sets the
+    display gain: the line a student should be able to see on the plot."""
     rows = line_prominences(beta_lo_deg, beta_hi_deg, U_kV, I_mA, 1.0, filters, crystal, params)
-    return float(max((r[1] for r in rows), default=0.0))
+    return float(max(rows, key=lambda r: r[2])[1]) if rows else 0.0
 
 
 def peak_center(beta_deg, rate_per_s, dt_s, lo_deg, hi_deg):

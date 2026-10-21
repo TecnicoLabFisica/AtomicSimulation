@@ -101,15 +101,16 @@ r_n(X, λ) = [|F_n|²/V²]_X / [|F_1|²/V²]_NaCl · exp(−2B(s_n² − s_1²))
 
 with |F|² per conventional cell (`crystal.structure_factor_sq`), V the cell volume, and
 μ = Σ occ·CS_Total(Z)·A/(N_A V) from xraylib on the `filters.MU_RHO_GRID_PM` grid, interpolated log–log
-(`crystal.linear_attenuation_per_cm`). The factor exp(+2 B_NaCl,th s₁²) (s₁ = 0.1773 Å⁻¹; 1.0008 for
-B_NaCl,th = 1.3 Å²) is there because NaCl's `scale` already contains NaCl's thermal factor while the other crystals'
+(`crystal.linear_attenuation_per_cm`). The factor exp(+2 B_NaCl,th s₁²) (s₁ = 0.1773 Å⁻¹; 1.0852 for
+B_NaCl,th = 1.3 Å² = 13 000 pm², `crystal.NACL_THERMAL_B_PM2`) is there because NaCl's `scale` already contains NaCl's thermal factor while the other crystals'
 |F|² is divided by NaCl's at-rest |F|². Since 2026-10-21 (Q1.3) it uses NaCl's physical thermal B, not the
 effective fitted B_fit (which lumps extinction and the instrument; the old factor exp(+2 B_fit s₁²) = 1.040, the
 text before said 0.961 by a sign slip). The first factor is `crystal.cell_scale`, the μ ratio
 `crystal.mu_factor`, the last `crystal.extinction_ratio`; the last two are applied per λ to both the continuum and the
 Kα/Kβ lines. Order-1 Kα line weights relative to NaCl (r₁ · Lorentz-polarization · μ ratio · y ratio, 2026-10-21):
-LiF 1.22, Si 0.033, calcite 0.034, muscovite 0.016 (NaCl = 1); the kinematic cell_scale · μ ratio alone (y = 1) would
-give 3.2, 0.76, 0.59 and 0.079.
+LiF 1.32, Si 0.036, calcite 0.037, muscovite 0.017 (NaCl = 1); the same weights without the y ratio (y = 1) would
+give 3.5, 0.83, 0.64 and 0.085. (An earlier version of this section converted B_NaCl,th from Å² to pm² with ×100
+instead of ×10⁴, so the factor was 1.0008 and the weights read 1.22 / 0.033 / 0.034 / 0.016; fixed 2026-10-21, Q1.8.)
 
 ### Reflectivity model and extinction factor y (Q1.2/Q1.3, added 2026-10-21)
 
@@ -154,7 +155,12 @@ extinction inside mosaic blocks; beam-footprint overfill at small θ (the refere
 size, so muscovite (002) at 2.04° would lose intensity to a finite crystal); `cell_scale` uses form factors without
 f′/f″ (−1.9 … +1.3 % against the complex F); Si(222) is 0 with spherical atoms (a real crystal shows it through the
 bonding charge and Renninger double reflection). The one node a row holds past 85° is evaluated at no more than θ_B = 88° (the dynamical formulas are not used near backscattering).
-The model is a deliberate change from the former ideal-mosaic "upper bound", which put Si at 0.68 × NaCl.
+The model is a deliberate change from the former ideal-mosaic "upper bound", which put Si's order-1 Kα peak height at 0.68 × NaCl (a peak-height ratio before Q1; the kinematic line weight of the same product is 0.83 in the table above).
+
+The NaCl reference y_NaCl,1(λ) is calibrated only inside the Fig. 4 range (θ ≤ 25°, λ ≲ 240 pm). Beyond it (long λ, large
+θ) it is a model extrapolation of the same extinction formulas, not a fit. Its effect on R̄ there is nil, because that
+continuum is absorbed (air, absorber and the crystal's own μ; checked in the Q1.8 review, 2026-10-21: muscovite 8°–18°,
+×1.000).
 
 The grid smears absorption edges (Ca K at 307.0 pm, K K at 343.7 pm) over 0.3 % in λ; μ is held constant
 beyond the 600 pm grid end (harmless: the absorber's T(600 pm) = 7e-32). Muscovite's order-1 Kα

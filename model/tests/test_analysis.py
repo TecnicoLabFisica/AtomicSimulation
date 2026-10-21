@@ -22,7 +22,7 @@ from braggsim.analysis import (
     wavelength_table,
 )
 from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
-from braggsim.crystal import LIF, NACL, SI, allowed_orders, d_pm, theta_from_lambda
+from braggsim.crystal import LIF, NACL, PRESETS, SI, allowed_orders, d_pm, theta_from_lambda
 from braggsim.detector import dead_time, sample_counts
 from braggsim.filters import FOILS_MM, WHEELS_MM, areal_density_mg_cm2
 from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate, max_order
@@ -596,13 +596,14 @@ def test_si_is_weaker_than_nacl_and_fades_below_5_sigma_at_low_current():
     nacl = line_prominence_sigma(4, 24, 35.0, 1.0, 1.0)
     si = line_prominence_sigma(4, 24, 35.0, 1.0, 1.0, crystal=SI)
     assert analysis.MIN_PROMINENCE_SIGMA < si < nacl
-    assert strongest_line_rate_per_s(4, 24, 35.0, 1.0, crystal=SI) == approx(120, rel=0.1)
+    assert strongest_line_rate_per_s(4, 24, 35.0, 1.0, crystal=SI) == approx(131, rel=0.1)
     assert line_prominence_sigma(4, 24, 35.0, 0.05, 1.0, crystal=SI) < analysis.MIN_PROMINENCE_SIGMA
     # a longer Δt gives √Δt more σ
     long_dt = line_prominence_sigma(4, 24, 35.0, 0.05, 100.0, crystal=SI)
     assert long_dt > analysis.MIN_PROMINENCE_SIGMA
+    # exact: peak·Δt ≥ 1 here, so σ = (peak − background)·√Δt/√peak
     assert long_dt == approx(
-        10 * line_prominence_sigma(4, 24, 35.0, 0.05, 1.0, crystal=SI), rel=0.05
+        10 * line_prominence_sigma(4, 24, 35.0, 0.05, 1.0, crystal=SI), rel=1e-9
     )
 
 
@@ -622,3 +623,26 @@ def test_prominence_skips_extinct_si_orders():
     assert any(abs(t - th_ka[0]) < 1e-9 for t in thetas)
     assert not any(abs(t - th_ka[1]) < 1e-9 for t in thetas)  # (222) is extinct
     assert any(abs(t - th_ka[2]) < 1e-9 for t in thetas)
+
+
+def test_below_the_k_threshold_there_is_no_line_to_stand_out():
+    # 19.5 kV < U_K = 20.0 kV: the tube emits no Mo K line, so there is nothing to list
+    assert line_prominences(5, 9, 19.5, 1.0, 1.0) == []
+    assert line_prominence_sigma(5, 9, 19.5, 1.0, 1.0) == 0.0
+    assert strongest_line_rate_per_s(5, 9, 19.5, 1.0) == 0.0
+
+
+def test_prominence_sigma_is_clamped_at_zero_when_every_line_sits_below_its_background():
+    mus = PRESETS["muscovite"]
+    rows = line_prominences(1, 3, 35.0, 1.0, 1.0, crystal=mus)  # the direct-beam leak dominates
+    assert rows and all(r[2] < 0 for r in rows)
+    assert line_prominence_sigma(1, 3, 35.0, 1.0, 1.0, crystal=mus) == 0.0
+
+
+def test_strongest_line_is_the_most_prominent_not_the_highest_rate():
+    mus = PRESETS["muscovite"]
+    rows = line_prominences(1, 12, 35.0, 1.0, 1.0, crystal=mus)
+    leak = max(rows, key=lambda r: r[1])  # 1·Kβ at 1.81°: highest R̄, σ < 0
+    assert leak[2] < 0
+    best = max(rows, key=lambda r: r[2])
+    assert strongest_line_rate_per_s(1, 12, 35.0, 1.0, crystal=mus) == best[1] < leak[1]
