@@ -350,7 +350,14 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
       now grows by one per *finished* exposure. RESET keeps it, as it keeps the setup, and a task restart clears it. There is an exported pure `wheelSlot(holder, angle)`.
       U and I are noted at the first counted second (not during positioning), and `finish()` (instant mode) now also flags a U/I change, for scans too.
       `apparatus-reviewer`: approve after fixes, all applied (the SENSOR-mode exposure named the wrong slot; the sensor angle, `changed`, and counts were missing).
-- [ ] **L2.6** Tasks: `attenuation-thickness` (predict whether ln T vs d is straight), `attenuation-material` (μ vs Z), `background`.
+- [x] **L2.6** Tasks: `attenuation-thickness` (predict whether ln T vs d is straight), `attenuation-material` (μ vs Z), `background`.
+      As built (2026-10-21), all Lab mode and checked on `exposureLog`, never on the student's μ. `background` needs one finished exposure at U = 0 or I = 0 with Δt ≥ 100 s.
+      `attenuation-thickness` needs all 7 Al slots at one U, I and filter set, unsaturated, with Δt such that the μ_eff fall from 0.5 to 3 mm stands ≥ 5σ in the model (Δt ≳ 6 s).
+      `attenuation-material` needs all 7 material slots at 30 kV with one filter set (I may differ), each unsaturated and ≥ 5σ above the background.
+      Saturation (Rτ > 0.3) means the guide's 0.02 mA for polystyrene and the open beam fails, so the student lowers I to 0.01 mA (stated in the teacher note).
+      `SATURATION_OBSERVED_TAU` is now exported from `apparatus.ts`. `pedagogy-reviewer`: not ready, then all findings applied (the Zr mechanism, the as-read numbers, the
+      silent Δt dead end, the material filters unchecked, concept chips that hinted the answer, and a stricter leak guard). Main bundle +7.3 kB gzip (88.6 kB) from the copy.
+      Deferred: lazy-load the task strings.
 - [x] **L2.7** CSV export of exposure-mode results (one row per position).
       As built: `csv.exposureCsv`/`downloadExposureCsv` (`xray-exposures-<date>.csv`). Columns are `target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,
       collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s`. An open slot reads `none,0` and the frame reads `frame`. The tables hold mg/cm², not mm.

@@ -8,12 +8,15 @@ import { es } from './i18n/es'
 import { clearExports } from './csv'
 import { getMode, setHints, setMode, type AppMode } from './mode'
 import { applyInitial, type GuidedTask } from './task'
+import { task as attenuationMaterial } from './tasks/attenuation-material'
+import { task as attenuationThickness } from './tasks/attenuation-thickness'
+import { task as background } from './tasks/background'
 import { task as kalphaThirdOrder } from './tasks/kalpha-third-order'
 import { task as lambdaThreeOrders } from './tasks/lambda-three-orders'
 import { task as lineThreshold } from './tasks/line-threshold'
 import { task as moseleyKEdges } from './tasks/moseley-k-edges'
 
-export const TASKS: GuidedTask[] = [kalphaThirdOrder, lineThreshold, lambdaThreeOrders, moseleyKEdges]
+export const TASKS: GuidedTask[] = [kalphaThirdOrder, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial]
 const MODES: AppMode[] = ['explore', 'lab']
 
 /** Guided-task strings in the current language. */

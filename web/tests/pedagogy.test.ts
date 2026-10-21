@@ -5,6 +5,9 @@ import { clearExports, exportedScans, exposureCsv, markExported, replayCsv } fro
 import { en } from '../src/pedagogy/i18n/en'
 import { es } from '../src/pedagogy/i18n/es'
 import { applyInitial, type GuidedTask } from '../src/pedagogy/task'
+import { task as attMaterial } from '../src/pedagogy/tasks/attenuation-material'
+import { task as attThickness } from '../src/pedagogy/tasks/attenuation-thickness'
+import { task as background } from '../src/pedagogy/tasks/background'
 import { task as kalpha } from '../src/pedagogy/tasks/kalpha-third-order'
 import { task as lambda3 } from '../src/pedagogy/tasks/lambda-three-orders'
 import { task as threshold } from '../src/pedagogy/tasks/line-threshold'
@@ -255,6 +258,132 @@ describe('moseley-k-edges', () => {
   })
 })
 
+describe('attenuation tasks (EPN Práctica 1)', () => {
+  beforeAll(loadAbsorbers)
+
+  /** One exposure with TARGET at `deg`, Δβ = 0 (mount the plates first). */
+  function expose(a: Apparatus, deg: number, dt: number, kV: number, mA: number) {
+    a.press('TARGET')
+    a.adjust(deg * 10 - a.target)
+    for (const [k, v] of [['U', kV * 10 - a.u], ['I', mA * 100 - a.i], ['DBETA', -a.dBeta], ['DT', dt - a.dt]] as const) {
+      a.press(k)
+      a.adjust(v)
+    }
+    a.press('SCAN')
+    a.tick(SAFETY_S + dt + 1)
+    expect(a.phase).toBe('idle')
+  }
+  const mounted = (task: GuidedTask, holder: 'alWheel' | 'materialWheel') => {
+    const a = started(task)
+    a.setDoors(false)
+    a.mount({ holder, collimatorFilter: null, sensorFilter: null })
+    a.setDoors(true)
+    return a
+  }
+  const done = (task: GuidedTask, a: Apparatus) => task.progress!(a).filter((p) => p.done).length
+
+  describe('attenuation-thickness', () => {
+    test('all seven slots at 21 kV, 0.05 mA, 30 s: met', () => {
+      const a = mounted(attThickness, 'alWheel')
+      for (let k = 0; k <= 5; k++) expose(a, 10 * k, 30, 21, 0.05)
+      expect(attThickness.success(a)).toBe(false) // slot 6 missing
+      expect(done(attThickness, a)).toBe(6)
+      expose(a, 60, 30, 21, 0.05)
+      expect(attThickness.success(a)).toBe(true)
+      expect(done(attThickness, a)).toBe(7)
+    })
+
+    test('Δt = 1 s: beam hardening is not resolvable', () => {
+      const a = mounted(attThickness, 'alWheel')
+      for (let k = 0; k <= 6; k++) expose(a, 10 * k, 1, 21, 0.05)
+      expect(attThickness.success(a)).toBe(false)
+      expect(done(attThickness, a)).toBe(7)
+    })
+
+    test('a slot taken at another current: not met until repeated at the common one', () => {
+      const a = mounted(attThickness, 'alWheel')
+      for (let k = 0; k <= 5; k++) expose(a, 10 * k, 30, 21, 0.05)
+      expose(a, 60, 30, 21, 0.1)
+      expect(attThickness.success(a)).toBe(false)
+      expose(a, 60, 30, 21, 0.05)
+      expect(attThickness.success(a)).toBe(true)
+    })
+
+    test('a current that saturates the counter: not met', () => {
+      const a = mounted(attThickness, 'alWheel')
+      for (let k = 0; k <= 6; k++) expose(a, 10 * k, 30, 21, 0.5)
+      expect(attThickness.success(a)).toBe(false)
+    })
+
+    test('the frame between slots is no slot', () => {
+      const a = mounted(attThickness, 'alWheel')
+      for (let k = 0; k <= 5; k++) expose(a, 10 * k, 30, 21, 0.05)
+      expose(a, 65, 30, 21, 0.05)
+      expect(attThickness.success(a)).toBe(false)
+    })
+  })
+
+  describe('attenuation-material', () => {
+    test('0.01 mA for the light slots and the open beam, 0.02/1 mA for the rest: met', () => {
+      const a = mounted(attMaterial, 'materialWheel')
+      expose(a, 0, 30, 30, 0.01) // polystyrene
+      for (let k = 1; k <= 2; k++) expose(a, 10 * k, 30, 30, 0.02)
+      for (let k = 3; k <= 5; k++) expose(a, 10 * k, 30, 30, 1)
+      expose(a, 60, 30, 30, 1) // open beam, saturated
+      expect(attMaterial.success(a)).toBe(false)
+      expect(done(attMaterial, a)).toBe(6)
+      expose(a, 60, 30, 30, 0.02) // 0.02 mA already saturates the open beam slightly
+      expect(attMaterial.success(a)).toBe(false)
+      expose(a, 60, 30, 30, 0.01)
+      expect(attMaterial.success(a)).toBe(true)
+    })
+
+    test('a heavy plate at 0.02 mA and 1 s stays in the background: not met', () => {
+      const a = mounted(attMaterial, 'materialWheel')
+      expose(a, 0, 30, 30, 0.01)
+      for (let k = 1; k <= 2; k++) expose(a, 10 * k, 30, 30, 0.02)
+      for (let k = 3; k <= 5; k++) expose(a, 10 * k, 1, 30, 0.02)
+      expose(a, 60, 30, 30, 0.01)
+      expect(attMaterial.success(a)).toBe(false)
+      expect(done(attMaterial, a)).toBe(4)
+    })
+
+    test('a filter mounted for one slot: not met (one common set of filters)', () => {
+      const a = mounted(attMaterial, 'materialWheel')
+      expose(a, 0, 30, 30, 0.01)
+      for (let k = 1; k <= 2; k++) expose(a, 10 * k, 30, 30, 0.02)
+      for (let k = 3; k <= 5; k++) expose(a, 10 * k, 30, 30, 1)
+      a.setDoors(false)
+      a.mount({ holder: 'materialWheel', collimatorFilter: null, sensorFilter: 'Zr' })
+      a.setDoors(true)
+      expose(a, 60, 30, 30, 0.01)
+      expect(attMaterial.success(a)).toBe(false)
+    })
+
+    test('another U: not met', () => {
+      const a = mounted(attMaterial, 'materialWheel')
+      for (let k = 0; k <= 6; k++) expose(a, 10 * k, 30, 25, 0.01)
+      expect(attMaterial.success(a)).toBe(false)
+    })
+  })
+
+  describe('background', () => {
+    const run = (dt: number, kV: number, mA: number) => {
+      const a = started(background)
+      expose(a, 0, dt, kV, mA)
+      return a
+    }
+    test('100 s at 0 kV: met; 50 s: not', () => {
+      expect(background.success(run(50, 0, 0))).toBe(false)
+      expect(background.success(run(100, 0, 0))).toBe(true)
+    })
+    test('100 s with the tube on: not met; with 0 mA: met', () => {
+      expect(background.success(run(100, 21, 0.05))).toBe(false)
+      expect(background.success(run(100, 21, 0))).toBe(true)
+    })
+  })
+})
+
 test('lab tasks never state an expected angle or wavelength (teacher notes aside)', () => {
   const LEAKS = ['7.2', '14.6', '22.2', '71', '63', '6.4', '12.9', '19.6']
   for (const dict of [es, en]) {
@@ -268,6 +397,14 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
     const text = JSON.stringify(student)
     for (const leak of ['7.0', '6.3', '4.9', '4.5', '68', '62.0', '48', '44', '17.9', '25.5', '27.9'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
+    // Attenuation: T, μ/ρ and rates are in the teacher notes only; the observation does not give the answer.
+    for (const t of [attThickness, attMaterial, background]) {
+      const { teacher: _t, explain: _e, ...student } = dict.task[t.id as keyof typeof dict.task]
+      const text = JSON.stringify(student)
+      for (const leak of ['0.98', '0.62', '6.9', '5.4', '5.11', '6.1', '3.3', '4.8', '17.5', '18.0', '19.6', '6.4', '5.3', '5.7', '6.5', '2400', '1400'])
+        for (const v of [leak, leak.replace('.', ',')]) expect(text, `${t.id}: "${v}"`).not.toContain(v)
+      expect(text, t.id).not.toMatch(/\b0[.,]2\b/)
+    }
   }
 })
 

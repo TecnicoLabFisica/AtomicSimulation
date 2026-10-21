@@ -83,6 +83,9 @@ export function wheelSlot(holder: Holder, angle: number): number | null {
   return k < 0 || k > 6 || Math.abs(t - 100 * k) > WHEEL_WINDOW_DEG * 10 ? null : k
 }
 
+/** Saturation: the true rate R is past Rτ = 0.3, i.e. the observed rate m = R/(1+Rτ) is past m·τ = 0.3/1.3. */
+export const SATURATION_OBSERVED_TAU = 0.3 / 1.3
+
 export type Display = {
   top: string
   topUnit: '1/s' | '°' | ''
@@ -231,7 +234,7 @@ export class Apparatus {
   /** The true rate R is past Rτ = 0.3: dead-time losses exceed 23 % and the choice of dead-time model
    * starts to matter (simulation aid, not a device feature). */
   get saturated(): boolean {
-    return this.expectedRate() * this.params.tau_s > 0.3 / 1.3 // observed m = R/(1+Rτ)
+    return this.expectedRate() * this.params.tau_s > SATURATION_OBSERVED_TAU
   }
 
   /** Change the accessories; only with the door open (§6). Refused (false) with doors closed. */
