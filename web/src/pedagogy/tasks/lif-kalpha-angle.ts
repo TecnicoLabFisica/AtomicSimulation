@@ -1,10 +1,9 @@
-// Kα with another crystal: the same Mo line sits at a larger angle on LiF (d = 201.4 pm) than on NaCl
+// Kα with another crystal: the same Mo line sits at a larger angle on LiF (d = 201.35 pm) than on NaCl
 // (282.0 pm), because sin θ = λ/(2d). Confronts "the angle depends only on the X-ray tube". Explore mode, so the
 // prompt may state d (the Huygens panel shows it). The app checks the scan, never the student's number.
-import { MAX_STEP_DEG, MIN_PROMINENCE_SIGMA, PEAK_HALF_WINDOW_DEG } from '../../physics/analysis'
-import { MO_KA_PM, MO_KB_PM } from '../../physics/constants'
+import { MAX_STEP_DEG, MIN_PROMINENCE_SIGMA, PEAK_HALF_WINDOW_DEG, lineProminences } from '../../physics/analysis'
+import { MO_KA_PM } from '../../physics/constants'
 import { crystalByName, dPm, thetaFromLambda } from '../../physics/crystal'
-import { DEFAULT, expectedRate } from '../../physics/scan'
 import { foilsOf, type GuidedTask } from '../task'
 
 const CRYSTAL = 'LiF'
@@ -31,9 +30,9 @@ export const task: GuidedTask = {
     if ((r[1].angle - r[0].angle) / 10 > MAX_STEP_DEG) return false
     const crystal = crystalByName(CRYSTAL)
     const th = thetaFromLambda(MO_KA_PM, 1, dPm(crystal))
-    const thB = thetaFromLambda(MO_KB_PM, 1, dPm(crystal))
     if (r[0].angle / 10 > th - W || r.at(-1)!.angle / 10 < th + W) return false
-    const [peak, lo, hi] = expectedRate([th, Math.max(th - W, (th + thB) / 2), th + W], s.u / 10, s.i / 100, DEFAULT, null, foilsOf(s.setup), crystal)
-    return (peak - Math.max(lo, hi)) * s.dt >= MIN_PROMINENCE_SIGMA * Math.sqrt(Math.max(peak * s.dt, 1))
+    // the window is cut at the midpoint to Kβ (braggsim.analysis.line_prominences)
+    const lines = lineProminences(r[0].angle / 10, r.at(-1)!.angle / 10, s.u / 10, s.i / 100, s.dt, foilsOf(s.setup), crystal)
+    return lines.some(([t, , sigma]) => t === th && sigma >= MIN_PROMINENCE_SIGMA)
   },
 }

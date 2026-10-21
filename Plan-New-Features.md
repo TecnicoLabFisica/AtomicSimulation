@@ -578,7 +578,7 @@ found the items below; baseline pytest 203, Vitest 167.
 - [x] **Q1.4** Orders with F = 0 (Si (222), (666)) and muscovite orders > 10: Python line analysis takes `d_pm` and allowed orders; spectrum, goniometer
       and Huygens markers skip forbidden orders and cover every order in range; Huygens says "forbidden" instead of "met".
 - [ ] **Q1.5** Gated: K-edge nodes in the μ/ρ grid (an interpolation smear of ≈ +0.07 pm on the edges), only if Fig. 4 holds.
-- [ ] **Q1.6** Weak-signal aid: `analysis.line_prominence_sigma` (Python → TS, the task checks reuse it), a ×1/×10/×100 display gain, log floor 0.1/s,
+- [x] **Q1.6** Weak-signal aid: `analysis.line_prominence_sigma` (Python → TS, the task checks reuse it), a ×1/×10/×100 display gain, log floor 0.1/s,
       a "¿No ves picos?" notice with "Amplificar" and the real levers (user's choice: display gain plus advice, both modes); heights note rewritten.
 - [x] **Q1.7** Student-flow bugs (`b81d74e`): leftover foils between tasks, Bragg checks blind to the scan's setup, the exposure log wiped on task start,
       Huygens verdict while hints are hidden, failed lazy loads cached forever, a late crystal pick racing a task mount, a stale step on task start, locks

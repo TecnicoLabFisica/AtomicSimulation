@@ -24,6 +24,7 @@ from braggsim.crystal import (
     lambda_from_theta,
     theta_from_lambda,
 )
+from braggsim.scan import DEFAULT, expected_rate
 from braggsim.source import LINE_EXPONENT_M
 
 # A characteristic line is at most this wide (FWHM ≈ 0.3° at the leaflet's slits); the
@@ -121,6 +122,64 @@ def find_line_peaks(beta_deg, rate_per_s, dt_s, crystal=NACL):
         ):
             keep.append(i)
     return beta[np.sort(np.array(keep, dtype=int))]
+
+
+def line_prominences(
+    beta_lo_deg, beta_hi_deg, U_kV, I_mA, dt_s, filters=(), crystal=NACL, params=DEFAULT
+):
+    """Expected peak rate and prominence of every Mo K line in a coupled scan, from R̄ alone.
+
+    Returns ``[(theta_deg, peak_per_s, sigma), …]`` in ascending θ, one entry per Kβ and Kα line
+    of each allowed order whose Bragg angle lies in [``beta_lo_deg``, ``beta_hi_deg``]. ``peak`` is
+    R̄ at the line's θ; its background is the larger of R̄ at both ends of the marked window
+    θ ± ``PEAK_HALF_WINDOW_DEG``, each end cut at the midpoint to the neighbouring line (as in
+    ``wavelength_table``; every line of the crystal counts as a neighbour, scanned or not). The
+    prominence is (peak − background)·Δt / √max(peak·Δt, 1), in units of the Poisson σ of the
+    counts: the criterion ``MIN_PROMINENCE_SIGMA`` that the find-peaks step applies to noisy data,
+    here applied to the expectation, so it never depends on a random draw.
+    """
+    d = d_pm(crystal)
+    lines = sorted(
+        float(th)
+        for n in allowed_orders(crystal)
+        for lam in (MO_KB_PM, MO_KA_PM)
+        if np.isfinite(th := theta_from_lambda(lam, n, d))
+    )
+    w = PEAK_HALF_WINDOW_DEG
+    pts, kept = [], []
+    for k, th in enumerate(lines):
+        if not beta_lo_deg <= th <= beta_hi_deg:
+            continue
+        lo = max(th - w, (th + lines[k - 1]) / 2) if k > 0 else th - w
+        hi = min(th + w, (th + lines[k + 1]) / 2) if k + 1 < len(lines) else th + w
+        pts += [th, lo, hi]
+        kept.append(th)
+    if not kept:
+        return []
+    rate = expected_rate(pts, U_kV, I_mA, params, None, filters, crystal)
+    out = []
+    for i, th in enumerate(kept):
+        peak, lo, hi = (float(x) for x in rate[3 * i : 3 * i + 3])
+        out.append((th, peak, (peak - max(lo, hi)) * dt_s / np.sqrt(max(peak * dt_s, 1))))
+    return out
+
+
+def line_prominence_sigma(
+    beta_lo_deg, beta_hi_deg, U_kV, I_mA, dt_s, filters=(), crystal=NACL, params=DEFAULT
+):
+    """The largest ``line_prominences`` σ in the window (0.0 when no line lies in it)."""
+    rows = line_prominences(beta_lo_deg, beta_hi_deg, U_kV, I_mA, dt_s, filters, crystal, params)
+    return float(max((r[2] for r in rows), default=0.0))
+
+
+def strongest_line_rate_per_s(
+    beta_lo_deg, beta_hi_deg, U_kV, I_mA, filters=(), crystal=NACL, params=DEFAULT
+):
+    """Expected peak rate R̄ (counts/s) of the strongest Mo K line in the window (0.0 if none).
+
+    Sets the display gain: the line a student should be able to see on the plot."""
+    rows = line_prominences(beta_lo_deg, beta_hi_deg, U_kV, I_mA, 1.0, filters, crystal, params)
+    return float(max((r[1] for r in rows), default=0.0))
 
 
 def peak_center(beta_deg, rate_per_s, dt_s, lo_deg, hi_deg):

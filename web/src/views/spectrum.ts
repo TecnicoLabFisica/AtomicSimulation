@@ -6,15 +6,18 @@ import 'uplot/dist/uPlot.min.css'
 import { crystalOf, type Apparatus, type Setup } from '../apparatus/apparatus'
 import { t } from '../i18n'
 import { downloadCsv, downloadExposureCsv } from '../pedagogy/csv'
+import { foilsOf } from '../pedagogy/task'
 import { showHints } from '../pedagogy/mode'
+import { MIN_PROMINENCE_SIGMA, lineProminenceSigma, strongestLineRatePerS } from '../physics/analysis'
 import { D_NACL_PM, HC_KEV_PM, K_EDGE_KEV, MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { allowedOrders, lambdaFromTheta, NACL, thetaFromLambda } from '../physics/crystal'
 import { lambdaMinPm } from '../physics/source'
 import { palette, paletteVersion, scaledFont } from './canvas'
 
-const LOG_RANGE = { min: 1, max: 1e5 } // 1/s
+const LOG_RANGE = { min: 0.1, max: 1e5 } // 1/s: reaches the 0.2/s background
+const GAINS = [1, 10, 100] as const // linear display gain (a simulation aid): the y range is [0, yMax / gain]
 const EMPTY_RANGE = { min: 0, max: 30 } // °, before the first scan
-const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+const SUP: Record<string, string> = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' }
 // Explore mode: Bragg angles θₙ of the Mo K lines for every allowed order the crystal reaches (n ≤ 2d/λ; extinct orders,
 // such as Si 2, 6, 10 …, have no line). NaCl in the usual 0–30° window shows n = 1–4 (Kα reflects up to n = 7); a large-d
 // crystal such as muscovite has many more (the label thinning below keeps them legible).
@@ -44,6 +47,17 @@ function niceCeil(x: number): number {
   for (let p = 10; ; p *= 10) for (const m of [1, 2, 5]) if (m * p >= x) return m * p
 }
 
+/** Weak-signal aid for a finished COUPLED scan, from the expected rate R̄ alone (never the noisy points): the strongest Mo K line
+ * in the scanned window, and whether it stands below MIN_PROMINENCE_SIGMA at the scan's own U, I, Δt, foils and crystal. */
+function weakSignal(scan: NonNullable<Apparatus['lastScan']>, loDeg: number, hiDeg: number) {
+  const crystal = scan.setup.holder === 'crystal' ? crystalOf(scan.setup) : NACL
+  const [u, i, filters] = [scan.u / 10, scan.i / 100, foilsOf(scan.setup)]
+  return {
+    peak: strongestLineRatePerS(loDeg, hiDeg, u, i, filters, crystal),
+    buried: lineProminenceSigma(loDeg, hiDeg, u, i, scan.dt, filters, crystal) < MIN_PROMINENCE_SIGMA,
+  }
+}
+
 export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   let log = false
   let plot: uPlot | null = null
@@ -51,6 +65,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   let scan = a.lastScan
   let shown = 0
   let yMax = 10
+  let gain = 1 // GAINS: linear view only; back to ×1 with every new scan
+  let weak: { scan: object; peak: number; buried: boolean } | null = null
   let builtHints = showHints()
   let version = 0 // bumped after every uPlot draw (it draws in a microtask): the 3D monitor copies the canvas then
   const xs: number[] = []
@@ -84,7 +100,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     const [lo, hi] = [scan.first / 10, scan.last / 10]
     return lo === hi ? { min: lo - 1, max: hi + 1 } : { min: lo, max: hi }
   }
-  const setY = () => plot?.setScale('y', log ? LOG_RANGE : { min: 0, max: yMax })
+  const setY = () => plot?.setScale('y', log ? LOG_RANGE : { min: 0, max: yMax / gain })
 
   const build = () => {
     const s = t()
@@ -95,10 +111,14 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
           <button data-log="0" aria-pressed="${!log}">${s.linear}</button>
           <button data-log="1" aria-pressed="${log}">${s.log}</button>
         </div>
+        <div class="seg" role="group" aria-label="${s.gain}">
+          ${GAINS.map((g) => `<button data-gain="${g}" aria-pressed="${g === gain}"${log ? ' disabled' : ''}>×${g}</button>`).join('')}
+        </div>
         <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}. ${s.csvHint}" disabled>${s.csv}</button>
         <button class="tool csv" data-csv-exp hidden></button>
         <button class="tool csv" data-csv-clear hidden>${s.clearExposures}</button>
-      </div>`
+      </div>
+      <p class="hint weak" role="status" data-weak hidden><span></span><button class="tool" data-amplify></button></p>`
     emptyText = ''
     setEmpty()
     const readout = box.querySelector<HTMLElement>('[data-readout]')!
@@ -128,7 +148,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
             values: log
               ? (_, splits) => splits.map((v) => {
                   const n = Math.log10(v)
-                  return Number.isInteger(n) ? `10${[...String(n)].map((d) => SUP[+d]).join('')}` : ''
+                  return Number.isInteger(n) ? `10${[...String(n)].map((d) => SUP[d]).join('')}` : ''
                 })
               : undefined,
           },
@@ -141,7 +161,30 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
           bind: { dblclick: (u) => () => (u.setScale('x', xRange()), null) },
         },
         hooks: {
-          draw: [() => void version++],
+          draw: [
+            (u) => {
+              // Points above the top edge (display gain) are clipped: a small cap at the edge shows each one, so a clip is never silent.
+              if (log) return
+              const top = yMax / gain
+              const { ctx, bbox } = u
+              const k = uPlot.pxRatio
+              ctx.save()
+              ctx.fillStyle = P.label
+              for (let i = 0; i < xs.length; i++) {
+                if (!(ys[i] > top)) continue
+                const x = u.valToPos(xs[i], 'x', true)
+                if (!(x >= bbox.left && x <= bbox.left + bbox.width)) continue
+                ctx.beginPath()
+                ctx.moveTo(x - 3 * k, bbox.top + 5 * k)
+                ctx.lineTo(x + 3 * k, bbox.top + 5 * k)
+                ctx.lineTo(x, bbox.top)
+                ctx.closePath()
+                ctx.fill()
+              }
+              ctx.restore()
+            },
+            () => void version++,
+          ],
           // Explore overlays, under the data: the band the tube cannot reach (λ < λmin at the present U)
           // the expected line angles and the K edges of the foils in the scan's setup. The x axis is β (θ) for
           // TARGET/COUPLED scans, 2θ for SENSOR scans.
@@ -233,6 +276,17 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     builtHints = explore
   }
 
+  const setGain = (g: number) => {
+    gain = g
+    for (const b of head.querySelectorAll<HTMLElement>('[data-gain]')) b.setAttribute('aria-pressed', String(+b.dataset.gain! === g))
+    setY()
+  }
+  /** The gain (×10 or ×100) that puts the strongest expected line closest to half the plot height. */
+  const amplify = () => {
+    const frac = (g: number) => Math.abs(((weak?.peak ?? 0) * g) / yMax - 0.5)
+    setGain(frac(10) <= frac(100) ? 10 : 100)
+  }
+
   root.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('[data-csv-exp]')) return downloadExposureCsv(a)
     if ((e.target as HTMLElement).closest('[data-csv-clear]')) {
@@ -240,6 +294,9 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       return
     }
     if ((e.target as HTMLElement).closest('[data-csv]')) return downloadCsv(a)
+    if ((e.target as HTMLElement).closest('[data-amplify]')) return amplify()
+    const g = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-gain]')
+    if (g) return setGain(+g.dataset.gain!)
     const b = (e.target as HTMLElement).closest<HTMLElement>('[data-log]')
     if (!b || (b.dataset.log === '1') === log) return
     log = !log
@@ -250,6 +307,21 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     plot?.setSize({ width, height })
   }).observe(box)
 
+  /** The weak-signal notice: after a finished COUPLED scan on a linear plot at ×1, when the strongest expected line is buried in the
+   * noise (< MIN_PROMINENCE_SIGMA) or under 5 % of the plot height. Not while the scan runs, not for TARGET/SENSOR scans or exposures. */
+  const syncWeak = (n: number) => {
+    const el = head.querySelector<HTMLElement>('[data-weak]')!
+    let text = ''
+    if (scan && scan.mode === 'COUPLED' && n > 0 && !a.busy && !log && gain === 1) {
+      if (weak?.scan !== scan) weak = { scan, ...weakSignal(scan, a.replay[0].angle / 10, a.replay[n - 1].angle / 10) }
+      if (weak.peak > 0 && (weak.buried || weak.peak < 0.05 * yMax)) text = t().weakSignal(scan.i < 100, scan.u < 350, weak.buried)
+    }
+    const [msg, btn] = [el.firstElementChild!, el.lastElementChild!]
+    if (msg.textContent !== text) msg.textContent = text
+    if (el.hidden !== (text === '')) el.hidden = text === ''
+    if (text && btn.textContent !== t().amplify) btn.textContent = t().amplify
+  }
+
   const render = () => {
     if (paletteVersion !== builtPalette || showHints() !== builtHints) build()
     if (a.lastScan !== scan) {
@@ -257,6 +329,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       scan = a.lastScan
       xs.length = ys.length = shown = 0
       yMax = 10
+      gain = 1
+      weak = null
       build()
     }
     const n = scan ? a.replay.length : 0
@@ -276,6 +350,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
       head.querySelector<HTMLButtonElement>('[data-csv-clear]')!.hidden = m === 0
       exp.setAttribute('aria-label', exp.title)
     }
+    syncWeak(n)
     if (n === shown) return
     if (n < shown) xs.length = ys.length = shown = 0
     for (; shown < n; shown++) {

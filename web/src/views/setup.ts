@@ -79,7 +79,7 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     // One line under the crystal row: the task's lock, else (Explore only, not NaCl, whose heights are fitted) the heights note.
     const lock = lockedCrystal() // a guided task fixes the crystal: the picker shows its name, disabled
     const note = root.querySelector<HTMLElement>('[data-crystal-note]')!
-    const heights = getMode() === 'explore' && a.setup.crystal !== 'NaCl' ? s.heightsNote[a.setup.crystal === 'Si' || a.setup.crystal === 'calcite' ? 'perfect' : 'mosaic'] : ''
+    const heights = getMode() === 'explore' && a.setup.crystal !== 'NaCl' ? s.heightsNote : ''
     const text = !onCrystal ? '' : lock ? s.taskCrystal(s.crystals[lock] ?? lock) : heights
     setText(note, text)
     note.hidden = text === ''

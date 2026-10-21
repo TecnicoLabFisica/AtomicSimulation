@@ -1,20 +1,13 @@
 // Lab mode: measure one scan across three orders and export it, to find λ(Kα) and λ(Kβ) from each order
 // (LD P6.3.3.1 Tables 3–5). The app checks the scan, never the student's wavelengths.
 import { MO_KA_PM, MO_KB_PM } from '../../physics/constants'
-import { MAX_STEP_DEG, MIN_PROMINENCE_SIGMA, PEAK_HALF_WINDOW_DEG } from '../../physics/analysis'
-import { NACL, thetaFromLambda } from '../../physics/crystal'
-import { DEFAULT, expectedRate } from '../../physics/scan'
+import { MAX_STEP_DEG, MIN_PROMINENCE_SIGMA, PEAK_HALF_WINDOW_DEG, lineProminences } from '../../physics/analysis'
+import { thetaFromLambda } from '../../physics/crystal'
 import { wasExported } from '../csv'
 import { foilsOf, type GuidedTask } from '../task'
 
 const THETAS = [1, 2, 3].flatMap((n) => [thetaFromLambda(MO_KB_PM, n), thetaFromLambda(MO_KA_PM, n)])
-// Each line's background: the ends of its marked window, cut at the midpoint to its neighbours (as in
-// braggsim.analysis.wavelength_table), so 1st-order Kα's window stops short of Kβ.
 const W = PEAK_HALF_WINDOW_DEG
-const WINDOWS = THETAS.map((th, k) => [
-  Math.max(th - W, (th + (THETAS[k - 1] ?? -Infinity)) / 2),
-  Math.min(th + W, (th + (THETAS[k + 1] ?? Infinity)) / 2),
-])
 
 export const task: GuidedTask = {
   id: 'lambda-three-orders',
@@ -36,10 +29,8 @@ export const task: GuidedTask = {
     const filters = foilsOf(s.setup)
     if ((r[1].angle - r[0].angle) / 10 > MAX_STEP_DEG) return false
     if (r[0].angle / 10 > THETAS[0] - W || r.at(-1)!.angle / 10 < THETAS[5] + W) return false
-    return THETAS.every((th, k) => {
-      const [peak, lo, hi] = expectedRate([th, ...WINDOWS[k]], s.u / 10, s.i / 100, DEFAULT, null, filters, NACL)
-      const signal = (peak - Math.max(lo, hi)) * s.dt
-      return signal >= MIN_PROMINENCE_SIGMA * Math.sqrt(Math.max(peak * s.dt, 1))
-    })
+    // each line's background window is cut at the midpoint to its neighbours, as in braggsim.analysis.wavelength_table
+    const lines = lineProminences(r[0].angle / 10, r.at(-1)!.angle / 10, s.u / 10, s.i / 100, s.dt, filters)
+    return THETAS.every((th) => lines.some(([t, , sigma]) => t === th && sigma >= MIN_PROMINENCE_SIGMA))
   },
 }

@@ -1,6 +1,7 @@
 // Every golden case in artifacts/fixtures/ must be reproduced by the port: relative 1e-9 with a
 // 1e-12/s absolute floor (web-physics-port rule). A failure means the port is wrong or the artifacts are stale.
 import { beforeAll, describe, expect, test } from 'vitest'
+import { lineProminenceSigma, strongestLineRatePerS } from '../src/physics/analysis'
 import { deadTime } from '../src/physics/detector'
 import { ABSORBERS, transmission } from '../src/physics/filters'
 import { DEFAULT, coupledBetas, directRate, expectedRate, modelParams, type ModelParams } from '../src/physics/scan'
@@ -55,6 +56,14 @@ function run(fn: string, c: Case) {
         x.lambda_pm.map((l: number) => transmission(l, x.material, x.areal_density_mg_cm2)),
         c.expected.transmission,
       )
+    case 'analysis.line_prominence_sigma': {
+      const params: ModelParams = modelParams(x.params)
+      const crystal = crystalByName(x.crystal)
+      const args = [x.beta_lo_deg, x.beta_hi_deg, x.U_kV, x.I_mA] as const
+      expectClose([lineProminenceSigma(...args, x.dt_s, x.filters, crystal, params)], [c.expected.sigma])
+      expectClose([strongestLineRatePerS(...args, x.filters, crystal, params)], [c.expected.strongest_rate_per_s])
+      return
+    }
     case 'rejected': // Python raised ValueError: the port must throw too
       return expect(() => run(c.function!, { ...c, expected: {} }), c.description).toThrow(RangeError)
     default:

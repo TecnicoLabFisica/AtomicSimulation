@@ -19,7 +19,7 @@ import numpy as np
 import xraylib
 
 import braggsim
-from braggsim import scan
+from braggsim import analysis, scan
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import (
     NACL,
@@ -255,6 +255,41 @@ def _crystal_fixtures_wide():
     return out
 
 
+def _prominence_case():
+    """Expected line prominence (weak-signal aid): NaCl, Si (extinct orders), a filter, no line."""
+    zr = (("Zr", areal_density_mg_cm2("Zr", 0.05)),)
+    mus = PRESETS["muscovite"]
+    rows = [
+        ("NaCl", NACL, 4.0, 24.0, 35.0, 1.0, 1.0, ()),
+        ("Si", PRESETS["Si"], 4.0, 40.0, 35.0, 1.0, 1.0, ()),
+        ("Si", PRESETS["Si"], 4.0, 24.0, 35.0, 0.05, 1.0, ()),
+        ("calcite", PRESETS["calcite"], 3.0, 30.0, 30.0, 0.5, 10.0, zr),
+        ("muscovite", mus, 1.0, 12.0, 35.0, 1.0, 1.0, ()),
+        ("NaCl", NACL, 1.0, 3.0, 35.0, 1.0, 1.0, ()),  # no line in the window: 0
+        ("NaCl", NACL, 2.0, 40.0, 15.0, 1.0, 1.0, ()),  # below the K edge
+    ]
+    cases = []
+    for name, c, lo, hi, u_kv, i_ma, dt, filters in rows:
+        cases.append(
+            {
+                "inputs": {"crystal": name, "beta_lo_deg": lo, "beta_hi_deg": hi, "U_kV": u_kv,
+                           "I_mA": i_ma, "dt_s": dt, "filters": [[m, d] for m, d in filters],
+                           "params": dataclasses.asdict(scan.DEFAULT)},
+                "expected": {
+                    "sigma": analysis.line_prominence_sigma(lo, hi, u_kv, i_ma, dt, filters, c),
+                    "strongest_rate_per_s": analysis.strongest_line_rate_per_s(
+                        lo, hi, u_kv, i_ma, filters, c
+                    ),
+                },
+            }
+        )  # fmt: skip
+    return {
+        "function": "analysis.line_prominence_sigma",
+        "description": "Expected prominence (σ) and strongest-line rate of the Mo K lines",
+        "cases": cases,
+    }
+
+
 def _fixtures():
     duane_hunt_deg = float(theta_from_lambda(lambda_min_pm(35.0)))
     ka_deg = float(theta_from_lambda(MO_KA_PM))
@@ -391,6 +426,7 @@ def _fixtures():
             ],
         },  # fmt: skip
         "rejected_inputs": _rejected_case(),
+        "line_prominence": _prominence_case(),
     }
 
 

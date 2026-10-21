@@ -130,7 +130,7 @@ describe('lif-kalpha-angle', () => {
   }
 
   test('no scan yet: not met', async () => expect(lif.success(await startedOn(lif))).toBe(false))
-  test('LiF scan around θ = 10.16°: met', async () => expect(lif.success(await run('LiF', 90, 115))).toBe(true))
+  test('LiF scan around θ = 10.17°: met', async () => expect(lif.success(await run('LiF', 90, 115))).toBe(true))
   test('a NaCl scan over the same angles: not met', async () => expect(lif.success(await run('NaCl', 90, 115))).toBe(false))
   test('the NaCl angle 7.24° on LiF: not met (the misconception)', async () => expect(lif.success(await run('LiF', 62, 82))).toBe(false))
   test('a window that stops short of the line: not met', async () => expect(lif.success(await run('LiF', 90, 103))).toBe(false))
@@ -535,7 +535,7 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
     for (const leak of ['7.0', '6.3', '4.9', '4.5', '68', '62.0', '48', '44', '17.9', '25.5', '27.9'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
     // The LiF variant's edges (6.3, 6.9, 8.9, 9.8°) and windows (6.0–10.2°, 5.2–10.5°) stay in the teacher note: the
-    // student text names the crystal and its d (201.4 pm), never an angle of LiF.
+    // student text names the crystal and its d (201.35 pm), never an angle of LiF.
     for (const leak of ['6.9', '8.9', '9.8', '10.2', '6.0°', '5.2', '10.5'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
     // Attenuation: T, μ/ρ and rates are in the teacher notes only; the observation does not give the answer.

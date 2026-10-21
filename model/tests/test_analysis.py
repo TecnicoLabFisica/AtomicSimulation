@@ -11,11 +11,14 @@ from braggsim.analysis import (
     edge_wavelength_table,
     find_line_peaks,
     k_edge_deg,
+    line_prominence_sigma,
+    line_prominences,
     line_threshold_kv,
     moseley_fit,
     order_means_pm,
     peak_center,
     scaled_transmission,
+    strongest_line_rate_per_s,
     wavelength_table,
 )
 from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
@@ -580,3 +583,42 @@ def test_nacl_default_equals_explicit_nacl():
     rows = wavelength_table(BETA, R_BAR, DT_S)
     assert rows == wavelength_table(BETA, R_BAR, DT_S, crystal=NACL)
     assert analysis.FIRST_LINE_DEG == analysis.first_line_deg(NACL)
+
+
+# --- Weak-signal aid: expected line prominence (Q1.6) --------------------------------------------
+def test_nacl_lines_stand_far_above_5_sigma_at_35kv_1ma():
+    sigma = line_prominence_sigma(4, 24, 35.0, 1.0, 1.0)
+    assert sigma > 5 * analysis.MIN_PROMINENCE_SIGMA
+    assert strongest_line_rate_per_s(4, 24, 35.0, 1.0) == approx(2600, rel=0.05)
+
+
+def test_si_is_weaker_than_nacl_and_fades_below_5_sigma_at_low_current():
+    nacl = line_prominence_sigma(4, 24, 35.0, 1.0, 1.0)
+    si = line_prominence_sigma(4, 24, 35.0, 1.0, 1.0, crystal=SI)
+    assert analysis.MIN_PROMINENCE_SIGMA < si < nacl
+    assert strongest_line_rate_per_s(4, 24, 35.0, 1.0, crystal=SI) == approx(120, rel=0.1)
+    assert line_prominence_sigma(4, 24, 35.0, 0.05, 1.0, crystal=SI) < analysis.MIN_PROMINENCE_SIGMA
+    # a longer Δt gives √Δt more σ
+    long_dt = line_prominence_sigma(4, 24, 35.0, 0.05, 100.0, crystal=SI)
+    assert long_dt > analysis.MIN_PROMINENCE_SIGMA
+    assert long_dt == approx(
+        10 * line_prominence_sigma(4, 24, 35.0, 0.05, 1.0, crystal=SI), rel=0.05
+    )
+
+
+def test_no_line_in_the_window_gives_zero():
+    assert line_prominence_sigma(1.0, 3.0, 35.0, 1.0, 1.0) == 0.0
+    assert strongest_line_rate_per_s(1.0, 3.0, 35.0, 1.0) == 0.0
+    assert line_prominences(1.0, 3.0, 35.0, 1.0, 1.0) == []
+
+
+def test_lines_below_the_k_edge_voltage_do_not_stand_out():
+    assert line_prominence_sigma(4, 24, 18.0, 1.0, 1.0) < analysis.MIN_PROMINENCE_SIGMA
+
+
+def test_prominence_skips_extinct_si_orders():
+    thetas = [r[0] for r in line_prominences(4, 40, 35.0, 1.0, 1.0, crystal=SI)]
+    th_ka = [float(theta_from_lambda(MO_KA_PM, n, d_pm(SI))) for n in (1, 2, 3)]
+    assert any(abs(t - th_ka[0]) < 1e-9 for t in thetas)
+    assert not any(abs(t - th_ka[1]) < 1e-9 for t in thetas)  # (222) is extinct
+    assert any(abs(t - th_ka[2]) < 1e-9 for t in thetas)
