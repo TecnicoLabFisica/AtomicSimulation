@@ -54,8 +54,8 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `C2.1`, the TS port of the crystal engine (lazy `crystals.json`, the `fixtures/crystals/` fixtures at 1e-9), then C2.2–C2.6 (picker, knock-on views, tasks, reviews).
-> Open for the user: ⏸ Darwin reflectivity for Si/calcite (C1 "As built"), and confirm the revised L2 Done when.
+> **Next:** `F1.1`, the Forge engine (`form_factors.json`, Z = 1…92, Python reads the same table). L2, C1 and C2 closed on 2026-10-21.
+> Open for the user first: ⏸ a Darwin reflectivity model for Si/calcite (C1 "As built"), confirm the revised L2 Done when, Q10 (the wheel's open slot), and push the 29 local commits.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -716,6 +716,19 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-21 · C2 · tasks C2.1–C2.6 (C2 closed)
+- Done: C2.1 TS port (`9311619`, wider crystal fixtures `51c297b`). C2.2–C2.3 picker and crystal-aware views (`2621762`, with the port review's hardening). C2.4–C2.5 per-task crystal,
+  `lif-kalpha-angle`, Moseley LiF variant (`83ed328`). Python `edge_wavelength_table(d_pm)` (`ba8f47f`). C2.6 three-review pass (`6922774`).
+- Reviews: physics (port 1:1; anchor by identity, frozen entries, load guard, no silent NaCl fallback). Apparatus (no blocker; the interlock now self-enforcing, the holder per task, crystal in the CSVs).
+  Design (the heights note hidden for NaCl and saying "upper bound"; Huygens legible for muscovite; markers over each crystal's orders). Pedagogy (the LiF window missed Kβ; Moseley with LiF needed
+  its d and "your crystal's d"; LiF's R lands ≈ 1 % below R∞ vs 3.6 % on NaCl).
+- Verify: pytest 203 · ruff clean · artifacts byte-stable · Vitest 167 · build OK (main 93.1 kB gzip; `crystals` lazy 48.3 kB) · key byte-stable · 390/1440 px screenshots of the picker,
+  the LiF and muscovite spectra, and Huygens.
+- Uncommitted: no. 29 local commits ahead of GitHub (16 from this run), nothing pushed.
+- Surprises / decisions: still ⏸ for the user: a Darwin reflectivity model for Si/calcite (heights shown are labelled upper bounds), the revised L2 Done when, and Q10 (wheel open slot).
+  The night's scope (user, 2026-10-20) was L2 → C1 → C2, so F1 was not started.
+- Next: F1.1 (`form_factors.json` for Z = 1…92), once the user has looked at the ⏸ items.
 
 ### 2026-10-21 · C1 · tasks C1.1–C1.6 (C1 closed)
 - Done: C1.1 (research by Sonnet: COD/AMCSD CIFs, CODATA, Heacock 2021; `PARAMETERS.md` § Crystal presets). C1.2–C1.3 `crystal.Crystal`, presets, `crystal=` through `scan.py`,
