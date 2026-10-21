@@ -76,6 +76,7 @@ button, select { font: inherit; color: inherit; }
 .focus-card {
   position: absolute; z-index: var(--z-overlay); top: 50%; left: 50%; translate: -50% -50%;
   max-height: calc(100cqh - 2 * var(--space-4)); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--label-3) transparent;
   background: var(--surface); border-radius: var(--radius-l); box-shadow: var(--shadow-sheet);
   opacity: 0; scale: 0.96; pointer-events: none;
   transition: opacity var(--dur-slow) var(--ease-out), scale var(--dur-slow) var(--ease-out);
@@ -221,11 +222,12 @@ button, select { font: inherit; color: inherit; }
 /* Setup tray: native <details>, one labelled select per row. */
 .setup { padding: 0 var(--space-4) var(--space-3); font: var(--text-footnote); color: var(--label-2); }
 .setup summary { min-height: var(--touch); display: flex; align-items: center; cursor: pointer; }
-.setup summary::after { content: '›'; margin-inline-start: auto; transition: rotate var(--dur-fast) var(--ease-out); }
+.setup summary::after { content: '›' / ''; margin-inline-start: auto; transition: rotate var(--dur-fast) var(--ease-out); }
 .setup[open] summary::after { rotate: 90deg; }
-.setup label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: var(--touch); border-top: 1px solid var(--separator); }
+.setup label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: var(--touch); border-top: var(--stroke-hair) solid var(--separator); }
 .setup select { min-height: var(--touch); max-width: 60%; border: none; border-radius: var(--radius-full); background: var(--fill); color: var(--label); padding: 0 var(--space-3); font: inherit; }
-.setup select:disabled { color: var(--label-3); }
+.setup select:disabled { opacity: 1; color: var(--label-2); background: none; appearance: none; padding-inline-end: 0; cursor: default; }
+.chamber-card > .hint { margin: 0 var(--space-4) var(--space-2); }
 /* A guided task's act instruction while its card is closed; tap to reopen the card. */
 .act-strip {
   position: absolute; z-index: var(--z-sheet); top: var(--space-2); /* over an open card: the task's instruction */ inset-inline: var(--space-2); min-height: var(--touch);
@@ -304,6 +306,7 @@ button, select { font: inherit; color: inherit; }
   .sliders { grid-template-columns: 1fr 1fr; gap: 0 var(--space-3); padding: 0 var(--space-3) var(--space-2); }
   .slider { font: var(--text-caption); }
   .setup { padding: 0 var(--space-3) var(--space-2); }
+  .chamber-card > .hint { margin-inline: var(--space-3); }
   .slider > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .panel { padding: var(--space-2) var(--space-3) var(--space-3); }
   /* Keys: one 5-column grid, headings kept for screen readers */

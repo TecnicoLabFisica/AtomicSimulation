@@ -22,10 +22,13 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
   }
   const field = (f: (typeof FIELDS)[number]) => root.querySelector<HTMLSelectElement>(`[data-field="${f}"]`)!
   root.addEventListener('toggle', async () => {
-    if (!root.open || loaded) return
-    await loadAbsorbers()
-    loaded = true
-    build() // the filter options exist now
+    if (!root.open) return
+    if (!loaded) {
+      await loadAbsorbers()
+      loaded = true
+      build() // the filter options exist now
+    }
+    root.scrollIntoView({ block: 'nearest' }) // the opened rows, not just the summary, in view
   })
   root.addEventListener('change', () => {
     const [holder, c, f] = FIELDS.map((k) => field(k).value)

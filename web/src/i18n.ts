@@ -1,7 +1,7 @@
 // UI strings, Spanish (default) and English. Views never hard-code user-facing text.
 const es = {
-  title: 'Reflexión de Bragg · Equipo de rayos X 554 800',
-  titleShort: 'Reflexión de Bragg',
+  title: 'X-Ray Lab · Equipo de rayos X 554 800',
+  titleShort: 'X-Ray Lab',
   theme: 'Tema',
   themes: { auto: 'Automático', light: 'Claro', dark: 'Oscuro' },
   gonioLabel: 'Goniómetro visto desde arriba',
@@ -104,8 +104,8 @@ const es = {
 }
 type Dict = typeof es
 const en: Dict = {
-  title: 'Bragg reflection · X-ray apparatus 554 800',
-  titleShort: 'Bragg reflection',
+  title: 'X-Ray Lab · X-ray apparatus 554 800',
+  titleShort: 'X-Ray Lab',
   theme: 'Theme',
   themes: { auto: 'Automatic', light: 'Light', dark: 'Dark' },
   gonioLabel: 'Goniometer seen from above',

@@ -59,8 +59,8 @@ app.innerHTML = `
     <section class="focus-card chamber-card" data-focus="chamber" role="dialog" tabindex="-1" aria-labelledby="chamber-title" inert>
       <h2 class="card-title" id="chamber-title" data-chamber-title></h2><button class="tool close" data-back></button>
       <div class="led rate" role="group" data-rate-led><output data-rate></output><span class="unit" data-rate-unit></span></div>
-      <p class="hint" role="status" data-saturated></p>
       <canvas role="img" data-gonio></canvas><div class="sliders explore" data-explore></div>
+      <p class="hint" role="status" data-saturated></p>
       <details class="setup" data-setup></details>
     </section>
     <aside class="sheet inspector" id="learn" data-open="false">

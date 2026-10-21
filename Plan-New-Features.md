@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-15
-current_phase: G1
-next_task: G1.11
+current_phase: L1
+next_task: L1.1
 last_session: 2026-10-15
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,14 +54,14 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `G1.11` (the `design-reviewer` pass on the setup tray and the holder drawings; send it the G1.10 screenshots). Load `bragg-ui` first.
+> **Next:** `L1.1` (cite the 554 832 foil thicknesses × bulk density in `PARAMETERS.md`; the data half is already exported). Then L1.2 `analysis.k_edge_deg`.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
 | G0 | Reference facts and scope | ✅ done | 1 | — |
-| G1 | Accessories and shared physics | 🟨 in progress | 2–3 | G0 |
-| L1 | Práctica 5: Moseley's law | ⬜ todo | 2 | G1 |
+| G1 | Accessories and shared physics | ✅ done | 3 | G0 |
+| L1 | Práctica 5: Moseley's law | 🟨 next | 2 | G1 |
 | L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
@@ -235,7 +235,11 @@ flowchart LR
       As built: both views switch on `setup.holder` (crystal / 7-slot arc plate, slot k on the beam at β = 10k° / nothing) and draw
       foil bars at the collimator and the counter. Without the crystal the out-beam is the direct beam at 0°, from the new
       `Apparatus.transmittedRate()` (0 when the plate frame blocks). The detector type is deferred to L3 (only the GM exists).
-- [ ] **G1.11** `design-reviewer` pass.
+- [x] **G1.11** `design-reviewer` pass. Applied: a shared `PLATE_R_CM = 2.5` (2D and 3D; an assumption) with a solid frame and tiles
+      whose opacity follows mg/cm²; no θ/2θ arcs without a crystal; the beam ends at the plate; element captions on the foils; locked selects
+      shown as plain readable values; the saturation hint moved below the sliders; a thin themed scrollbar; the grab handle at the plate (none when empty).
+      Deferred: iOS zoom on focused `<select>` < 16 px (here and in `.scale select`; unverified on a device, needs a 16 px token), and the 3D plate,
+      which stays edge-on from the default camera (a presence cue; the 2D card is where the slot is read).
 
 **Done when:** pytest, artifact freshness, Vitest and the build are green. A Bragg scan with a Zr foil visibly
 suppresses Kβ, and sensor at 0° with the wheel gives plausible direct-beam rates.
@@ -624,6 +628,16 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-15 · G1 · task G1.11
+- Done: design review (Opus) from 22 screenshots; fixes by a Sonnet implementer plus two follow-ups (the select font back to `inherit`, since
+  17 px values outweighed 13 px labels; the scroll-into-view now runs after the async rebuild). Files: `views/{goniometer,bench,setup}.ts`,
+  `styles/app.css`, `main.ts` (hint moved). Rejected: per-tile material labels on the plate (too small), equal select widths, canvas aspect (pre-existing).
+- G1 "Done when", checked in the app: a 35 kV / 1 mA COUPLED scan 4–14° with a sensor Zr foil drops Kβ from ≈ 1300/s to ≈ 120/s (Kα 2500 → 1630).
+- Verify: Vitest 96 · build OK (main 77.3 kB gzip; `mu_rho_absorbers` 72.6 kB and bench 142.5 kB are their own chunks). No Python changed.
+- Uncommitted: yes, G1.11.
+- Surprises / decisions: headless Firefox has a ≈ 500 px minimum window, so 390 px shots need the app in a 390 px iframe.
+- Next: L1.1, then L1.2 (`analysis.k_edge_deg`). Load `add-physics-feature`.
 
 ### 2026-10-15 · G1 · task G1.10
 - Done: `Apparatus.transmittedRate()` (and a private `direct()` shared with `expectedRate`), the holder and foil drawings in

@@ -10,7 +10,7 @@ import { getLang, t } from '../i18n'
 import { getMode } from '../pedagogy/mode'
 import { WHEELS_MG_CM2 } from '../physics/tables'
 import { armEaser, dpr, palette, paletteVersion, reducedMotion, type Palette } from './canvas'
-import { S1_CM, S2_CM } from './goniometer'
+import { PLATE_R_CM, S1_CM, S2_CM } from './goniometer'
 import { GROUPS, keySelected } from './panel'
 
 export type Focus = 'room' | 'panel' | 'monitor' | 'chamber'
@@ -494,7 +494,7 @@ export function mountBench(
   let rate = 0
   let rateKey = ''
   // What is mounted (door open only): crystal, plate or nothing, and the foils.
-  const plateMats = [matte('bench-trim', { side: THREE.DoubleSide }), matte('bench-metal', { roughness: 0.4, metalness: 0.6, side: THREE.DoubleSide })]
+  const plateMats = [matte('bench-metal', { roughness: 0.4, metalness: 0.6, side: THREE.DoubleSide }), matte('bench-housing', { side: THREE.DoubleSide })]
   let mounted: Setup | null = null
   const mount = ({ holder, collimatorFilter, sensorFilter }: Setup) => {
     mounted = a.setup
@@ -505,7 +505,7 @@ export function mountBench(
       const w = WHEEL_WINDOW_DEG * RAD
       // CylinderGeometry puts θ at (sin θ, cos θ), and the arm turns θ → θ + β, so slot k centres on θ = 90° − 10k°.
       const seg = (n: number, from: number, to: number, m: THREE.Material) => {
-        const o = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 2.5, 8, 1, true, Math.PI / 2 - n * 10 * RAD + from, to - from), m)
+        const o = new THREE.Mesh(new THREE.CylinderGeometry(PLATE_R_CM, PLATE_R_CM, 2.5, 8, 1, true, Math.PI / 2 - n * 10 * RAD + from, to - from), m)
         o.position.y = beamH
         plate.add(o)
       }
