@@ -59,6 +59,30 @@ export function adjustMultiplier(detentsPerSecond: number): number {
 
 export type ReplayPoint = { angle: number; rate: number } // angle in 0.1°, mean rate in 1/s over Δt
 
+/** One finished exposure (Δβ = 0). Simulation aid: the device keeps only the last value for REPLAY, a
+ * student doing a series of exposures would otherwise have to note the setup of each by hand. */
+export type ExposureRecord = Readonly<{
+  target: number // 0.1°, wrapped
+  sensor: number // 0.1°
+  slot: number | null // absorber-plate slot in the beam (see wheelSlot), null: frame or no plate
+  mode: Mode | null // the arm selected when the exposure ran (null: none, e.g. a background run)
+  setup: Setup
+  u: number // 0.1 kV, when counting started
+  i: number // 0.01 mA, when counting started
+  dt: number // s
+  rate: number // mean rate in 1/s = counts / dt, the value REPLAY shows
+  changed: boolean // U or I differed from the start values while it counted
+}>
+
+/** The slot of an absorber plate in the beam for a target angle (0.1°, any turn): 0 … 6, or null when the
+ * wheel frame blocks the beam or the holder is no plate. */
+export function wheelSlot(holder: Holder, angle: number): number | null {
+  if (holder !== 'alWheel' && holder !== 'materialWheel') return null
+  const t = wrapTarget(angle)
+  const k = Math.round(t / 100)
+  return k < 0 || k > 6 || Math.abs(t - 100 * k) > WHEEL_WINDOW_DEG * 10 ? null : k
+}
+
 export type Display = {
   top: string
   topUnit: '1/s' | '°' | ''
@@ -76,6 +100,7 @@ type Program = {
   steps: number[] // scan-arm angles in 0.1° (one entry for the exposure timer)
   index: number
   elapsedS: number // whole seconds counted at the current step
+  started?: boolean // U and I were noted when counting began
   counts: number
 }
 
@@ -101,6 +126,8 @@ export class Apparatus {
   speaker = false
   doorsClosed = true
   private _setup: Setup = { holder: 'crystal', collimatorFilter: null, sensorFilter: null }
+  private _exposures: ExposureRecord[] = []
+  private exposureStart: { u: number; i: number; changed: boolean } | null = null
   hvOn = false
   alert: Alert | null = null // cleared by the next key
   // Program
@@ -159,6 +186,16 @@ export class Apparatus {
     return this._setup
   }
 
+  /** The exposures finished so far, oldest first (simulation aid). Stopped exposures are not logged; RESET
+   * keeps the log, as it keeps the setup; only clearExposureLog() empties it. */
+  get exposureLog(): readonly ExposureRecord[] {
+    return this._exposures
+  }
+
+  clearExposureLog(): void {
+    this._exposures = []
+  }
+
   /** Expected rate R̄ at the current arm positions, in counts/s. With HV off the counter still sees the
    * natural GM background. */
   expectedRate(): number {
@@ -213,10 +250,8 @@ export class Apparatus {
 
   /** The wheel slot in the beam (null = open slot), or undefined when the wheel frame blocks it. */
   private wheelSlot(): readonly [string, number] | null | undefined {
-    const t = wrapTarget(this.target)
-    const k = Math.round(t / 100)
-    if (k < 0 || k > 6 || Math.abs(t - 100 * k) > WHEEL_WINDOW_DEG * 10) return undefined
-    return WHEELS_MG_CM2[this._setup.holder === 'alWheel' ? 'al' : 'material'][k]
+    const k = wheelSlot(this._setup.holder, this.target)
+    return k === null ? undefined : WHEELS_MG_CM2[this._setup.holder === 'alWheel' ? 'al' : 'material'][k]
   }
 
   press(key: Key): void {
@@ -264,6 +299,7 @@ export class Apparatus {
           target: this.target,
           sensor: this.sensor,
           _setup: this._setup,
+          _exposures: this._exposures,
           path: [{ target: 0, sensor: 0 }],
         })
         return
@@ -440,6 +476,7 @@ export class Apparatus {
     if (this.next === 'exposure') {
       this.phase = 'exposure'
       this.lastScan = null
+      this.exposureStart = { u: this.u, i: this.i, changed: false }
       const arms = this.restingArms()
       this.program = { steps: [this.mode === 'SENSOR' ? arms.sensor : wrapTarget(arms.target)], index: 0, elapsedS: 0, counts: 0 }
       return
@@ -506,14 +543,37 @@ export class Apparatus {
     const p = this.program
     if (!p || !this.ready || this.moving) return // a program waits for HV, emission current and the arms (§7 b5)
     p.counts += c
-    const s = this.lastScan // null for an exposure
-    if (s && (this.u !== s.u || this.i !== s.i)) s.changed = true
+    this.watch(p)
     if (++p.elapsedS === this.dt) this.endStep()
+  }
+
+  /** Counting has begun or goes on: note U and I at the first counted second (not while the arms still
+   * move), then flag a later change (the device allows it). */
+  private watch(p: Program): void {
+    const s = this.lastScan ?? this.exposureStart // lastScan is null for an exposure
+    if (!s) return
+    if (!p.started) {
+      p.started = true
+      s.u = this.u
+      s.i = this.i
+    } else if (this.u !== s.u || this.i !== s.i) s.changed = true
   }
 
   private endStep(): void {
     const p = this.program!
-    this.replay.push({ angle: p.steps[p.index], rate: p.counts / this.dt })
+    const point = { angle: p.steps[p.index], rate: p.counts / this.dt }
+    this.replay.push(point)
+    const x = this.exposureStart
+    if (this.phase === 'exposure' && x) {
+      const { holder } = this._setup
+      this._exposures = [
+        ...this._exposures,
+        Object.freeze({
+          target: wrapTarget(this.target), sensor: this.sensor, slot: wheelSlot(holder, this.target), mode: this.mode,
+          setup: this._setup, u: x.u, i: x.i, dt: this.dt, rate: point.rate, changed: x.changed,
+        }),
+      ]
+    } // prettier-ignore
     p.index++
     p.elapsedS = p.counts = 0
     if (p.index === p.steps.length) {
@@ -530,6 +590,7 @@ export class Apparatus {
     while (this.program && this.ready) {
       const p = this.program
       const left = this.dt - p.elapsedS
+      this.watch(p)
       p.counts += Math.min(poisson(this.expectedRate() * left, this.rng), COUNTER_MAX_PER_S * left)
       p.elapsedS = this.dt
       this.endStep()
@@ -542,6 +603,7 @@ export class Apparatus {
   private stop(): void {
     this.phase = 'idle'
     this.program = null
+    this.exposureStart = null
     this.hvOn = false
     this.path.length = Math.min(this.path.length, 1)
     if (this.replay.length === 0) this.lastScan = null // stopped before the first point

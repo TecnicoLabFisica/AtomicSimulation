@@ -1,6 +1,6 @@
 // The procedures of LD instruction sheet 554 800 §11, key by key, plus the panel's guard rails.
 import { beforeAll, describe, expect, test } from 'vitest'
-import { Apparatus, MOTOR_DEG_PER_S, OK_S, SAFE_S, adjustMultiplier, fmtMean, wrapTarget, type Key, type Setup } from '../src/apparatus/apparatus'
+import { Apparatus, MOTOR_DEG_PER_S, OK_S, SAFE_S, adjustMultiplier, fmtMean, wheelSlot, wrapTarget, type Key, type Setup } from '../src/apparatus/apparatus'
 import { mulberry32 } from '../src/physics/detector'
 import { DEFAULT, directRate, expectedRate } from '../src/physics/scan'
 import { FOILS_MG_CM2, WHEELS_MG_CM2, loadAbsorbers } from '../src/physics/tables'
@@ -571,5 +571,122 @@ describe('setup (G1.7)', () => {
     expect(a.transmittedRate()).toBeLessThan(open)
     a.moveArm(-50)
     expect(a.transmittedRate()).toBe(0) // 5°: the frame
+  })
+
+  /** One exposure on the Al plate: TARGET at `deg`, Δβ = 0, Δt, SCAN, run to the end. */
+  function expose(a: Apparatus, deg: number, dt: number, kV = 21, mA = 0.05) {
+    a.press('TARGET')
+    a.adjust(deg * 10 - a.target)
+    set(a, 'U', kV * 10 - a.u)
+    set(a, 'I', mA * 100 - a.i)
+    set(a, 'DBETA', -a.dBeta)
+    set(a, 'DT', dt - a.dt)
+    a.press('SCAN')
+    a.tick(SAFETY_S + dt + 1)
+    expect(a.phase).toBe('idle')
+  }
+
+  test('P1 workflow: a series of exposures is logged with its setup, REPLAY unchanged', () => {
+    const a = device()
+    a.setDoors(false)
+    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: null })
+    a.setDoors(true)
+    expect(a.exposureLog).toHaveLength(0)
+    expose(a, 30, 20)
+    expect(a.display()).toMatchObject({ bottom: '0', bottomUnit: 's' }) // "0 s" stays on show
+    expect(a.exposureLog).toHaveLength(1)
+    const [e] = a.exposureLog
+    expect(e).toMatchObject({ target: 300, sensor: 0, slot: 3, mode: 'TARGET', u: 210, i: 5, dt: 20, changed: false })
+    expect(e.setup.holder).toBe('alWheel')
+    expect(wheelSlot(e.setup.holder, e.target)).toBe(3)
+    a.press('REPLAY')
+    expect(a.display().top).toBe(fmtMean(e.rate)) // the logged rate is what REPLAY shows
+    const mean = directRate(21, 0.05, [['Al', WHEELS_MG_CM2.al[3]![1]]])
+    expect(Math.abs(e.rate - mean)).toBeLessThan(5 * Math.sqrt(mean / 20))
+    expose(a, 60, 20)
+    expect(a.exposureLog).toHaveLength(2)
+    expect(a.exposureLog[1]).toMatchObject({ target: 600, slot: 6 })
+    expect(a.exposureLog[1].rate).toBeLessThan(e.rate) // slot 6 is thicker than slot 3
+  })
+
+  test('exposure log: background run, early stop, auto-scan, RESET and clearing', () => {
+    const a = device()
+    set(a, 'U', -a.u)
+    set(a, 'DBETA', -1)
+    set(a, 'DT', 99)
+    a.press('SCAN') // background at 0 kV / 0 mA
+    a.tick(SAFETY_S + 101)
+    expect(a.exposureLog).toHaveLength(1)
+    expect(a.exposureLog[0]).toMatchObject({ mode: null, u: 0, i: 0, dt: 100 })
+    const bg = directRate(0, 0)
+    expect(Math.abs(a.exposureLog[0].rate - bg)).toBeLessThan(5 * Math.sqrt(bg / 100))
+    set(a, 'U', 50)
+    set(a, 'DT', -91)
+    a.press('SCAN') // stopped early: not logged
+    a.tick(SAFETY_S + 3)
+    a.press('SCAN')
+    expect(a.exposureLog).toHaveLength(1)
+    a.press('TARGET')
+    set(a, 'DBETA', 5) // auto-scan, Δβ = 1.0° from limits 0 … 0: not an exposure
+    a.timeScale = Infinity
+    a.press('SCAN')
+    a.tick(SAFETY_S)
+    expect(a.exposureLog).toHaveLength(1)
+    a.press('RESET')
+    expect(a.exposureLog).toHaveLength(1)
+    a.clearExposureLog()
+    expect(a.exposureLog).toHaveLength(0)
+  })
+
+  test('exposure log flags U or I changed while counting', () => {
+    const a = device()
+    set(a, 'DBETA', -1)
+    set(a, 'DT', 9)
+    a.press('SCAN')
+    a.tick(SAFETY_S + 2)
+    a.press('U')
+    a.adjust(10)
+    a.tick(10)
+    expect(a.exposureLog[0]).toMatchObject({ u: 50, changed: true })
+  })
+
+  test('changed: U edited then instant mode counts; U edited only while positioning does not', () => {
+    const a = device()
+    set(a, 'DBETA', -1)
+    set(a, 'DT', 9)
+    a.press('SCAN')
+    a.tick(SAFETY_S + 2) // counting
+    a.press('U')
+    a.adjust(10)
+    a.timeScale = Infinity
+    a.tick(0)
+    expect(a.exposureLog[0].changed).toBe(true)
+    // auto-scan: U edited during positioning, then no change while counting
+    const b = device()
+    ;[b.i, b.dt, b.dBeta, b.limitLo, b.limitHi] = [10, 1, 10, 100, 120]
+    b.press('COUPLED')
+    b.press('SCAN')
+    b.tick(SAFETY_S + 0.1)
+    expect(b.phase).toBe('positioning')
+    b.press('U')
+    b.adjust(10)
+    b.tick(30)
+    expect(b.phase).toBe('idle')
+    expect(b.lastScan).toMatchObject({ u: 60, changed: false })
+  })
+
+  test('SENSOR-mode exposure records both arms and the slot under the target', () => {
+    const a = device()
+    a.setDoors(false)
+    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: null })
+    a.setDoors(true)
+    a.press('TARGET')
+    a.adjust(300)
+    a.press('SENSOR')
+    a.adjust(5)
+    set(a, 'DBETA', -1)
+    a.press('SCAN')
+    a.tick(SAFETY_S + 2)
+    expect(a.exposureLog[0]).toMatchObject({ target: 300, sensor: 5, slot: 3, mode: 'SENSOR' })
   })
 })
