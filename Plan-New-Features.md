@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-20
 current_phase: L2
-next_task: L2.1
+next_task: L2.3
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -319,9 +319,12 @@ nearly Mo Kα and the line straightens. This is the main teaching point, and the
 Dead time at ~1000 /s also bends the data a little, which is real and worth a note.
 
 #### S1 — Python
-- [ ] **L2.1** (data half done in G1.7: `filters.WHEELS_MM`, exported) Absorber sets as data: the Al wheel (0, 0.5 … 3.0 mm) and the material wheel (polystyrene, Al, Fe, Cu, Zr, Ag,
+- [x] **L2.1** (data half done in G1.7: `filters.WHEELS_MM`, exported) Absorber sets as data: the Al wheel (0, 0.5 … 3.0 mm) and the material wheel (polystyrene, Al, Fe, Cu, Zr, Ag,
       0.4 mm each). At 0.4 mm the Fe … Ag absorbers transmit far below 1 %, so background and dead time dominate their
       readings. That is real (it's why the guide raises I to 1 mA for them) and a teaching point, so don't hide it.
+      As built (2026-10-20): corrected. At 0.02 mA, Fe … Ag (T = 5e-4 … 5e-3) read 8–80× the background. At the guide's 1 mA they read 80–780/s
+      with Rτ ≤ 0.08, so dead time is negligible for them. Dead time limits the *light* plates (Rτ 10–16 at 1 mA), hence 0.02 mA for those.
+      Zr transmits more than Fe (the Mo K lines sit below the Zr edge). Table in `PARAMETERS.md`; test `test_material_plate_needs_more_current_for_heavy_absorbers`.
 - [x] **L2.2** (done in G1.3/G1.4: `direct_per_s` = 2.97e5, `background_per_s` = 0.2, both in `PARAMETERS.md`) Set `K_direct` and `background_per_s` from [[#Calibration anchors]] (no EPN data exists; mark both as anchored to
       published or guide values, not fitted to measurements).
 - [ ] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,

@@ -8,6 +8,7 @@ from pytest import approx
 from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
 from braggsim.crystal import theta_from_lambda
 from braggsim.detector import dead_time
+from braggsim.filters import WHEELS_MM, areal_density_mg_cm2
 from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate, tube_factor
 from braggsim.source import lambda_min_pm
 
@@ -340,3 +341,27 @@ def test_direct_rate_falls_off_axis_and_rejects_bad_sensor():
     assert direct_rate(21.0, 0.05, sensor_deg=-3.0) == approx(off)
     with pytest.raises(ValueError):
         direct_rate(21.0, 0.05, sensor_deg=171.0)
+
+
+def test_material_plate_needs_more_current_for_heavy_absorbers():
+    # EPN P1 run 2a: 0.4 mm plates at 30 kV. Fe…Ag transmit < 1 %, so at 0.02 mA they sit near the
+    # GM background floor; the guide's 1 mA lifts them well clear of it with negligible dead time,
+    # while the light plates would paralyse the counter at 1 mA (PARAMETERS.md, material plate).
+    bg = DEFAULT.background_per_s
+    true = DEFAULT.replace(tau_s=0.0, background_per_s=0.0)
+    rates = {
+        m: [direct_rate(30.0, i, ((m, areal_density_mg_cm2(m, mm)),)) for i in (0.02, 1.0)]
+        for m, mm in WHEELS_MM["material"][:6]
+    }
+    for m in ("Fe", "Cu", "Zr", "Ag"):
+        low, high = rates[m]
+        assert low < 100 * bg  # within two decades of the background floor
+        assert high > 300 * bg
+        r_true = direct_rate(30.0, 1.0, ((m, areal_density_mg_cm2(m, 0.4)),), true)
+        assert r_true * DEFAULT.tau_s < 0.1  # dead time negligible at 1 mA
+    for m in ("Polystyrene", "Al"):
+        assert rates[m][0] > 1000 * bg
+        r_true = direct_rate(30.0, 1.0, ((m, areal_density_mg_cm2(m, 0.4)),), true)
+        assert r_true * DEFAULT.tau_s > 1  # would paralyse a real GM
+    # Zr transmits more than Fe: the Mo K lines sit below the Zr K edge.
+    assert rates["Zr"][1] > rates["Fe"][1]

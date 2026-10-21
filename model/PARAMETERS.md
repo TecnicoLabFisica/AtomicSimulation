@@ -92,6 +92,25 @@ Foil set 554 832 as used (thickness from the LD catalog × bulk density from xra
 Bulk density is an assumption: a rolled foil can be a few % lighter, and every ρx scales T as exp(−μ/ρ·ρx). The Moseley
 practice (P5) reads only the edge *position*, which does not depend on ρx.
 
+**Material plate readings (EPN Práctica 1, run 2a; added 2026-10-20).** At 30 kV the 0.4 mm plates transmit (open beam = 1, no
+dead time or background):
+
+| Absorber | T | True rate at 0.02 mA (/s) | True rate at 1 mA (/s) | Rτ at 1 mA |
+|---|---|---|---|---|
+| Polystyrene | 0.98 | 3163 | 1.6e5 | 16 |
+| Al | 0.62 | 2006 | 1.0e5 | 10 |
+| Fe | 3.3e-3 | 10.7 | 533 | 0.05 |
+| Cu | 4.8e-4 | 1.6 | 78 | 0.008 |
+| Zr | 4.8e-3 | 15.6 | 782 | 0.08 |
+| Ag | 1.4e-3 | 4.4 | 218 | 0.02 |
+
+At the guide's 0.02 mA the four heavy plates would read only 8–80× the 0.2/s background, so the counting statistics and the background
+dominate. At 1 mA (the guide's setting for them) they read 80–780/s, and dead time is negligible. The light plates are the reverse:
+at 1 mA they would paralyse the GM, so the guide counts them at 0.02 mA. This is real, it is why the guide changes I between materials,
+and the app does not hide it (test `test_material_plate_needs_more_current_for_heavy_absorbers`). Zr transmits more than Fe: most of the
+30 kV beam (the Mo K lines at 17.4–19.6 keV and the continuum below 18 keV) sits below the Zr K edge (18.0 keV), so μ vs Z is not monotonic
+across an edge.
+
 ### Moseley analysis (EPN Práctica 5): known deviations
 
 The K edge found by `analysis.k_edge_deg` (Gaussian-convolved step with its own plateau slope) differs from the
