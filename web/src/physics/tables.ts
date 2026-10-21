@@ -11,6 +11,9 @@ const logMuRho: Record<string, Float64Array> = Object.fromEntries(
   Object.entries(muRho.mu_rho_cm2_g).map(([m, t]) => [m, Float64Array.from(t, Math.log)]),
 )
 export const LOG_MU_RHO: Readonly<Record<string, Float64Array>> = logMuRho
+/** K, L1–L3 absorption edges (pm) of each material inside the grid, exported by Python and only read here. */
+const edgesPm: Record<string, readonly number[]> = { ...muRho.edge_lambda_pm }
+export const EDGES_PM: Readonly<Record<string, readonly number[]>> = edgesPm
 
 /** Foil set 554 832 (name → mg/cm²) and the two plates of the absorption accessory 554 834 (7 slots,
  * `null` = open); empty until loadAbsorbers() resolves. */
@@ -26,6 +29,7 @@ export async function loadAbsorbers(): Promise<void> {
   if (absorbersLoaded()) return
   const { default: absorbers } = await import('../../../artifacts/tables/mu_rho_absorbers.json')
   for (const [m, t] of Object.entries(absorbers.mu_rho_cm2_g as Record<string, number[]>)) logMuRho[m] = Float64Array.from(t, Math.log)
+  Object.assign(edgesPm, absorbers.edge_lambda_pm)
   Object.assign(FOILS_MG_CM2, absorbers.foils_mg_cm2)
   Object.assign(WHEELS_MG_CM2, absorbers.wheels_mg_cm2)
 }

@@ -58,7 +58,7 @@
   {
    "description": "Zr 0.05 mm + Cu 0.4 mm",
    "expected": {
-    "rate_per_s": 26.681590356062998
+    "rate_per_s": 26.681598903712437
    },
    "inputs": {
     "I_mA": 1.0,

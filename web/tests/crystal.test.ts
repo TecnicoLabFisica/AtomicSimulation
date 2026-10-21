@@ -32,7 +32,7 @@ test('LiF: d = 201.35 pm, first-order Kα at θ = asin(λ/2d)', () => {
 })
 
 test('the built-in NACL matches the loaded table entry (no drift)', () => {
-  expect({ ...NACL, mu_per_cm: [], extinction: [], source: '' }).toEqual({ ...CRYSTALS.NaCl, mu_per_cm: [], extinction: [], source: '' }) // source text differs on purpose; NACL carries no tables
+  expect({ ...NACL, mu_per_cm: [], mu_edges_pm: [], extinction: [], source: '' }).toEqual({ ...CRYSTALS.NaCl, mu_per_cm: [], mu_edges_pm: [], extinction: [], source: '' }) // source text differs on purpose; NACL carries no tables
 })
 
 test('isNacl is identity: a look-alike named NaCl still gets muFactor (needs its own μ table)', async () => {

@@ -262,16 +262,30 @@ def mu_per_cm_table(crystal):
     return table
 
 
-def linear_attenuation_per_cm(crystal, lambda_pm):
-    """μ(λ) of the crystal in 1/cm, interpolated log–log like ``filters.transmission``."""
-    from braggsim.filters import MU_RHO_GRID_PM
+@functools.cache
+def mu_edges_pm(crystal):
+    """K and L1–L3 absorption-edge wavelengths (pm) of the elements of ``crystal`` inside
+    ``filters.MU_RHO_GRID_PM`` (steps of xraylib's ``CS_Total``, ``filters.cs_step_edges_pm``):
+    NaCl Cl K 439.3 pm, calcite Ca K 307.0 pm, muscovite K K 343.7 pm."""
+    from braggsim.filters import cs_step_edges_pm
 
-    log_mu = np.interp(
-        np.log(np.asarray(lambda_pm, dtype=float)),
-        np.log(MU_RHO_GRID_PM),
-        np.log(mu_per_cm_table(crystal)),
-    )
-    return np.exp(log_mu)
+    zs = sorted({int(z) for z, *_ in crystal.basis})
+    return cs_step_edges_pm(zs, lambda e_kev: sum(xraylib.CS_Total(z, e_kev) for z in zs))
+
+
+@functools.cache
+def _log_mu_per_cm_table(crystal):
+    table = np.log(mu_per_cm_table(crystal))
+    table.flags.writeable = False
+    return table
+
+
+def linear_attenuation_per_cm(crystal, lambda_pm):
+    """μ(λ) of the crystal in 1/cm, interpolated log–log like ``filters.transmission`` with the
+    absorption edges of its elements kept sharp (``filters.interp_log_mu``)."""
+    from braggsim.filters import interp_log_mu
+
+    return np.exp(interp_log_mu(lambda_pm, _log_mu_per_cm_table(crystal), mu_edges_pm(crystal)))
 
 
 def cell_scale(crystal):

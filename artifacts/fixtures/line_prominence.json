@@ -86,8 +86,8 @@
   },
   {
    "expected": {
-    "sigma": 12.510908840408767,
-    "strongest_rate_per_s": 21.057199717570786
+    "sigma": 12.51946798439275,
+    "strongest_rate_per_s": 21.080404458676725
    },
    "inputs": {
     "I_mA": 0.5,

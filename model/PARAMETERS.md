@@ -162,7 +162,7 @@ The NaCl reference y_NaCl,1(λ) is calibrated only inside the Fig. 4 range (θ �
 continuum is absorbed (air, absorber and the crystal's own μ; checked in the Q1.8 review, 2026-10-21: muscovite 8°–18°,
 ×1.000).
 
-The grid smears absorption edges (Ca K at 307.0 pm, K K at 343.7 pm) over 0.3 % in λ; μ is held constant
+Absorption edges are kept sharp (see `filters.MU_RHO_GRID_PM`); the air Ar K edge (386.7 pm) lies beyond the Fig. 4 range (λ ≲ 240 pm), so the calibrated spectrum is unchanged. μ is held constant
 beyond the 600 pm grid end (harmless: the absorber's T(600 pm) = 7e-32). Muscovite's order-1 Kα
 (2.04°) sits under the direct-beam leak (local maximum at 1.74°).
 
@@ -170,7 +170,7 @@ beyond the 600 pm grid end (harmless: the absorber's T(600 pm) = 7e-32). Muscovi
 
 | Name | Value | Why |
 |---|---|---|
-| `filters.MU_RHO_GRID_PM` | 1000 log-spaced points, 30–600 pm, rounded to 1e-9 pm (the same nodes on every CPU) | μ/ρ is tabulated here and interpolated log–log, so the web app reads the same numbers (`artifacts/tables/mu_rho.json`). Away from edges it agrees with xraylib to within 3e-6, and 500 points would already give 1e-5. Beyond 30–600 pm the end values are held. An absorption edge is smeared over one grid step (0.3 % in λ): ≈ 0.05 keV at the Zr K edge (18.0 keV), ≈ 0.08 keV at In K (27.9 keV), ≈ 0.02° in θ (NaCl) at the Moseley edges (0.014–0.021°). Absorber μ/ρ tables: `artifacts/tables/mu_rho_absorbers.json`, same grid. The range covers λ_min at 35 kV and 1st order at θ = 85° |
+| `filters.MU_RHO_GRID_PM` | 1000 log-spaced points, 30–600 pm, rounded to 1e-9 pm (the same nodes on every CPU) | μ/ρ is tabulated here and interpolated log–log, so the web app reads the same numbers (`artifacts/tables/mu_rho.json`). Away from edges it agrees with xraylib to within 3e-6, and 500 points would already give 1e-5. Beyond 30–600 pm the end values are held. Absorption edges are kept sharp without changing the grid (2026-10-21, physics review finding 9; before, an edge was smeared over one grid step, 0.3 % in λ, which put the Zr mid-transmission point +0.07 pm and Mo up to +0.1 pm above λ_K): `filters.mu_rho_edges_pm` lists the K, L1–L3 edges of every element of the material inside the grid, each located as the step of xraylib's own `CS_Total` (bisection when the table is built, exported as `edge_lambda_pm` in both tables; `EdgeEnergy` is only the starting point and stays the Moseley reference, `K_EDGE_KEV`: the step lies 0.0018 pm from it for Zr K, but up to 0.17 pm for L edges, and for Ag L2 a grid node, 351.8326 pm, sits between the two, so the side of that node is decided by the CS step). In a grid interval that holds an edge `filters.interp_log_mu` extrapolates log μ/ρ log–log from the two nodes on λ's own side of the edge (λ < λ_e: nodes i−1, i; λ ≥ λ_e: i+1, i+2); at a grid end the end value is held. Two edges in one or neighbouring intervals are refused (`edge_intervals` raises; none of the exported materials has them). Edges whose step is below 2 % (the trace K in Pyrex) are dropped. Elsewhere the result equals the plain interpolation to 1e-12. The tube-factor integral S(U) (`scan._photons_out`) splits its trapezoid lattice at the edges of the filters only, evaluating both sides of each (Ag plate at 30 kV was +1.06 %, Zr plate −0.38 %, Zr foil at 21 kV −0.27 %); air (Ar K 386.7 pm) and Pyrex edges are left out because T there is ~1e-62 (contribution < 1e-15), which keeps every no-foil fixture byte-identical. Crystal μ tables (`crystal.mu_edges_pm`, exported in `crystals.json`) use the same interpolation: calcite Ca K 307.0 pm, muscovite K K 343.6 pm, NaCl Cl K 439.3 pm (used only through the cross-crystal ratio `mu_factor`, so the NaCl scan itself is unchanged). Absorber μ/ρ tables: `artifacts/tables/mu_rho_absorbers.json`, same grid. The range covers λ_min at 35 kV and 1st order at θ = 85° |
 | `analysis.PEAK_HALF_WINDOW_DEG` | 0.7° | Half-width of the region marked around each line, the leaflet's "entire width" of a peak, cut halfway to its neighbours. It is set by an a-priori criterion: reach Kβ₂, 0.37° below Kβ₁,₃ in 3rd order, plus ≈ 2.7σ. It does not change R̄. On the noise-free leaflet scan the model's own blend mean is 63.0945 pm (Kβ) and 71.0768 pm (Kα). At 0.7° the single orders give Kβ 63.075 / 63.094 / 63.103 pm for n = 1/2/3. The 1st order sits 0.02 pm low from a straight baseline under the curved continuum, the 3rd 0.007 pm high from the clipped Kβ₂ tail. They partly cancel in the mean (63.091 pm). Each ±0.1° of window moves λ̄(Kβ) by 0.008–0.016 pm (0.6° → 63.107, 0.8° → 63.083), below its 1σ counting error of 0.040 pm at the leaflet settings. Narrower windows miss Kβ₂ (0.4° → 63.18 pm), and from 1.0° on the 1st-order continuum biases Kβ low (63.06 pm). Chosen on 2026-09-24 in notebook 04; numbers from the 2026-09-25 refit |
 | `analysis.MAX_LINE_FWHM_DEG`, `MIN_LINE_WIDTH_STEPS`, `MIN_PROMINENCE_SIGMA`, `MAX_STEP_DEG` | 0.8°, 1.2 steps, 5, 0.23° | A peak counts as a line if it is 1.2 Δβ steps to 0.8° wide and stands 5σ of Poisson noise above its surroundings. This excludes the 35 kV bremsstrahlung hump (≈ 1.2° wide) and lone noise spikes. A line with FWHM 0.28° needs ≥ 1.2 steps across it, so Δβ > 0.23° raises. Lowering the width limit cannot exclude the hump at 30 kV, which is 0.2–0.8° wide in noisy scans; `FIRST_LINE_DEG` handles that case |
 | `analysis.FIRST_LINE_DEG` | 6.02° | 1st-order Kβ₂ (6.32°) minus 0.3° (≈ 2.5σ). No Mo K line reflects lower, so any peak below this is the bremsstrahlung hump |
@@ -228,23 +228,38 @@ Dead time still enters the heavy plates' T through the open-beam reference (read
 
 The K edge found by `analysis.k_edge_deg` (Gaussian-convolved step with its own plateau slope) differs from the
 tabulated θ(λ_K) = asin(λ_K/2d). Noise-free at P5 settings (35 kV, 1 mA, Δβ = 0.1°, Δt = 5 s, ±0.5° window, measured
-2026-10-20), edge minus θ(λ_K), with the 1σ counting error σ_θ of one P5 scan:
+2026-10-21, sharp edges), edge minus θ(λ_K), with the 1σ counting error σ_θ of one P5 scan:
 
-| Foil | Edge − θ(λ_K) | σ_θ | of which (a) resolution | (b) μ/ρ grid ramp | (c) dead time | (d) leak, scatter, background |
+| Foil | Edge − θ(λ_K) | σ_θ | of which (a) resolution | (b) μ/ρ grid ramp (removed) | (c) dead time | (d) leak, scatter, background |
 |---|---|---|---|---|---|---|
-| Zr | −0.045° | 0.0055° | main part | +0.006° | ≤ 0.006° | < 0.0003° |
-| Mo | −0.040° | 0.0103° | main part | +0.009° | ≤ 0.006° | < 0.0003° |
-| Ag | −0.008° | 0.0106° | main part | −0.005° | ≤ 0.006° | < 0.0003° |
-| In | −0.006° | 0.0121° | main part | −0.001° | ≤ 0.006° | < 0.0003° |
+| Zr | −0.047° | 0.0055° | main part | none (sharp) | ≤ 0.006° | < 0.0003° |
+| Mo | −0.061° | 0.0103° | main part | none (sharp) | ≤ 0.006° | < 0.0003° |
+| Ag | −0.002° | 0.0106° | main part | none (sharp) | ≤ 0.006° | < 0.0003° |
+| In | −0.006° | 0.0121° | main part | none (sharp) | ≤ 0.006° | < 0.0003° |
 
-- **(a) Instrument resolution and the steep open spectrum.** The counter sees the reflected spectrum convolved with the
-  instrument Gaussian (`sigma_deg` = 0.123°), so T = R_foil/R_open is a ratio of two convolved spectra, not a convolved T.
-  The steep open spectrum next to the Mo lines pulls the steepest rise of T low (Zr beside Kα, Mo beside Kβ). A real
-  goniometer has the same effect. It is not tuned away. Zr and Mo shift with the fit window (−0.043° to −0.056° and
-  −0.035° to −0.059° from ±0.7° to ±0.3°); Ag and In hardly do (0.0004° and 0.005°).
-- **(b) μ/ρ grid ramp.** The absorber's μ/ρ is log–log interpolated on `MU_RHO_GRID_PM`, which has no node at λ_K, so the
-  edge is a short ramp rather than a step. It shifts the edge by +0.006 (Zr), +0.009 (Mo), −0.005 (Ag), −0.001° (In) from
-  θ(λ_K). A later fix would add nodes at λ_K·(1 ± 1e-6); that changes `artifacts/` and the TS port, so it is out of scope now.
+- **(a) The tube's Mo lines inside a ratio of convolved spectra (the cause of the Zr and Mo offsets).** The counter sees
+  the reflected spectrum convolved with the instrument Gaussian (`sigma_deg` = 0.123°), so T = R_foil/R_open is a ratio
+  of two convolved spectra, not a convolved T. Mo Kβ₂ (62.102 pm) lies 0.11 pm and Kβ₁ (63.253 pm) 1.3 pm beyond Mo's K
+  edge (61.992 pm), and Kα (70.9 pm) 2 pm beyond Zr's (68.887 pm): within 1–2σ of the Zr and Mo edges a strong line
+  that the foil transmits (Kβ₂ through the Mo foil: T = 0.261) pulls the steepest rise of T to lower angle. Ag and In
+  are far from the lines. A real goniometer has the same effect. It is not tuned away. Control (2026-10-21,
+  `line_to_cont = 0`, P5 settings, ±0.5°), edge − θ(λ_K): continuum only Zr +0.0049°, Mo +0.0087°, Ag −0.0015°, In
+  −0.0057° (all within 0.015°: `k_edge_deg` is unbiased on a smooth spectrum; R/R_tab − 1 = +0.7 %, σ_K 3.56, χ²/dof
+  0.38); with the lines −0.0473°, −0.0607°, −0.0015°, −0.0057° (R −2.6 %, χ²/dof 3.2). The extra offset is −3.6σ_θ (Zr)
+  and −5.1σ_θ (Mo), 0.000° (Ag), 0.000° (In). Zr and Mo shift with the fit window (−0.046° to −0.058° and −0.058° to
+  −0.076° from ±0.7° to ±0.3°); Ag and In hardly do (0.0004° and 0.005°). Mo is the most biased point on every
+  crystal: on LiF, pull (λ_fit − λ_K)/σ_λ, with the lines Zr −1.3, Mo −6.0, Ag 0.0, In −0.5 (χ²/dof 7.5), without
+  them −0.1, +0.1, 0.0, −0.5 (0.49). The LiF R (and NaCl-without-lines R) matches the tabulated-edge fit within 0.1 %
+  because the tilt of the errors cancels in the fit; with the lines that is a coincidence, not an unbiased edge set.
+- **(b) μ/ρ grid ramp (removed 2026-10-21).** Until then the absorber's μ/ρ was interpolated across the grid interval
+  holding λ_K, so the edge was a 0.3 % ramp. For Mo that ramp wrongly attenuated the tube's own Kβ₂ in the 0.1 mm foil
+  (T = 0.073 against 0.261 from xraylib, same grid interval); that, not a "cancelling" of the resolution effect, is
+  ≈ 0.0175° of Mo's −0.021° change (≈ 0.004° is the sharper continuum edge). For Zr, Ag and In the ramp shifted the edge
+  by +0.006, −0.005, −0.001° and partly hid (a) (Ag's λ_K sits at 84 % of its interval). With sharp edges Zr moves from
+  −0.0445° to −0.0473°, Mo from −0.0397° to −0.0607°, Ag from −0.0079° to −0.0015°, In stays at −0.006° (noise-free,
+  ±0.5° window). Edge-wavelength errors against the tabulated λ_K, before → after: NaCl Zr −0.435 → −0.462 pm, Mo −0.388
+  → −0.594, Ag −0.078 → −0.015, In −0.058 → −0.056; LiF Zr −0.009 → −0.065, Mo −0.107 → −0.377, Ag −0.073 → −0.001,
+  In −0.010 → −0.056.
 - **(c) Dead time.** The observed (dead-time-affected) rates are used, as the students take them. This adds at most
   0.006° to the offset; its sign varies by foil.
 - **(d) Leak, scatter and background** are negligible (< 0.0003°).
@@ -256,11 +271,12 @@ Effect on the Moseley fit (√(1/λ_K) against Z), weighted by the counting erro
 | Edges | R (m⁻¹) | σ_K | χ²/dof |
 |---|---|---|---|
 | Tabulated (xraylib) | 1.0836e7 (0.987 R∞) | 3.41 | |
-| Model, noise-free (weighted) | 1.058e7 (0.964 R∞) | 2.84 | 0.2 |
+| Model, noise-free (weighted) | 1.055e7 (0.962 R∞) | 2.78 | 3.2 |
+| Model, noise-free, continuum only (weighted) | 1.092e7 (0.995 R∞) | 3.56 | 0.38 |
 
-So the bias is R −2.3 % and σ_K −0.57 against the tabulated edges. A single P5 measurement has a counting error of
-±1.0 % on R and ±0.20 on σ_K, so the bias is ≈ 2.3σ and 2.9σ of one measurement: a systematic the quoted ± does not
-include (the unweighted fit gives the same within 0.1 %). Neither is tuned away.
+So the bias is R −2.6 % and σ_K −0.63 against the tabulated edges (before the sharp edges: −2.3 % and −0.57). A single P5 measurement has a counting error of
+±1.0 % on R and ±0.20 on σ_K, so the bias is ≈ 2.6σ and 3.2σ of one measurement: a systematic the quoted ± does not
+include (the unweighted fit gives −3.3 % and −0.78). The noise-free χ²/dof of 3.2 says the four edges no longer lie on a line within their counting errors: the Zr and Mo bias is larger than their ±. Neither is tuned away.
 
 - **Foil K fluorescence is not modelled.** The foil re-emits ≈ 63 % of the photons absorbed above its edge as K X-rays
   (Zr: ω_K = 0.734 × (1 − 1/J) with jump factor J = 6.75). Only ≈ 1–2 % of the absorbed flux reaches the counter, after solid

@@ -3761,6 +3761,7 @@
    "gamma_deg": 90.0,
    "max_order": 11,
    "mosaic_fwhm_deg": 0.05,
+   "mu_edges_pm": [],
    "mu_per_cm": [
     0.6330705443183795,
     0.6350868358848931,
@@ -5801,6 +5802,9 @@
    "gamma_deg": 90.0,
    "max_order": 15,
    "mosaic_fwhm_deg": 0.2,
+   "mu_edges_pm": [
+    439.349181
+   ],
    "mu_per_cm": [
     1.6674217752517104,
     1.6793737657625774,
@@ -12944,6 +12948,7 @@
    "gamma_deg": 90.0,
    "max_order": 17,
    "mosaic_fwhm_deg": null,
+   "mu_edges_pm": [],
    "mu_per_cm": [
     1.51620510283977,
     1.5264430030499352,
@@ -19917,6 +19922,9 @@
    "gamma_deg": 120.0,
    "max_order": 17,
    "mosaic_fwhm_deg": null,
+   "mu_edges_pm": [
+    307.005142
+   ],
    "mu_per_cm": [
     2.2120158186213685,
     2.2278282820579522,
@@ -41503,6 +41511,9 @@
    "gamma_deg": 90.0,
    "max_order": 56,
    "mosaic_fwhm_deg": null,
+   "mu_edges_pm": [
+    343.598731
+   ],
    "mu_per_cm": [
     1.4251433750016294,
     1.4338223180552798,
@@ -42509,7 +42520,7 @@
    "source": "Guggenheim, Chang & Koster van Groos, Am. Mineral. 72, 537 (1987), 20 °C, ideal composition"
   }
  },
- "description": "Crystal presets (braggsim.crystal.PRESETS). r_n = k f_sq_rel[n−1] exp(−2B(n²−1)s_1²), s_1 = 1/(2 d_pm): k = cell_scale (× exp(2 B_th/(2 d_NaCl)²) if not fitted_debye_waller; B_th = 13 000 pm², s in pm⁻¹), B in pm², B = params.debye_waller_pm2 if fitted_debye_waller else 0 (scan.ModelParams.order_strengths). mu_factor is applied only for non-NaCl crystals, per order at λ_n = 2d sinθ/n on the θ grid before the Gaussian convolution, and per line component at its own λ. mu_per_cm = linear attenuation in 1/cm on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = mu_per_cm[NaCl] / mu_per_cm[X] per λ. Non-NaCl crystals are also multiplied by extinction_ratio = y_X,n(λ)/y_NaCl,1(λ) at the same λ (crystal.extinction_ratio) and k uses exp(2 B_th/(2 d_NaCl)²) with B_th = 13 000 pm² (1.3 Å², NaCl thermal) instead of B_fit. extinction[n−1] = y of order n on the first len(row) nodes of lambda_pm of mu_rho.json (λ ≤ 2d sin85°/n plus one node; NaCl has order 1 only, the reference y); interpolate log y vs log λ, end values held. allowed_orders = orders 1 … max_order that are not systematically absent (crystal.order_is_absent: at-rest |F|² ≥ 1e-12 (Σ occ Z)²)",
+ "description": "Crystal presets (braggsim.crystal.PRESETS). r_n = k f_sq_rel[n−1] exp(−2B(n²−1)s_1²), s_1 = 1/(2 d_pm): k = cell_scale (× exp(2 B_th/(2 d_NaCl)²) if not fitted_debye_waller; B_th = 13 000 pm², s in pm⁻¹), B in pm², B = params.debye_waller_pm2 if fitted_debye_waller else 0 (scan.ModelParams.order_strengths). mu_factor is applied only for non-NaCl crystals, per order at λ_n = 2d sinθ/n on the θ grid before the Gaussian convolution, and per line component at its own λ. mu_edges_pm = K, L1-L3 absorption edges of its elements inside the grid, kept sharp (braggsim.filters.interp_log_mu); mu_per_cm = linear attenuation in 1/cm on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = mu_per_cm[NaCl] / mu_per_cm[X] per λ. Non-NaCl crystals are also multiplied by extinction_ratio = y_X,n(λ)/y_NaCl,1(λ) at the same λ (crystal.extinction_ratio) and k uses exp(2 B_th/(2 d_NaCl)²) with B_th = 13 000 pm² (1.3 Å², NaCl thermal) instead of B_fit. extinction[n−1] = y of order n on the first len(row) nodes of lambda_pm of mu_rho.json (λ ≤ 2d sin85°/n plus one node; NaCl has order 1 only, the reference y); interpolate log y vs log λ, end values held. allowed_orders = orders 1 … max_order that are not systematically absent (crystal.order_is_absent: at-rest |F|² ≥ 1e-12 (Σ occ Z)²)",
  "model_version": "0.4.0",
  "source": "xraylib 4.2.1 CS_Total, FF_Rayl, AtomicWeight"
 }

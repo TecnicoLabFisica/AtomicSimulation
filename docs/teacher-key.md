@@ -18,22 +18,22 @@ Simulated sweep: COUPLED 6.7° → 7.7°, I = 0.10 mA, Δt = 10 s; area above a 
 
 | U (kV) | Kα area (1/s · °) |
 |---|---|
-| 22.0 | 4.14 ± 0.73 |
-| 23.0 | 7.20 ± 0.83 |
-| 24.0 | 10.18 ± 0.95 |
-| 25.0 | 14.29 ± 1.07 |
-| 26.0 | 19.91 ± 1.12 |
-| 27.0 | 27.30 ± 1.18 |
-| 28.0 | 34.69 ± 1.25 |
-| 29.0 | 40.88 ± 1.36 |
-| 30.0 | 46.11 ± 1.45 |
-| 31.0 | 55.10 ± 1.51 |
-| 32.0 | 62.28 ± 1.59 |
-| 33.0 | 71.29 ± 1.68 |
-| 34.0 | 79.03 ± 1.75 |
-| 35.0 | 88.51 ± 1.85 |
+| 22.0 | 4.55 ± 0.74 |
+| 23.0 | 7.12 ± 0.85 |
+| 24.0 | 10.73 ± 0.95 |
+| 25.0 | 15.14 ± 1.02 |
+| 26.0 | 20.77 ± 1.10 |
+| 27.0 | 23.83 ± 1.23 |
+| 28.0 | 32.06 ± 1.30 |
+| 29.0 | 38.60 ± 1.36 |
+| 30.0 | 45.98 ± 1.45 |
+| 31.0 | 57.00 ± 1.49 |
+| 32.0 | 61.58 ± 1.59 |
+| 33.0 | 69.23 ± 1.67 |
+| 34.0 | 79.47 ± 1.79 |
+| 35.0 | 90.68 ± 1.84 |
 
-Fit area = A (U/U_K − 1)^m: **U_K = 20.13 ± 0.43 kV**, m = 1.55 ± 0.09. U_K and m are strongly correlated; fixing m at 1.67 would understate the error on U_K.
+Fit area = A (U/U_K − 1)^m: **U_K = 19.16 ± 0.60 kV**, m = 1.78 ± 0.12. U_K and m are strongly correlated; fixing m at 1.67 would understate the error on U_K.
 
 Caveat: the simulation's lines grow exactly as this power law, so the fit checks the method, not the physics right above U_K. A real tube's yield near threshold need not follow a pure power law, so a real sweep can land a little off 20.0 kV.
 
@@ -45,15 +45,15 @@ One simulated scan at the leaflet settings (35 kV, 1.00 mA, Δt = 10 s, Δβ = 0
 |---|---|---|---|
 | 1 | Kβ | 6.424 ± 0.007 | 63.11 ± 0.07 |
 | 1 | Kα | 7.239 ± 0.001 | 71.07 ± 0.01 |
-| 2 | Kβ | 12.934 ± 0.012 | 63.12 ± 0.06 |
-| 2 | Kα | 14.593 ± 0.003 | 71.05 ± 0.02 |
-| 3 | Kβ | 19.563 ± 0.025 | 62.95 ± 0.08 |
-| 3 | Kα | 22.214 ± 0.007 | 71.08 ± 0.02 |
+| 2 | Kβ | 12.920 ± 0.012 | 63.06 ± 0.06 |
+| 2 | Kα | 14.598 ± 0.003 | 71.08 ± 0.02 |
+| 3 | Kβ | 19.554 ± 0.030 | 62.92 ± 0.09 |
+| 3 | Kα | 22.215 ± 0.006 | 71.08 ± 0.02 |
 
 | Line | Mean λ (pm) | Literature (pm) |
 |---|---|---|
-| Kα | 71.07 ± 0.01 | 71.08 |
-| Kβ | 63.06 ± 0.04 | 63.09 |
+| Kα | 71.08 ± 0.01 | 71.08 |
+| Kβ | 63.03 ± 0.04 | 63.09 |
 
 Prediction question: *the same λ in all three orders*. The order changes the angle, not the wavelength; the spread of λ over the orders above is counting noise.
 
@@ -65,54 +65,54 @@ One open scan and one scan per foil (Zr, Mo, Ag, In) at the EPN Práctica 5 sett
 
 | Foil | Z | θ edge (°) | λ_K (pm) | Tabulated λ_K (pm) | Tabulated θ (°) |
 |---|---|---|---|---|---|
-| Zr | 40 | 6.972 ± 0.006 | 68.46 ± 0.06 | 68.89 | 7.016 |
-| Mo | 42 | 6.261 ± 0.010 | 61.51 ± 0.10 | 61.99 | 6.310 |
-| Ag | 47 | 4.943 ± 0.010 | 48.59 ± 0.10 | 48.59 | 4.943 |
-| In | 49 | 4.499 ± 0.012 | 44.24 ± 0.12 | 44.38 | 4.513 |
+| Zr | 40 | 6.959 ± 0.006 | 68.33 ± 0.05 | 68.89 | 7.016 |
+| Mo | 42 | 6.252 ± 0.010 | 61.42 ± 0.10 | 61.99 | 6.310 |
+| Ag | 47 | 4.951 ± 0.010 | 48.68 ± 0.10 | 48.59 | 4.943 |
+| In | 49 | 4.494 ± 0.012 | 44.20 ± 0.12 | 44.38 | 4.513 |
 
 Fit of √(1/λ_K) = √R (Z − σ_K):
 
 | Source | R (10⁷ m⁻¹) | σ_K | χ²/dof |
 |---|---|---|---|
-| This simulated measurement | 1.060 ± 0.011 | 2.87 ± 0.20 | 2.1 |
-| The same evaluation, noise-free | 1.058 | 2.84 | 0.2 |
+| This simulated measurement | 1.047 ± 0.011 | 2.61 ± 0.20 | 4.3 |
+| The same evaluation, noise-free | 1.055 | 2.78 | 3.2 |
 | Tabulated (xraylib) edges | 1.084 | 3.41 | |
 | LD's published example | 1.056 | 2.7 | |
 | Rydberg constant R∞ (CODATA 2022) | 1.097 | | |
 
 Prediction question: *where does the Ag edge fall compared with Zr?* At a smaller angle (4.94° against 7.02°): Ag has the higher Z, so the higher K binding energy and the shorter λ_K, and a shorter wavelength reflects at a smaller angle.
 
-The noise-free evaluation lands 3.6 % below R∞ (this simulated measurement 3.4 %; the difference is counting noise). Two causes add up, and the rows above separate them.
+The noise-free evaluation lands 3.8 % below R∞ (this simulated measurement 4.6 %; the difference is counting noise). Two causes add up, and the rows above separate them.
 
 - **Physics, 1.3 % (tabulated row).** The straight line absorbs two Z-dependent effects of opposite sign. Relativistic binding alone would raise R (a Dirac 1s fit with constant σ gives ≈ 1.07 R∞), and outer-electron screening that grows with Z outweighs it.
-- **Instrument, 2.3 % (noise-free row against tabulated row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's angular resolution blurs the two spectra before they are divided. The steep open spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts the line: R −2.3 % and σ_K −0.57 against the tabulated edges (`model/PARAMETERS.md`). A real goniometer does the same. The Explore edge markers sit at the tabulated angles, so the measured steps fall just below them.
+- **Instrument, 2.6 % (noise-free row against tabulated row).** Zr and Mo land 0.047° and 0.061° below their tabulated angles, Ag and In within 0.006°. The cause is the tube's own Mo lines: Kβ₂ (62.10 pm) lies 0.11 pm and Kβ₁ (63.25 pm) 1.3 pm longer than Mo's K edge (61.99 pm), and Kα (70.9 pm) lies 2 pm beyond Zr's (68.89 pm). The counter blurs the open and the foil spectra before they are divided, and near a strong line the ratio T = R(foil)/R(open) then steps earlier than T(λ) itself. A continuum-only control (no Mo lines) puts every edge within 0.015° of the tabulated angle, R +0.7 % and χ²/dof 0.4, so the analysis is unbiased on a smooth spectrum. With the lines the shift is uneven and tilts the line: R −2.6 % and σ_K −0.63 against the tabulated edges (`model/PARAMETERS.md`). A real goniometer does the same. The Explore edge markers sit at the tabulated angles, so the measured steps fall just below them.
 
-The quoted ± is the counting error only: a measurement scatters by it around the noise-free row, not around the tabulated one. χ²/dof = 2.1 (noise-free 0.2) with 2 degrees of freedom is consistent with a straight line.
+The quoted ± is the counting error only: a measurement scatters by it around the noise-free row, not around the tabulated one. χ²/dof = 4.3 (noise-free 3.2) with 2 degrees of freedom: the Zr and Mo edges sit further below the tabulated ones than their counting errors allow (the instrument bias above), so a ± that covers noise only is too small for the fit as a whole.
 
 The task is met by the scans, not by the student's R: a COUPLED window that covers 3.7° → 7.5° with Δβ ≤ 0.15°, and all four foils plus an open scan, all five at the same U and I and exported. On the expected rates, each edge must pass the coarse test of `k_edge_deg`: the rise of the mean T across the edge stands ≥ 5σ. A student's R scatters by about the error above and sits below R∞.
 
 ## Attenuation (EPN Práctica 1)
 
-Al wheel (0.5 → 3.0 mm in 0.5 mm steps) in the direct beam, GM counter at the sensor, background 0.14/s from a 100 s run at 0 kV. T = (R − b)/(R₀ − b); μ from ln T = −μ d through the origin, weighted by the counting errors of the points, with the common error of R₀ and b propagated (`braggsim.analysis.attenuation_fit`). Simulated counts, errors 1σ. μ/ρ = 10 μ/ρ_Al, ρ_Al = 2.699 g/cm³.
+Al wheel (0.5 → 3.0 mm in 0.5 mm steps) in the direct beam, GM counter at the sensor, background 0.23/s from a 100 s run at 0 kV. T = (R − b)/(R₀ − b); μ from ln T = −μ d through the origin, weighted by the counting errors of the points, with the common error of R₀ and b propagated (`braggsim.analysis.attenuation_fit`). Simulated counts, errors 1σ. μ/ρ = 10 μ/ρ_Al, ρ_Al = 2.699 g/cm³.
 
 | Run | R₀ (1/s) | μ (1/mm) | μ/ρ (cm²/g) | χ²/dof |
 |---|---|---|---|---|
-| 1a, 21 kV, 0.05 mA, no Zr | 948 | 1.548 ± 0.004 | 5.74 ± 0.02 | 154 |
-| 1b, 21 kV, 0.15 mA, Zr | 1048 | 1.653 ± 0.003 | 6.13 ± 0.01 | 124 |
-| 35 kV, 0.01 mA, Zr (not in the guide) | 958 | 0.855 ± 0.002 | 3.17 ± 0.01 | 1030 |
+| 1a, 21 kV, 0.05 mA, no Zr | 952 | 1.554 ± 0.004 | 5.76 ± 0.02 | 169 |
+| 1b, 21 kV, 0.15 mA, Zr | 1048 | 1.648 ± 0.003 | 6.11 ± 0.01 | 141 |
+| 35 kV, 0.01 mA, Zr (not in the guide) | 960 | 0.854 ± 0.002 | 3.16 ± 0.01 | 1010 |
 
 Per point, μ_eff/ρ = −10 ln T/(ρ d) in cm²/g (beam hardening: it falls with d):
 
 | d (mm) | 1a, 21 kV, 0.05 mA, no Zr | 1b, 21 kV, 0.15 mA, Zr | 35 kV, 0.01 mA, Zr (not in the guide) |
 |---|---|---|---|
-| 0.5 | 6.42 | 6.49 | 3.89 |
-| 1.0 | 6.07 | 6.31 | 3.69 |
-| 1.5 | 5.78 | 6.15 | 3.45 |
-| 2.0 | 5.57 | 6.03 | 3.20 |
-| 2.5 | 5.39 | 5.87 | 3.00 |
-| 3.0 | 5.28 | 5.76 | 2.80 |
+| 0.5 | 6.53 | 6.52 | 3.89 |
+| 1.0 | 6.08 | 6.27 | 3.69 |
+| 1.5 | 5.78 | 6.16 | 3.41 |
+| 2.0 | 5.59 | 5.99 | 3.20 |
+| 2.5 | 5.45 | 5.86 | 3.00 |
+| 3.0 | 5.24 | 5.71 | 2.80 |
 
-**Against xraylib.** At Mo Kα alone, μ/ρ of Al is 5.11 cm²/g. No run reaches it, and that is physics, not a mistake. At 21 kV the Mo K lines are barely excited (≈ 5 % of the photons): the beam is bremsstrahlung from λ_min = 59 pm upward, centred near 76 pm (16 keV), softer on average than Mo Kα, so the fit without Zr (5.74 cm²/g) lies above 5.11. Thin Al removes the softest photons first, so μ_eff falls from 6.42 at 0.5 mm to 5.28 at 3 mm (beam hardening). χ²/dof ≫ 1 says the points are not on a line; the ± is only the counting error of a line fitted to a curve. The Zr filter does not turn the beam into Mo Kα. At 21 kV it removes the hard end (59–69 pm, above the Zr K edge at 18.0 keV) and leaves a continuum band at about 69–92 pm. The fit with Zr (6.13 cm²/g) is therefore higher, not closer to 5.11, and the line is only somewhat less curved (μ_eff spread 0.73 instead of 1.15 cm²/g) because the band is narrower. At 35 kV with Zr the lines are strong (≈ 40 % of the photons), but the continuum above the Zr edge (18–35 keV) leaks through and survives the Al best, so μ/ρ drops to 3.17 and keeps falling with d. The counter's dead time (τ = 100 µs, ≈ 9 % loss at the open ≈ 950/s, less behind the absorbers) is not corrected here. It lowers the fitted μ/ρ by about 4 % and μ_eff at 0.5 mm by 6–7 %, and it hides part of the curvature (noise-free true rates give 6.91 → 5.38, `PARAMETERS.md`). The fitted μ depends on the thickness range, U, filter and dead time; a student who quotes it should state them.
+**Against xraylib.** At Mo Kα alone, μ/ρ of Al is 5.11 cm²/g. No run reaches it, and that is physics, not a mistake. At 21 kV the Mo K lines are barely excited (≈ 5 % of the photons): the beam is bremsstrahlung from λ_min = 59 pm upward, centred near 76 pm (16 keV), softer on average than Mo Kα, so the fit without Zr (5.76 cm²/g) lies above 5.11. Thin Al removes the softest photons first, so μ_eff falls from 6.53 at 0.5 mm to 5.24 at 3 mm (beam hardening). χ²/dof ≫ 1 says the points are not on a line; the ± is only the counting error of a line fitted to a curve. The Zr filter does not turn the beam into Mo Kα. At 21 kV it removes the hard end (59–69 pm, above the Zr K edge at 18.0 keV) and leaves a continuum band at about 69–92 pm. The fit with Zr (6.11 cm²/g) is therefore higher, not closer to 5.11, and the line is only somewhat less curved (μ_eff spread 0.81 instead of 1.29 cm²/g) because the band is narrower. At 35 kV with Zr the lines are strong (≈ 40 % of the photons), but the continuum above the Zr edge (18–35 keV) leaks through and survives the Al best, so μ/ρ drops to 3.16 and keeps falling with d. The counter's dead time (τ = 100 µs, ≈ 9 % loss at the open ≈ 950/s, less behind the absorbers) is not corrected here. It lowers the fitted μ/ρ by about 4 % and μ_eff at 0.5 mm by 6–7 %, and it hides part of the curvature (noise-free true rates give 6.91 → 5.38, `PARAMETERS.md`). The fitted μ depends on the thickness range, U, filter and dead time; a student who quotes it should state them.
 
 The 35 kV row is not in the guide. On a real tube the emission at 0.01 mA may drift, so read R₀ before and after.
 
@@ -120,11 +120,11 @@ The 35 kV row is not in the guide. On a real tube the emission at 0.01 mA may dr
 
 | Plate | Z | I (mA) | T | μ/ρ (cm²/g) | xraylib, Mo Kα (cm²/g) |
 |---|---|---|---|---|---|
-| Polystyrene | 6 | 0.02 | 0.97 | 0.60 ± 0.09 | 0.56 |
+| Polystyrene | 6 | 0.02 | 0.98 | 0.45 ± 0.09 | 0.56 |
 | Al | 13 | 0.02 | 0.62 | 4.44 ± 0.04 | 5.11 |
-| Fe | 26 | 0.02 | 0.0031 | 18.37 ± 0.11 | 37.63 |
-| Cu | 29 | 1 | 0.00048 | 21.30 ± 0.03 | 49.11 |
-| Zr | 40 | 1 | 0.0049 | 20.47 ± 0.02 | 16.34 |
-| Ag | 47 | 1 | 0.0014 | 15.71 ± 0.02 | 26.55 |
+| Fe | 26 | 0.02 | 0.0033 | 18.15 ± 0.11 | 37.63 |
+| Cu | 29 | 1 | 0.00047 | 21.35 ± 0.03 | 49.11 |
+| Zr | 40 | 1 | 0.0048 | 20.49 ± 0.02 | 16.34 |
+| Ag | 47 | 1 | 0.0013 | 15.75 ± 0.02 | 26.55 |
 
 Each plate gives one effective value, −ln T/ρx, for the beam it actually sees. Fe and Cu pass only 0.05–0.3 %, and what survives is the hard end of the 30 kV continuum (≈ 23–29 keV), where their μ/ρ is far below the Mo Kα value. Ag filters the beam itself: its K edge is at 25.5 keV, so the survivors sit just below it (≈ 22–25 keV), again far below its Mo Kα value. Zr is the anomaly. In the monochromatic column μ/ρ drops from Cu's 49 to Zr's 16 cm²/g, because Mo Kα (17.5 keV) lies below the Zr K edge (18.0 keV): up to Z = 39 the K shell absorbs Mo Kα, from Z = 40 on it cannot. In the measurement the Zr plate transmits more than Fe or Cu because Mo Kα falls in Zr's low-absorption window just below its edge (≈ 70 % of what passes is Mo Kα). It is the only heavy plate above its Mo Kα value because Mo Kα sits near the minimum of Zr's μ/ρ over this beam, so every other photon (softer, below the edge, or harder, above it) is absorbed more. A student's μ/ρ-vs-Z plot should show the drop at Zr and not "fix" it. The light plates and the open beam are read at 1700–2450/s, where the counter loses 17–25 %. Without the dead-time correction Al would give 3.5 instead of 4.4 cm²/g, and τ = 90 µs instead of 100 µs moves it by 2.5 %. The polystyrene point has the largest error because its ρx (0.042 g/cm²) is the smallest: the counting error of ln T is divided by it.

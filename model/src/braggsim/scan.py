@@ -38,7 +38,7 @@ from braggsim.crystal import (
     theta_from_lambda,
 )
 from braggsim.detector import dead_time
-from braggsim.filters import MU_RHO_GRID_PM, check_filters, transmission
+from braggsim.filters import MU_RHO_GRID_PM, check_filters, mu_rho_edges_pm, transmission
 from braggsim.source import continuum, lambda_min_pm, line_rates
 
 # Air between anode and counter: path length is an assumption (≈ 12 cm anode → crystal plus
@@ -224,6 +224,9 @@ def _line_density(beta_deg, U_kV, I_mA, params, filters=(), crystal=NACL):
 def _photons_out(U_kV, params, filters=()):
     """Kramers continuum plus Mo K lines leaving the tube through the absorber, per mA."""
     lam = MU_RHO_GRID_PM
+    edges = sorted({e for material, d in filters if d > 0 for e in mu_rho_edges_pm(material)})
+    if edges:  # both sides of each filter edge, so the trapezoid rule does not ramp across the step
+        lam = np.unique(np.concatenate([lam, edges, np.nextafter(edges, 0.0)]))
     total = np.trapezoid(continuum(lam, U_kV, 1.0) * _transmission(lam, params, filters), lam)
     ka, kb = line_rates(U_kV, 1.0, params.line_to_cont)
     for rate, components in ((ka, MO_KA_COMPONENTS), (kb, MO_KB_COMPONENTS)):
@@ -236,10 +239,10 @@ def tube_factor(U_kV, I_mA, params=DEFAULT, filters=()):
     """I · S(U): how leak and scatter follow the tube, 1 at 35 kV and 1 mA.
 
     S(U) is the photon rate leaving the tube through the absorber, Kramers continuum
-    (trapezoid rule on the fixed μ/ρ grid) plus Mo K lines, relative to 35 kV. No free
-    parameter; only its 35 kV value is tested by Fig. 4 (model/PARAMETERS.md). ``filters`` are
-    added to the photon rate leaving the tube; the 35 kV reference stays unfiltered, so a filter
-    gives a factor below 1 even at 35 kV and 1 mA.
+    (trapezoid rule on the fixed μ/ρ grid, split at the absorption edges of the ``filters``)
+    plus Mo K lines, relative to 35 kV. No free parameter; only its 35 kV value is tested by
+    Fig. 4 (model/PARAMETERS.md). ``filters`` are added to the photon rate leaving the tube; the
+    35 kV reference stays unfiltered, so a filter gives a factor below 1 even at 35 kV and 1 mA.
     """
     if I_mA == 0 or U_kV == 0:
         return 0.0

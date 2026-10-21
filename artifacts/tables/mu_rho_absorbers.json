@@ -1,5 +1,39 @@
 {
  "description": "Mass attenuation μ/ρ (cm²/g) of the absorbers on the grid of mu_rho.json; same interpolation (braggsim.filters.transmission)",
+ "edge_lambda_pm": {
+  "Ag": [
+   48.593729,
+   325.761167,
+   351.828731,
+   369.993152
+  ],
+  "Al": [],
+  "Cu": [
+   138.082937
+  ],
+  "Fe": [
+   174.330774
+  ],
+  "In": [
+   44.37581,
+   292.552605,
+   314.839976,
+   332.398482
+  ],
+  "Mo": [
+   61.991947,
+   432.604752,
+   472.318949,
+   492.002844
+  ],
+  "Polystyrene": [],
+  "Zr": [
+   68.887483,
+   489.671372,
+   537.427839,
+   557.735311
+  ]
+ },
  "foils_mg_cm2": {
   "Ag": 52.5,
   "Al": 134.945,

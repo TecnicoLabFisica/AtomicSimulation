@@ -1,5 +1,11 @@
 {
- "description": "Mass attenuation μ/ρ (cm²/g) on lambda_pm; interpolate log–log, hold the end values outside (braggsim.filters.transmission)",
+ "description": "Mass attenuation μ/ρ (cm²/g) on lambda_pm; interpolate log–log, hold the end values outside; edge_lambda_pm = K, L1-L3 edges in the grid, kept sharp (braggsim.filters.log_mu_rho)",
+ "edge_lambda_pm": {
+  "Air, Dry (near sea level)": [
+   386.736854
+  ],
+  "Glass, Pyrex": []
+ },
  "lambda_pm": [
   30.0,
   30.090096951,

@@ -30,6 +30,7 @@ from braggsim.crystal import (
     lambda_from_theta,
     linear_attenuation_per_cm,
     lorentz_polarization,
+    mu_edges_pm,
     structure_factor_sq,
     structure_factor_sq_hkl,
     structure_factor_sq_rel,
@@ -226,6 +227,32 @@ def test_crystal_linear_attenuation_of_nacl_at_mo_ka_matches_xraylib_compound():
     mu = linear_attenuation_per_cm(NACL, MO_KA_PM)
     ref = xraylib.CS_Total_CP("NaCl", 17.443) * density_g_cm3(NACL)
     assert mu == approx(ref, rel=2e-3)
+
+
+def test_crystal_attenuation_edges_are_sharp():
+    # Calcite Ca K (307.0 pm), muscovite K K (343.6 pm) and NaCl Cl K (439.3 pm) used to be smeared
+    # over one grid step; the jump now sits at the edge, to xraylib's CS_Total ratio within 1 %.
+    import xraylib
+
+    for crystal, z_list in (
+        (CALCITE, (20, 6, 8)),
+        (MUSCOVITE, (19, 13, 14, 8, 1)),
+        (NACL, (11, 17)),
+    ):
+        assert len(mu_edges_pm(crystal)) == 1
+        (edge,) = mu_edges_pm(crystal)
+        below, above = (edge * (1 - 1e-5), edge * (1 + 1e-5))
+        ratio = linear_attenuation_per_cm(crystal, below) / linear_attenuation_per_cm(
+            crystal, above
+        )
+        w = {z: sum(o for zz, *_, o in crystal.basis if int(zz) == z) for z in z_list}
+
+        def cs(lam, w=w):
+            return sum(
+                w[z] * xraylib.CS_Total(z, HC_KEV_PM / lam) * xraylib.AtomicWeight(z) for z in w
+            )
+
+        assert ratio == approx(cs(below) / cs(above), rel=0.01), crystal.name
 
 
 def test_crystal_default_scan_is_the_nacl_scan_and_others_differ():

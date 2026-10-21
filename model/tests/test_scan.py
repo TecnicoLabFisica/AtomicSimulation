@@ -365,3 +365,18 @@ def test_material_plate_needs_more_current_for_heavy_absorbers():
         assert r_true * DEFAULT.tau_s > 1  # would paralyse a real GM
     # Zr transmits more than Fe: Mo Kα sits just below the Zr K edge.
     assert rates["Zr"][1] > rates["Fe"][1]
+
+
+@pytest.mark.parametrize("material, rho_x, U_kV", [("Ag", 20.0, 30.0), ("Zr", 32.0, 21.0)])
+def test_tube_factor_integrates_through_a_filter_edge_without_ramping(material, rho_x, U_kV):
+    # S(U) with a foil is the integral of continuum × T; the foil's absorption edge is a step, so
+    # the trapezoid lattice is split there. Against a 400 000-point quadrature (2026-10-21) it
+    # agrees to 1e-4; on the bare grid the Ag plate was +1.06 % and the Zr foil at 21 kV −0.27 %.
+    from braggsim.scan import _photons_out, _transmission
+    from braggsim.source import continuum
+
+    params = DEFAULT.replace(line_to_cont=0.0)  # continuum only: the lines are single points
+    filters = ((material, rho_x),)
+    lam = np.linspace(30.0, 600.0, 400_001)
+    dense = np.trapezoid(continuum(lam, U_kV, 1.0) * _transmission(lam, params, filters), lam)
+    assert _photons_out(U_kV, params, filters) == approx(dense, rel=1e-4)

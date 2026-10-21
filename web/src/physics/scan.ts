@@ -17,7 +17,7 @@ import {
   thetaFromLambda,
 } from './crystal'
 import { deadTime } from './detector'
-import { checkFilters, transmission, type Filters } from './filters'
+import { checkFilters, filterEdgesPm, transmission, type Filters } from './filters'
 import { convolveSame, interp, pyMod, roundHalfEven, trapezoid } from './numpy'
 import { continuum, lambdaMinPm, lineRates } from './source'
 import { DEFAULT_PARAMS_JSON, MU_RHO_GRID_PM, crystalsLoaded } from './tables'
@@ -204,8 +204,21 @@ function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filte
   return cache
 }
 
+/** np.nextafter(x, 0) for a positive finite x. */
+function nextBelow(x: number): number {
+  const f = new Float64Array([x])
+  const b = new BigInt64Array(f.buffer)
+  b[0] -= 1n
+  return f[0]
+}
+
 function photonsOut(UkV: number, params: ModelParams, filters: Filters = []): number {
-  const lam = MU_RHO_GRID_PM
+  let lam: readonly number[] = MU_RHO_GRID_PM
+  const edges = filterEdgesPm(filters)
+  if (edges.length) {
+    // both sides of each filter edge, so the trapezoid rule does not ramp across the step (np.unique of the union)
+    lam = [...new Set([...MU_RHO_GRID_PM, ...edges, ...edges.map(nextBelow)])].sort((a, b) => a - b)
+  }
   let total = trapezoid(
     lam.map((l) => continuum(l, UkV, 1.0) * transmissionTotal(l, params, filters)),
     lam,

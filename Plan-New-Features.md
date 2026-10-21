@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-21
-current_phase: Q1
-next_task: Q1.2
+current_phase: F1
+next_task: F1.1
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Now:** `Q1`, the stray sweep (see [[#Q1 — Stray sweep after L2, C1, C2]]). **Then:** `F1.1`, the Forge engine (`form_factors.json`, Z = 1…92).
+> **Next:** `F1.1`, the Forge engine (`form_factors.json`, Z = 1…92). Q1, the stray sweep, closed on 2026-10-21.
 > Settled 2026-10-21 (user: "physics rules"): Darwin/extinction reflectivity is in Q1, the revised L2 Done when is confirmed. Still open: Q10 (the wheel's open slot) and pushing the local commits.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -67,7 +67,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
-| Q1 | Stray sweep after L2/C1/C2 | 🟨 in progress | 1 | L2, C2 |
+| Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
 | F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
 | F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
 | F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
@@ -577,14 +577,21 @@ found the items below; baseline pytest 203, Vitest 167.
       NaCl fixtures byte-identical; the teacher key unchanged; pytest 226, Vitest 176.
 - [x] **Q1.4** Orders with F = 0 (Si (222), (666)) and muscovite orders > 10: Python line analysis takes `d_pm` and allowed orders; spectrum, goniometer
       and Huygens markers skip forbidden orders and cover every order in range; Huygens says "forbidden" instead of "met".
-- [ ] **Q1.5** Gated: K-edge nodes in the μ/ρ grid (an interpolation smear of ≈ +0.07 pm on the edges), only if Fig. 4 holds.
+- [x] **Q1.5** Gated: sharp absorption edges (the log μ/ρ interpolation smeared each edge over one 0.3 % grid step), only if Fig. 4 holds.
+      As built (2026-10-21): edge-aware interpolation (each side extrapolated from its own nodes) in `filters.transmission`, the crystals' μ and the
+      direct-beam integral (lattice split at the filters' edges); the edge is xraylib's CS_Total step (bisection), exported per material. Gate held: no
+      no-foil fixture changed. Physics review found the real gain: the old smear made the 0.1 mm Mo foil absorb the tube's own Mo Kβ₂ (62.10 pm, 0.11 pm
+      past the Mo K edge) 3.6× too much (T 0.073 vs 0.261). Moseley (noise-free, NaCl): edges Zr −0.047°, Mo −0.061°, Ag −0.002°, In −0.006° from θ(λ_K);
+      R −2.6 %, χ²/dof 3.3. Continuum-only control: all |offset| ≤ 0.009°, χ²/dof 0.38, so the method is unbiased and the Zr/Mo bias is the real effect of
+      the Mo lines within 1–2σ of those edges (a student sees it too). Tests assert that physics, not snapshot bounds. The teacher key now draws one RNG
+      stream per section (every section's noise moved once).
 - [x] **Q1.6** Weak-signal aid: `analysis.line_prominence_sigma` (Python → TS, the task checks reuse it), a ×1/×10/×100 display gain, log floor 0.1/s,
       a "¿No ves picos?" notice with "Amplificar" and the real levers (user's choice: display gain plus advice, both modes); heights note rewritten.
 - [x] **Q1.7** Student-flow bugs (`b81d74e`): leftover foils between tasks, Bragg checks blind to the scan's setup, the exposure log wiped on task start,
       Huygens verdict while hints are hidden, failed lazy loads cached forever, a late crystal pick racing a task mount, a stale step on task start, locks
       never released, a restarted free-pick task losing the student's crystal, a CSV hint for Excel (standard CSV kept, user's choice).
 - [x] **Q1.8** Reviews: physics, apparatus, design, pedagogy.
-- [ ] **Q1.9** This note, session log, `graphify update`.
+- [x] **Q1.9** This note, session log, `graphify update`.
 
 **Done when:** every item above is fixed or documented as a limit; NaCl fixtures byte-identical (except an explained Q1.5 grid change); a Si scan
 at 35 kV 1 mA shows the notice and, amplified, (111) and (333) without (222).
@@ -717,8 +724,9 @@ The engine already exists after C1. What's missing is **data for any element** i
 > Without lab data they are assumptions. Mark them that way in the UI teacher notes and in `PARAMETERS.md`, and never tune them to make a task "work".
 
 > [!warning] Cross-crystal scale
-> Only NaCl is calibrated (Fig. 4). Other crystals rely on the kinematic mosaic ratio. Real crystals differ in mosaicity
-> and extinction (LiF and HOPG especially). Show peak *positions* as exact and *heights* as model estimates.
+> Only NaCl is calibrated (Fig. 4). Since Q1 the other crystals carry a physical extinction factor (Darwin–Prins for Si, calcite, muscovite;
+> secondary extinction with an assumed mosaic for LiF and the NaCl reference). The assumptions (η_LiF, η_NaCl, B_NaCl,th, muscovite as perfect) are
+> in `PARAMETERS.md` with bench checks. Peak *positions* are exact; *heights* are the model.
 
 > [!warning] Bundle size
 > XRF kernels and the Forge's element tables must stay out of the main bundle (lazy). Check `npm run build` sizes in every phase.
@@ -755,6 +763,21 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-21 · Q1 · tasks Q1.1–Q1.9 (Q1 closed)
+- Done: stray sweep after the overnight run, under the user's rule "physics rules" (2026-10-21). Q1.7 student-flow bugs (`b81d74e`); plan (`e5d770a`);
+  Q1.2/Q1.3 Darwin and secondary-extinction reflectivity (`b4d3146`); Q1.4 forbidden orders (`61cbda0`); Q1.6 weak-signal aid (`335cc72`); Q1.8 review
+  passes, physics (`d15ed7d`: B_th was ×100 not ×10⁴, every non-NaCl crystal 8 % too dim) and design/pedagogy/apparatus (`c53e7cd`); Q1.5 sharp edges.
+- Reviews: physics ×3 (design gate, the Q1 pass, Q1.5), apparatus, design, pedagogy. Catches: the weak-signal notice claimed a buried line below the K
+  threshold and worked as a line detector in Lab mode; a lock deadlock in the crystal picker; a restarted exposure task passed on old exposures; the 390 px
+  header buried the plot; the old edge smear absorbed Mo Kβ₂ in the Mo foil.
+- User decisions (2026-10-21): physics rules; amplify = display zoom plus advice in both modes; standard CSV kept; Darwin item closed; L2 Done when confirmed.
+- Verify: pytest 249 · ruff clean · artifacts byte-stable, no no-foil NaCl fixture changed · Vitest 194 · build OK (main 98.0 kB gzip; `crystals` lazy
+  ≈ 126 kB) · teacher key byte-stable · notebooks 05, 06, 08 execute · screenshots 390/820/844×390/1440, light and dark, Explore and Lab.
+- Uncommitted: no. Nothing pushed (ask the user).
+- Deferred: one lazy chunk per crystal (the y tables made `crystals` 126 kB gzip); lazy task strings; a 3D cue per crystal; Q10 (wheel open slot) still open.
+- Bench checks for the lab staff: muscovite's reflectivity (perfect vs mosaic, 3.6–4.4×), LiF's mosaic spread, the Si/NaCl Kα peak ratio (model ≈ 1/20).
+- Next: F1.1.
 
 ### 2026-10-21 · C2 · tasks C2.1–C2.6 (C2 closed)
 - Done: C2.1 TS port (`9311619`, wider crystal fixtures `51c297b`). C2.2–C2.3 picker and crystal-aware views (`2621762`, with the port review's hardening). C2.4–C2.5 per-task crystal,

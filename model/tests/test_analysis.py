@@ -256,14 +256,40 @@ def _noise_free_edges():
     return {el: k_edge_deg(P5_BETA, P5_OPEN, _foil_rate(el), P5_DT_S)[0] for el in P5_Z}
 
 
-def test_noise_free_k_edges_sit_slightly_below_the_tabulated_edge_angle():
-    # The convolved spectra make T = R_foil/R_open rise below θ(λ_K) (PARAMETERS.md, Moseley
-    # analysis). Measured offsets (θ(λ_K) − edge, 2026-10-20): Zr 0.0445°, Mo 0.0397°, Ag 0.0079°,
-    # In 0.0059°, all positive and with the same sign for every fit window from ±0.3° to ±0.7°.
-    # 0.06° is the largest (Zr) plus a 35 % margin; the sign is asserted because it is robust.
-    for el, edge in _noise_free_edges().items():
-        offset = float(theta_from_lambda(_lambda_k_pm(el))) - edge
-        assert 0 < offset <= 0.06, el
+P5_NO_LINES = DEFAULT.replace(line_to_cont=0.0)  # continuum only: the control of the Moseley bias
+
+
+def _edges_and_errors(params=DEFAULT):
+    """{el: (edge − θ(λ_K) in °, σ_θ in °)} of the noise-free P5 scans of ``params``."""
+    open_rate = expected_rate(P5_BETA, 35.0, 1.0, params=params)
+    out = {}
+    for el in P5_Z:
+        foil = ((el, areal_density_mg_cm2(el, FOILS_MM[el])),)
+        foil_rate = expected_rate(P5_BETA, 35.0, 1.0, params=params, filters=foil)
+        edge, err = k_edge_deg(P5_BETA, open_rate, foil_rate, P5_DT_S)
+        out[el] = (edge - float(theta_from_lambda(_lambda_k_pm(el))), err)
+    return out
+
+
+def test_k_edge_of_a_smooth_spectrum_is_unbiased_and_the_mo_lines_bias_zr_and_mo():
+    # Control (2026-10-21): without the Mo lines (line_to_cont = 0) the continuum is smooth and
+    # k_edge_deg is unbiased: edge − θ(λ_K) = +0.0049° (Zr), +0.0087° (Mo), −0.0015° (Ag), −0.0057°
+    # (In), all within 0.015°. With the lines: −0.0473, −0.0607, −0.0015, −0.0057°. The lines
+    # (Kβ₂ 62.10 pm and Kβ₁ 63.25 pm lie 0.11 and 1.3 pm beyond Mo's K edge in wavelength, Kα
+    # 70.9 pm 2 pm beyond Zr's) change T = R_foil/R_open within 1-2σ of the Zr and Mo edges: a
+    # ratio of convolved spectra, not a method error. A real goniometer shows the same.
+    control = _edges_and_errors(P5_NO_LINES)
+    lines = _edges_and_errors()
+    for el in P5_Z:
+        assert abs(control[el][0]) <= 0.015, el
+    for el in ("Zr", "Mo"):  # attribution: the extra offset is a many-σ effect
+        assert lines[el][0] - control[el][0] < -3 * control[el][1], el
+    for el in ("Ag", "In"):  # far from the lines: no effect
+        assert abs(lines[el][0] - control[el][0]) < 0.002, el
+    # with the lines, Ag and In stay within 0.01° of the tabulated angle (sign not asserted)
+    assert abs(lines["Ag"][0]) <= 0.01 and abs(lines["In"][0]) <= 0.01
+    # the lines pull Zr and Mo low by a stable sign for every fit window from ±0.3° to ±0.7°
+    assert lines["Zr"][0] < 0 and lines["Mo"][0] < 0
 
 
 @pytest.mark.parametrize("el", ["Ag", "In"])
@@ -295,48 +321,84 @@ def test_k_edge_step_limit():
                 k_edge_deg(beta, r_open, r_foil, P5_DT_S)
 
 
-def test_resolution_bias_of_model_edges_moves_the_moseley_fit_little():
-    # The edges land 0.006° (In) to 0.045° (Zr) low (PARAMETERS.md, Moseley analysis). Weighted by
-    # the counting errors (as students and the teacher key fit), measured 2026-10-20: R is 2.3 %
-    # low (1.058e7 against 1.084e7) and σ_K 0.57 low (2.84 against 3.41); the counting error of a
-    # single P5 measurement is ±1.0 % on R and ±0.20 on σ_K, so the bias is ≈ 2.3σ and 2.9σ of
-    # one measurement: a systematic the quoted ± does not cover. rel = 0.03 and abs = 0.7 are
-    # bias bounds (measured plus a margin), not noise bounds. The unweighted fit gives the same
-    # within 0.1 %.
+def test_mo_lines_bias_the_moseley_fit_and_without_them_it_is_unbiased():
+    # Weighted by the counting errors (as students and the teacher key fit), 2026-10-21, sharp
+    # edges. Continuum only (control): R/R_tab − 1 = +0.7 %, σ_K 3.56 against 3.41, χ²/dof 0.38.
+    # With the Mo lines: R −2.6 % (1.055e7 against 1.084e7), σ_K 2.78, χ²/dof 3.2 (the unweighted
+    # fit gives −3.3 % and 2.63). A single P5 measurement has a counting error of ±1.0 % on R and
+    # ±0.20 on σ_K, so the bias is ≈ 2.6σ and 3.9σ of one measurement: a systematic the quoted ±
+    # does not cover. Neither is tuned away; these are measured values with margins.
     z = list(P5_Z.values())
     R_tab, _, s_tab, _, _ = moseley_fit(z, [_lambda_k_pm(el) for el in P5_Z])
-    rows = edge_wavelength_table(P5_BETA, P5_OPEN, {el: _foil_rate(el) for el in P5_Z}, P5_DT_S)
-    lam = [r["lambda_pm"] for r in rows]
-    R_w, _, s_w, _, chi2 = moseley_fit(z, lam, [r["lambda_err_pm"] for r in rows])
+
+    def fit(params):
+        open_rate = expected_rate(P5_BETA, 35.0, 1.0, params=params)
+        rates = {
+            el: expected_rate(
+                P5_BETA,
+                35.0,
+                1.0,
+                params=params,
+                filters=((el, areal_density_mg_cm2(el, FOILS_MM[el])),),
+            )
+            for el in P5_Z
+        }
+        rows = edge_wavelength_table(P5_BETA, open_rate, rates, P5_DT_S)
+        lam = [r["lambda_pm"] for r in rows]
+        return lam, moseley_fit(z, lam, [r["lambda_err_pm"] for r in rows])
+
+    lam0, (R0, _, s0, _, chi2_0) = fit(P5_NO_LINES)
+    assert R0 == approx(R_tab, rel=0.015)
+    assert s0 == approx(s_tab, abs=0.3)
+    assert np.isfinite(chi2_0) and chi2_0 < 1
+    lam, (R_w, _, s_w, _, chi2) = fit(DEFAULT)
     R_u, _, s_u, _, chi2_u = moseley_fit(z, lam)
     for R, s in ((R_w, s_w), (R_u, s_u)):
-        assert R == approx(R_tab, rel=0.03)
-        assert s == approx(s_tab, abs=0.7)
-    assert np.isfinite(chi2) and chi2 < 1  # noise-free edges lie on a line within the errors
+        assert R == approx(R_tab, rel=0.04)
+        assert s == approx(s_tab, abs=0.9)
+    assert np.isfinite(chi2) and 1 < chi2 < 5  # the lines make the points leave the line
     assert np.isnan(chi2_u)
 
 
-def test_lif_variant_edges_use_the_lif_spacing_and_land_closer_to_the_tabulated_edges():
+def test_lif_variant_edges_use_the_lif_spacing_and_only_the_mo_lines_bias_them():
     # The Moseley LiF variant (Plan C2.5): NaCl's 3.7–7.5° window translated to LiF is 5.2–10.5°.
-    # With LiF's d the edges convert to the tabulated λ_K; LiF spreads the angles further, so the
-    # same angular resolution shifts λ_K less and R lands closer to the tabulated-edge fit than
-    # on NaCl (noise-free ≈ 1.09e7 m⁻¹ against 1.058e7; pedagogy review 2026-10-21).
+    # With LiF's d the edges convert to λ_K. Measured 2026-10-21 (pull = (λ_fit − λ_K)/σ_λ):
+    # continuum only: Zr −0.13, Mo +0.10, Ag −0.01, In −0.54, χ²/dof 0.49. With the lines: Zr
+    # −1.3, Mo −6.0, Ag −0.0, In −0.5, χ²/dof 7.5. Mo (Kβ₂ at 0.11 pm from its K edge) is the most
+    # biased point on every crystal. R equals the tabulated-edge fit within 0.1 % in both cases;
+    # with the lines that is a lucky cancellation of the tilt, not a sign of an unbiased edge set.
     beta = coupled_betas(5.2, 10.5, 0.1)
-    rate = {
-        el: expected_rate(
-            beta, 35.0, 1.0, filters=((el, areal_density_mg_cm2(el, FOILS_MM[el])),), crystal=LIF
-        )
-        for el in P5_Z
-    }
-    rows = edge_wavelength_table(
-        beta, expected_rate(beta, 35.0, 1.0, crystal=LIF), rate, P5_DT_S, d_pm=d_pm(LIF)
-    )
-    for r in rows:
-        assert r["lambda_pm"] == approx(_lambda_k_pm(r["element"]), rel=5e-3)
     z = list(P5_Z.values())
     R_tab, *_ = moseley_fit(z, [_lambda_k_pm(el) for el in P5_Z])
-    R_lif, *_ = moseley_fit(z, [r["lambda_pm"] for r in rows], [r["lambda_err_pm"] for r in rows])
-    assert abs(R_lif / R_tab - 1) < 0.015  # NaCl's bias is 2.3 % (test above)
+
+    def rows_for(params):
+        rate = {
+            el: expected_rate(
+                beta,
+                35.0,
+                1.0,
+                params=params,
+                filters=((el, areal_density_mg_cm2(el, FOILS_MM[el])),),
+                crystal=LIF,
+            )
+            for el in P5_Z
+        }
+        open_rate = expected_rate(beta, 35.0, 1.0, params=params, crystal=LIF)
+        return edge_wavelength_table(beta, open_rate, rate, P5_DT_S, d_pm=d_pm(LIF))
+
+    for params, tol in ((P5_NO_LINES, 1.0), (DEFAULT, 2.0)):
+        rows = rows_for(params)
+        for r in rows:
+            pull = (r["lambda_pm"] - _lambda_k_pm(r["element"])) / r["lambda_err_pm"]
+            if params is DEFAULT and r["element"] == "Mo":
+                assert pull < -4, "Mo sits low by many σ with the lines"
+            else:
+                assert abs(pull) < tol, r["element"]
+        R, _, _, _, chi2 = moseley_fit(
+            z, [r["lambda_pm"] for r in rows], [r["lambda_err_pm"] for r in rows]
+        )
+        assert abs(R / R_tab - 1) < 0.005
+        assert (chi2 < 1) == (params is P5_NO_LINES)
 
 
 def test_moseley_fit_of_tabulated_k_edges_falls_a_few_percent_below_rydberg():

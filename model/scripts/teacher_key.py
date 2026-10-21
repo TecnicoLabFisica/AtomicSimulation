@@ -169,17 +169,25 @@ def _moseley_section(rng):
         "raise R (a Dirac 1s fit with constant σ gives ≈ 1.07 R∞), and outer-electron screening "
         "that grows with Z outweighs it.",
         f"- **Instrument, {100 * (1 - R_exact / R_tab):.1f} % (noise-free row against tabulated "
-        "row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's "
-        "angular resolution blurs the two spectra before they are divided. The steep open "
-        "spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts "
-        f"the line: R {bias_R} % and σ_K {bias_sigma} "
+        "row).** Zr and Mo land 0.047° and 0.061° below their tabulated angles, Ag and In "
+        "within 0.006°. The cause is the tube's own Mo lines: Kβ₂ (62.10 pm) lies 0.11 pm and "
+        "Kβ₁ (63.25 pm) 1.3 pm longer than Mo's K edge (61.99 pm), and Kα (70.9 pm) lies 2 pm "
+        "beyond Zr's (68.89 pm). The counter blurs the open and the foil spectra before they are "
+        "divided, and "
+        "near a strong line the ratio T = R(foil)/R(open) then steps earlier than T(λ) itself. "
+        "A continuum-only control (no Mo lines) puts every edge within 0.015° of the tabulated "
+        "angle, R +0.7 % and χ²/dof 0.4, so the analysis is unbiased on a smooth spectrum. With "
+        f"the lines the shift is uneven and tilts the line: R {bias_R} % and σ_K {bias_sigma} "
         "against the tabulated edges (`model/PARAMETERS.md`). A real goniometer does the same. "
         "The Explore edge markers sit at the tabulated angles, so the measured steps fall just "
         "below them.",
         "",
         "The quoted ± is the counting error only: a measurement scatters by it around the "
         f"noise-free row, not around the tabulated one. χ²/dof = {chi2:.1f} (noise-free "
-        f"{chi2_exact:.1f}) with 2 degrees of freedom is consistent with a straight line.",
+        f"{chi2_exact:.1f}) with 2 degrees of freedom: "
+        "the Zr and Mo edges sit further below the tabulated ones than their counting errors "
+        "allow (the instrument bias above), so a ± that covers noise only "
+        "is too small for the fit as a whole.",
         "",
         f"The task is met by the scans, not by the student's R: a COUPLED window that covers "
         f"{P5_BETA_RANGE_DEG[0]}° → {P5_BETA_RANGE_DEG[1]}° with Δβ ≤ {MAX_EDGE_STEP_DEG}°, "
@@ -389,7 +397,9 @@ def _attenuation_section(rng):
 
 
 def main():
-    rng = np.random.default_rng(SEED)
+    # One independent stream per section: rng.poisson's draw count depends on the rates, so a model
+    # change in one section must not move the simulated counts of the next.
+    rngs = [np.random.default_rng(ss) for ss in np.random.SeedSequence(SEED).spawn(4)]
     ka3 = _theta(MO_KA_PM, 3)
     lines = [
         "# Teacher answer key",
@@ -411,10 +421,10 @@ def main():
         f"({_theta(MO_KA_PM, 2):.2f}°) and would still see the peak.",
         "",
     ]
-    lines += _threshold_section(rng)
-    lines += _leaflet_section(rng)
-    lines += _moseley_section(rng)
-    lines += _attenuation_section(rng)
+    lines += _threshold_section(rngs[0])
+    lines += _leaflet_section(rngs[1])
+    lines += _moseley_section(rngs[2])
+    lines += _attenuation_section(rngs[3])
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text("\n".join(lines), encoding="utf-8", newline="\n")
 

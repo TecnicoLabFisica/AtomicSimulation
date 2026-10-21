@@ -20,7 +20,13 @@ import xraylib
 
 import braggsim
 from braggsim import analysis, scan
-from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM
+from braggsim.constants import (
+    MO_K_EDGE_KEV,
+    MO_KA_COMPONENTS,
+    MO_KA_PM,
+    MO_KB_COMPONENTS,
+    MO_KB_PM,
+)
 from braggsim.crystal import (
     NACL,
     PRESETS,
@@ -29,6 +35,7 @@ from braggsim.crystal import (
     d_pm,
     density_g_cm3,
     extinction_table,
+    mu_edges_pm,
     mu_per_cm_table,
     structure_factor_sq_rel,
     structure_factor_sq_rel_crystal,
@@ -40,6 +47,8 @@ from braggsim.filters import (
     MU_RHO_GRID_PM,
     WHEELS_MM,
     areal_density_mg_cm2,
+    edge_intervals,
+    mu_rho_edges_pm,
     mu_rho_table,
     transmission,
 )
@@ -101,18 +110,29 @@ def _transmission_case():
     # Grid nodes and midpoints, the grid ends, beyond them (end values held) and the brackets
     # of the Ar K (386.7 pm) and K K (343.7 pm) edges. 10 mg/cm²: nothing underflows.
     g = MU_RHO_GRID_PM
-    lam = np.r_[20.0, g[0], g[:-1:97], np.sqrt(g[:-1:97] * g[1::97]), 343.7, 386.7, g[-1], 700.0]
+    base = np.r_[20.0, g[0], g[:-1:97], np.sqrt(g[:-1:97] * g[1::97]), 343.7, 386.7, g[-1], 700.0]
+    lines = [lam for lam, _ in (*MO_KA_COMPONENTS, *MO_KB_COMPONENTS)]
+
+    def lam_of(m):
+        # per material: both sides of each edge (1e-5 relative), the two nodes on each side of the
+        # edge interval, and the Mo line wavelengths, so the low and high branches are exercised
+        extra = []
+        for i, e in edge_intervals(mu_rho_edges_pm(m)):
+            extra += [e * (1 - 1e-5), e * (1 + 1e-5), g[i], g[i + 1], g[i - 1], g[i + 2]]
+        return np.r_[base, extra, lines]
+
     return {
         "function": "filters.transmission",
         "description": "T(λ) through 10 mg/cm²: log–log interpolation of the μ/ρ table",
         "cases": [
-            {"inputs": {"lambda_pm": _floats(lam), "material": m, "areal_density_mg_cm2": 10.0},
-             "expected": {"transmission": _floats(transmission(lam, m, 10.0))}}
+            {"inputs": {"lambda_pm": _floats(lam_of(m)), "material": m,
+                        "areal_density_mg_cm2": 10.0},
+             "expected": {"transmission": _floats(transmission(lam_of(m), m, 10.0))}}
             for m in (scan.AIR, scan.ABSORBER)
         ]
         + [  # absorbers: 1 mg/cm² of metal, 10 of polystyrene (min T stays far above underflow)
-            {"inputs": {"lambda_pm": _floats(lam), "material": m, "areal_density_mg_cm2": d},
-             "expected": {"transmission": _floats(transmission(lam, m, d))}}
+            {"inputs": {"lambda_pm": _floats(lam_of(m)), "material": m, "areal_density_mg_cm2": d},
+             "expected": {"transmission": _floats(transmission(lam_of(m), m, d))}}
             for m in ABSORBERS
             for d in (10.0 if m == "Polystyrene" else 1.0,)
         ],
@@ -189,6 +209,7 @@ def _crystal_tables():
             "f_sq_rel": list(structure_factor_sq_rel_crystal(c, scan.max_order(c))),
             "allowed_orders": list(allowed_orders(c)),
             "mu_per_cm": _floats(mu_per_cm_table(c)),
+            "mu_edges_pm": list(mu_edges_pm(c)),
         }  # fmt: skip
     return out
 
@@ -442,10 +463,12 @@ def build():
         "tables/mu_rho.json": _dump(
             {
                 "description": "Mass attenuation μ/ρ (cm²/g) on lambda_pm; interpolate log–log, "
-                "hold the end values outside (braggsim.filters.transmission)",
+                "hold the end values outside; edge_lambda_pm = K, L1-L3 edges in the grid, "
+                "kept sharp (braggsim.filters.log_mu_rho)",
                 "source": f"xraylib {xraylib.__version__} CS_Total_CP",
                 "lambda_pm": _floats(MU_RHO_GRID_PM),
                 "mu_rho_cm2_g": {m: _floats(mu_rho_table(m)) for m in (scan.AIR, scan.ABSORBER)},
+                "edge_lambda_pm": {m: list(mu_rho_edges_pm(m)) for m in (scan.AIR, scan.ABSORBER)},
             }
         ),
         "tables/mu_rho_absorbers.json": _dump(
@@ -454,6 +477,7 @@ def build():
                 "of mu_rho.json; same interpolation (braggsim.filters.transmission)",
                 "source": f"xraylib {xraylib.__version__} CS_Total_CP",
                 "mu_rho_cm2_g": {m: _floats(mu_rho_table(m)) for m in ABSORBERS},
+                "edge_lambda_pm": {m: list(mu_rho_edges_pm(m)) for m in ABSORBERS},
                 "foils_mg_cm2": {
                     m: round(areal_density_mg_cm2(m, t), 6) for m, t in FOILS_MM.items()
                 },
@@ -483,7 +507,9 @@ def build():
                 "(scan.ModelParams.order_strengths). mu_factor is applied only for non-NaCl "
                 "crystals, per order at λ_n = 2d sinθ/n on the θ grid before the Gaussian "
                 "convolution, and per line component at its own λ. "
-                "mu_per_cm = linear attenuation in 1/cm "
+                "mu_edges_pm = K, L1-L3 absorption edges of its elements inside the grid, kept "
+                "sharp "
+                "(braggsim.filters.interp_log_mu); mu_per_cm = linear attenuation in 1/cm "
                 "on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = "
                 "mu_per_cm[NaCl] / mu_per_cm[X] per λ. Non-NaCl crystals are also multiplied by "
                 "extinction_ratio = y_X,n(λ)/y_NaCl,1(λ) at the same λ (crystal.extinction_ratio) "

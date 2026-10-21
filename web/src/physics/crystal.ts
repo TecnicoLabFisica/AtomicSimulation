@@ -1,6 +1,7 @@
 // port of braggsim.crystal: Bragg geometry at the NaCl monocrystal, n λ = 2 d sin θ
 // (LD P6.3.3.1, Eq. I). θ is the glancing angle in degrees. Scalar functions: map them over arrays.
 import { D_NACL_PM } from './constants'
+import { interpLogMu } from './filters'
 import { interp } from './numpy'
 import { CRYSTALS, LOG_MU_RHO_GRID, STRUCTURE_FACTOR_SQ_REL } from './tables'
 
@@ -55,6 +56,7 @@ export type Crystal = Readonly<{
   f_sq_rel: readonly number[] // |F_n|²/|F_1|², n = 1 … max_order
   allowed_orders: readonly number[] // orders 1 … max_order that are not systematically absent (lookup, from Python)
   mu_per_cm: readonly number[] // linear attenuation on MU_RHO_GRID_PM; empty for the built-in NACL
+  mu_edges_pm: readonly number[] // K, L1–L3 absorption edges of its elements inside the grid (lookup, from Python)
   fitted_debye_waller: boolean // true only for the NaCl anchor
   reflectivity_model: string // 'ideal_mosaic' | 'darwin' | 'mosaic_extinction'
   mosaic_fwhm_deg: number | null // only for 'mosaic_extinction'
@@ -67,7 +69,7 @@ export type Crystal = Readonly<{
 export const NACL: Crystal = Object.freeze({
   name: 'NaCl', a_pm: 564.02, b_pm: 564.02, c_pm: 564.02, alpha_deg: 90, beta_deg: 90, gamma_deg: 90,
   cut: [2, 0, 0], d_pm: D_NACL_PM, density_g_cm3: 2.1641351917042018, max_order: 15, cell_scale: 1,
-  f_sq_rel: STRUCTURE_FACTOR_SQ_REL.slice(0, 15), allowed_orders: Array.from({ length: 15 }, (_, i) => i + 1), mu_per_cm: [], fitted_debye_waller: true,
+  f_sq_rel: STRUCTURE_FACTOR_SQ_REL.slice(0, 15), allowed_orders: Array.from({ length: 15 }, (_, i) => i + 1), mu_per_cm: [], mu_edges_pm: [], fitted_debye_waller: true,
   reflectivity_model: 'mosaic_extinction', mosaic_fwhm_deg: 0.2, extinction: [],
   source: 'LD P6.3.3.1 (a0 = 564.02 pm, d = 282.01 pm)',
 }) // prettier-ignore
@@ -103,9 +105,9 @@ function logMuPerCm(crystal: Crystal): Float64Array {
   return t
 }
 
-/** port of braggsim.crystal.linear_attenuation_per_cm: μ(λ) in 1/cm, log–log, end values held. */
+/** port of braggsim.crystal.linear_attenuation_per_cm: μ(λ) in 1/cm, log–log, end values held, edges sharp. */
 export function linearAttenuationPerCm(crystal: Crystal, lambdaPm: number): number {
-  return Math.exp(interp(Math.log(lambdaPm), LOG_MU_RHO_GRID, logMuPerCm(crystal)))
+  return Math.exp(interpLogMu(lambdaPm, logMuPerCm(crystal), crystal.mu_edges_pm))
 }
 
 /** port of braggsim.crystal.mu_factor: μ_NaCl(λ) / μ_crystal(λ), 1 for NaCl. Needs loadCrystals(). */
