@@ -37,11 +37,17 @@ export function replayCsv(a: Apparatus, date = new Date()): string | null {
   return [
     '# Bragg reflection, simulated LD X-ray apparatus 554 800 (not measured data)',
     `# ${date.toISOString()}`,
-    `# setup: holder ${scan.setup.holder}; collimator filter ${scan.setup.collimatorFilter ?? 'none'}; sensor filter ${scan.setup.sensorFilter ?? 'none'}`,
+    `# setup: holder ${scan.setup.holder}${scan.setup.holder === 'crystal' ? ` (${scan.setup.crystal})` : ''}; collimator filter ${scan.setup.collimatorFilter ?? 'none'}; sensor filter ${scan.setup.sensorFilter ?? 'none'}`,
     `# mode ${scan.mode}; at the start: U = ${(scan.u / 10).toFixed(1)} kV, I = ${(scan.i / 100).toFixed(2)} mA, dt = ${scan.dt} s`,
     `${angle},rate_per_s`,
     ...a.replay.map((p) => `${(p.angle / 10).toFixed(1)},${p.rate}`),
   ].join('\n') + '\n'
+}
+
+/** A comment line naming the crystal(s) of the exposures made on the crystal holder; nothing otherwise. */
+const crystalNote = (setups: readonly Setup[]): string[] => {
+  const names = [...new Set(setups.filter((s) => s.holder === 'crystal').map((s) => s.crystal))]
+  return names.length ? [`# crystal: ${names.join(', ')}`] : []
 }
 
 /** The apparatus' exposure log (EPN P1: one exposure per absorber) as CSV text, one row per exposure;
@@ -64,6 +70,7 @@ export function exposureCsv(a: Apparatus, date = new Date()): string | null {
   return [
     '# Exposure series, simulated LD X-ray apparatus 554 800 (not measured data)',
     `# ${date.toISOString()}`,
+    ...crystalNote(a.exposureLog.map((e) => e.setup)),
     '# U_kV and I_mA are the values when counting started; changed = 1 if either changed while counting',
     '# rate_per_s is the mean rate over dt, as REPLAY shows it (counts / dt); areal_density_mg_cm2 is that of the absorber in the beam',
     'target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s',

@@ -19,7 +19,7 @@ import { deadTime } from './detector'
 import { checkFilters, transmission, type Filters } from './filters'
 import { convolveSame, interp, pyMod, roundHalfEven, trapezoid } from './numpy'
 import { continuum, lambdaMinPm, lineRates } from './source'
-import { DEFAULT_PARAMS_JSON, MU_RHO_GRID_PM } from './tables'
+import { DEFAULT_PARAMS_JSON, MU_RHO_GRID_PM, crystalsLoaded } from './tables'
 
 // Air between anode and counter (18 cm assumed, 1.205 mg/cm³) and the fitted effective absorber.
 export const AIR = 'Air, Dry (near sea level)'
@@ -102,6 +102,7 @@ export function orderStrengths(params: ModelParams, crystal: Crystal = NACL): nu
   let k = crystal.cell_scale
   if (!crystal.fitted_debye_waller) k *= Math.exp((2 * params.debye_waller_pm2) / (2 * D_NACL_PM) ** 2)
   const n = maxOrder(crystal)
+  // the exported f_sq_rel is sized for U_MAX_KV and BETA_MAX_DEG: a longer series would need a re-export
   if (n > crystal.f_sq_rel.length) throw new RangeError(`${crystal.name}: f_sq_rel stops at n = ${crystal.f_sq_rel.length}`)
   return crystal.f_sq_rel.slice(0, n).map((f, i) => k * f * Math.exp(-2 * b * ((i + 1) * (i + 1) - 1) * s1Sq))
 }
@@ -155,6 +156,7 @@ let cache: Tube | undefined
 const photonsOutRef = new WeakMap<ModelParams, number>()
 
 function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filters, crystal: Crystal): Tube {
+  if (!isNacl(crystal) && !crystalsLoaded()) throw new Error('crystals not loaded (await loadCrystals())')
   const filtersKey = JSON.stringify(filters)
   if (cache && cache.params === params && cache.crystal === crystal && cache.U === UkV && cache.I === ImA && cache.filtersKey === filtersKey) return cache
   if (!validated.has(params)) throw new TypeError('params must come from modelParams()')

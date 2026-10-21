@@ -4,7 +4,8 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { deadTime } from '../src/physics/detector'
 import { ABSORBERS, transmission } from '../src/physics/filters'
 import { DEFAULT, coupledBetas, directRate, expectedRate, modelParams, type ModelParams } from '../src/physics/scan'
-import { MODEL_VERSION, CRYSTALS, loadAbsorbers, loadCrystals } from '../src/physics/tables'
+import { MODEL_VERSION, loadAbsorbers, loadCrystals } from '../src/physics/tables'
+import { crystalByName } from '../src/physics/crystal'
 
 type Case = { description?: string; function?: string; inputs: Record<string, any>; expected: Record<string, any> }
 type Fixture = Case & { name: string; function: string; model_version: string; cases?: Case[] }
@@ -32,7 +33,7 @@ function run(fn: string, c: Case) {
   switch (fn) {
     case 'scan.expected_rate': {
       const params: ModelParams = x.params ? modelParams(x.params) : DEFAULT
-      const crystal = x.crystal ? CRYSTALS[x.crystal] : undefined
+      const crystal = x.crystal ? crystalByName(x.crystal) : undefined
       const rate = expectedRate(x.beta_deg, x.U_kV, x.I_mA, params, x.sensor_deg, x.filters, crystal)
       expectClose(rate, c.expected.rate_per_s)
       // The live apparatus asks for one β at a time: it must give the batch values.

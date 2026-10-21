@@ -153,7 +153,7 @@ test('replayCsv: header with the scan settings, one row per stored value', () =>
   expect(lines.slice(0, 5)).toEqual([
     '# Bragg reflection, simulated LD X-ray apparatus 554 800 (not measured data)',
     '# 1970-01-01T00:00:00.000Z',
-    '# setup: holder crystal; collimator filter none; sensor filter none',
+    '# setup: holder crystal (NaCl); collimator filter none; sensor filter none',
     '# mode COUPLED; at the start: U = 35.0 kV, I = 1.00 mA, dt = 1 s',
     'beta_deg,rate_per_s',
   ])
@@ -169,7 +169,7 @@ describe('moseley-k-edges', () => {
   /** One exported scan with `foil` mounted in the sensor slot (doors open to mount, then closed). */
   const exportScan = (a: Apparatus, foil: string | null, { u = 350, i = 100, dt = 5, dBeta = 1, lo = 37, hi = 75 }: Run = {}) => {
     a.setDoors(false)
-    expect(a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: foil })).toBe(true)
+    expect(a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: foil })).toBe(true)
     a.setDoors(true)
     ;[a.u, a.i, a.dt, a.dBeta, a.limitLo, a.limitHi] = [u, i, dt, dBeta, lo, hi]
     scan(a)
@@ -215,7 +215,7 @@ describe('moseley-k-edges', () => {
   test('a scan stopped early covers only the angles it stored', () => {
     const a = session({}, [null, 'Zr', 'Mo', 'Ag'])
     a.setDoors(false)
-    a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: 'In' })
+    a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: 'In' })
     a.setDoors(true)
     a.timeScale = 1
     a.press('SCAN')
@@ -232,7 +232,7 @@ describe('moseley-k-edges', () => {
     const a = started(moseley)
     exportScan(a, 'Zr')
     a.setDoors(false)
-    a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: 'In' })
+    a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: 'In' })
     expect(replayCsv(a)).toContain('sensor filter Zr')
     markExported(a)
     expect(exportedScans(a).at(-1)!.setup.sensorFilter).toBe('Zr')
@@ -241,7 +241,7 @@ describe('moseley-k-edges', () => {
   test('CSV header names the filter; the record carries the step', () => {
     const a = started(moseley)
     exportScan(a, 'Ag')
-    expect(replayCsv(a, new Date(0))).toContain('# setup: holder crystal; collimator filter none; sensor filter Ag\n')
+    expect(replayCsv(a, new Date(0))).toContain('# setup: holder crystal (NaCl); collimator filter none; sensor filter Ag\n')
     expect(exportedScans(a)[0]).toMatchObject({ mode: 'COUPLED', first: 37, last: 75, step: 1, u: 350, i: 100, dt: 5, changed: false })
   })
 
@@ -276,7 +276,7 @@ describe('attenuation tasks (EPN Práctica 1)', () => {
   const mounted = (task: GuidedTask, holder: 'alWheel' | 'materialWheel') => {
     const a = started(task)
     a.setDoors(false)
-    a.mount({ holder, collimatorFilter: null, sensorFilter: null })
+    a.mount({ holder, crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })
     a.setDoors(true)
     return a
   }
@@ -354,7 +354,7 @@ describe('attenuation tasks (EPN Práctica 1)', () => {
       for (let k = 1; k <= 2; k++) expose(a, 10 * k, 30, 30, 0.02)
       for (let k = 3; k <= 5; k++) expose(a, 10 * k, 30, 30, 1)
       a.setDoors(false)
-      a.mount({ holder: 'materialWheel', collimatorFilter: null, sensorFilter: 'Zr' })
+      a.mount({ holder: 'materialWheel', crystal: 'NaCl', collimatorFilter: null, sensorFilter: 'Zr' })
       a.setDoors(true)
       expose(a, 60, 30, 30, 0.01)
       expect(attMaterial.success(a)).toBe(false)
@@ -415,7 +415,7 @@ describe('exposureCsv', () => {
     const a = new Apparatus(mulberry32(1234))
     expect(exposureCsv(a)).toBeNull()
     a.setDoors(false)
-    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: 'Zr' })
+    a.mount({ holder: 'alWheel', crystal: 'NaCl', collimatorFilter: null, sensorFilter: 'Zr' })
     a.setDoors(true)
     a.timeScale = Infinity
     a.press('TARGET')
@@ -443,21 +443,21 @@ describe('exposureCsv', () => {
   test('open slot, no plate, and a COUPLED crystal exposure with both angles', () => {
     const a = new Apparatus(mulberry32(1))
     a.setDoors(false)
-    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: null })
+    a.mount({ holder: 'alWheel', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })
     a.setDoors(true)
     a.timeScale = Infinity
     ;[a.u, a.i, a.dt, a.dBeta] = [210, 5, 4, 0]
     a.press('SCAN')
     a.tick(SAFETY_S)
     a.setDoors(false)
-    a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: null })
+    a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })
     a.setDoors(true)
     a.press('COUPLED')
     a.adjust(72)
     a.press('SCAN')
     a.tick(SAFETY_S)
     const lines = exposureCsv(a, new Date(0))!.trimEnd().split('\n')
-    expect(lines[5]).toMatch(/^0\.0,0\.0,,alWheel,0,none,0,,,21\.0,/)
-    expect(lines[6]).toMatch(/^7\.2,14\.4,COUPLED,crystal,,,,,,21\.0,0\.05,4,0,/)
+    expect(lines[6]).toMatch(/^0\.0,0\.0,,alWheel,0,none,0,,,21\.0,/)
+    expect(lines[7]).toMatch(/^7\.2,14\.4,COUPLED,crystal,,,,,,21\.0,0\.05,4,0,/)
   })
 })

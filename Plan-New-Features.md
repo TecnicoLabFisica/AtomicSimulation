@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-21
 current_phase: C2
-next_task: C2.2
+next_task: C2.4
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -523,8 +523,14 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
       Main bundle 89.5 kB gzip (+0.6). The `crystals` chunk appears once the UI calls `loadCrystals()`.
 
 #### S2 — UI and knock-on effects
-- [ ] **C2.2** Crystal picker on the target holder (setup tray from G1). The door must be open to swap.
-- [ ] **C2.3** Huygens panel, Explore overlays, the spectrum λ axis and the goniometer label all read the current crystal.
+- [x] **C2.2** Crystal picker on the target holder (setup tray from G1). The door must be open to swap.
+      As built (2026-10-21): `Setup.crystal` (default 'NaCl') goes through `mount()` (doors open). The tray's "Cristal / Crystal" select awaits `loadCrystals()` for non-NaCl crystals.
+      The summary reads "Montaje · Cristal LiF". In Explore mode only, a note under the picker says positions are exact and heights are a model estimate (ideal mosaic). The CSV headers name the crystal.
+      The port review's robustness fixes are folded in: `isNacl` by identity, frozen entries, a memoized import, the load guard in `tubeState`, and a throwing `crystalByName`.
+- [x] **C2.3** Huygens panel, Explore overlays, the spectrum λ axis and the goniometer label all read the current crystal.
+      As built: the spectrum markers, edges, λ_min band and readout use the d of the *stored scan's* crystal. The Huygens panel (Explore only) shows "LiF · d = 201.4 pm", and the goniometer's
+      expected-angle ticks use `a.crystal`. The 3D bench mesh and its label are unchanged (it had none). In Lab mode the name only appears (tested). The `moseley-k-edges` check requires NaCl.
+      Main 90.3 kB gzip; `crystals` is a lazy 48.3 kB chunk.
 - [ ] **C2.4** Existing tasks declare `crystal: 'NaCl'` and lock the picker. New task: "predict θ(Kα) for LiF before scanning".
 - [ ] **C2.5** L1 Moseley gains an optional "use LiF" variant (the guide notes that the angular window changes with the crystal).
 - [ ] **C2.6** Design, apparatus and pedagogy reviews.

@@ -68,8 +68,17 @@ export const NACL: Crystal = Object.freeze({
   reflectivity_model: 'ideal_mosaic', source: 'LD P6.3.3.1 (a0 = 564.02 pm, d = 282.01 pm)',
 }) // prettier-ignore
 
-/** The anchor is recognised by name, where Python tests `crystal is NACL`. */
-export const isNacl = (crystal: Crystal): boolean => crystal.name === 'NaCl'
+/** Python tests `crystal is NACL`: the built-in constant, or the loaded table's NaCl entry (same data, other object). */
+export const isNacl = (crystal: Crystal): boolean => crystal === NACL || crystal === CRYSTALS.NaCl
+
+/** A preset by name. NaCl is the built-in NACL (no table needed); anything else needs loadCrystals() and a known
+ * name, else it throws, so a typo or a missing load never falls back to NaCl silently. (Lives here, not in tables.ts,
+ * because NACL is built from tables.ts at module load: the reverse import would be circular.) */
+export function crystalByName(name: string): Crystal {
+  if (name === NACL.name) return NACL
+  if (!Object.hasOwn(CRYSTALS, name)) throw new RangeError(`crystal ${name}: unknown or not loaded (await loadCrystals())`)
+  return CRYSTALS[name]
+}
 
 /** port of braggsim.crystal.d_pm: spacing in pm of the first reflection of the cut series. */
 export const dPm = (crystal: Crystal): number => crystal.d_pm

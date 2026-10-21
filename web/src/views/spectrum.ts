@@ -3,11 +3,11 @@
 // when a point exceeds it, and log y is fixed. Data never makes the axes jump point by point.
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
-import type { Apparatus, Setup } from '../apparatus/apparatus'
+import { crystalOf, type Apparatus, type Setup } from '../apparatus/apparatus'
 import { t } from '../i18n'
 import { downloadCsv, downloadExposureCsv } from '../pedagogy/csv'
 import { showHints } from '../pedagogy/mode'
-import { HC_KEV_PM, K_EDGE_KEV, MO_KA_PM, MO_KB_PM } from '../physics/constants'
+import { D_NACL_PM, HC_KEV_PM, K_EDGE_KEV, MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { lambdaFromTheta, thetaFromLambda } from '../physics/crystal'
 import { lambdaMinPm } from '../physics/source'
 import { palette, paletteVersion, scaledFont } from './canvas'
@@ -17,16 +17,20 @@ const EMPTY_RANGE = { min: 0, max: 30 } // °, before the first scan
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
 // Explore mode: Bragg angles θₙ of the Mo K lines, n = 1–3 (Kα reflects up to n = 7; the leaflet's scan
 // shows three orders).
-const LINES = [1, 2, 3].flatMap((n) => [
-  { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n), colour: 'phys-kalpha-text' as const },
-  { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n), colour: 'phys-kbeta' as const },
-])
+export const lineMarkers = (dPm: number) =>
+  [1, 2, 3].flatMap((n) => [
+    { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha-text' as const },
+    { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const },
+  ])
 
 /** K-edge angles (°) of the foils in a setup, first order: the practice and the step in T(λ) that students read are n = 1. */
-export function edgeMarkers(setup: Setup): { el: string; theta: number }[] {
+export function edgeMarkers(setup: Setup, dPm = D_NACL_PM): { el: string; theta: number }[] {
   const els = [...new Set([setup.collimatorFilter, setup.sensorFilter])].filter((el): el is string => el != null && el in K_EDGE_KEV)
-  return els.map((el) => ({ el, theta: thetaFromLambda(HC_KEV_PM / K_EDGE_KEV[el as keyof typeof K_EDGE_KEV]) })).filter((m) => !Number.isNaN(m.theta))
+  return els.map((el) => ({ el, theta: thetaFromLambda(HC_KEV_PM / K_EDGE_KEV[el as keyof typeof K_EDGE_KEV], 1, dPm) })).filter((m) => !Number.isNaN(m.theta))
 }
+
+/** Plane spacing (pm) of the crystal a stored scan was made with; NaCl when its holder was no crystal. */
+export const scanD = (setup: Setup): number => (setup.holder === 'crystal' ? crystalOf(setup).d_pm : D_NACL_PM)
 
 /** Smallest 1-2-5 × 10ⁿ at or above x (at least 10). */
 function niceCeil(x: number): number {
@@ -146,7 +150,8 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
               const m = ctx.measureText('Kα')
               const row = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent
               // |angle| < f·θ(λmin): the tube emits nothing that short at the scan's U.
-              const th = thetaFromLambda(lambdaMinPm(scan.u / 10))
+              const dPm = scanD(scan.setup)
+              const th = thetaFromLambda(lambdaMinPm(scan.u / 10), 1, dPm)
               const edge = f * (Number.isNaN(th) ? 90 : th)
               const [x0, x1] = [Math.max(u.valToPos(-edge, 'x', true), left), Math.min(u.valToPos(edge, 'x', true), right)]
               if (x1 > x0) {
@@ -158,7 +163,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
                 if (empty.hidden && ctx.measureText(band).width < x1 - x0) ctx.fillText(band, x0 + 4 * k, bbox.top + bbox.height - row - 4 * k)
               }
               ctx.textAlign = 'center'
-              for (const [i, l] of LINES.entries()) {
+              for (const [i, l] of lineMarkers(dPm).entries()) {
                 const x = Math.round(u.valToPos(f * l.theta, 'x', true))
                 if (!(x >= left && x <= right)) continue
                 const y = bbox.top + (i % 2) * row // Kα and Kβ labels on alternate rows
@@ -179,7 +184,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
               ctx.fillStyle = ctx.strokeStyle = P['label-2']
               ctx.lineWidth = k
               ctx.setLineDash([6 * k, 3 * k])
-              for (const [i, e] of edgeMarkers(scan.setup).entries()) {
+              for (const [i, e] of edgeMarkers(scan.setup, dPm).entries()) {
                 const x = Math.round(u.valToPos(f * e.theta, 'x', true))
                 if (!(x >= left && x <= right)) continue
                 const y = bbox.top + (2 + i) * row
@@ -199,7 +204,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
               const i = u.cursor.idx
               if (i == null || i >= xs.length) return void (readout.textContent = '')
               const [x, y] = [xs[i], ys[i]]
-              const lam = explore && scan?.mode === 'COUPLED' ? ` · ${t().pathDiff} = ${lambdaFromTheta(x).toFixed(1)} pm (= nλ)` : ''
+              const lam = explore && scan?.mode === 'COUPLED' ? ` · ${t().pathDiff} = ${lambdaFromTheta(x, 1, scanD(scan!.setup)).toFixed(1)} pm (= nλ)` : ''
               readout.textContent = `${x.toFixed(1)}° · ${y.toFixed(1)} 1/s${lam}`
             },
           ],

@@ -17,10 +17,11 @@ const LABEL_MIN_GAP_PX = 40 // angle labels every 5°, 10°, 20° or 30°, which
 const RAD = Math.PI / 180
 const GRAB_SLACK_CM = 1.3 // explore mode: a pointer this much closer to the axis than the handle's far side still grabs
 // Explore mode: where the counter meets each line, sensor angle 2θₙ (n = 1–3).
-const EXPECTED = [1, 2, 3].flatMap((n) => [
-  { deg: 2 * thetaFromLambda(MO_KA_PM, n), colour: 'phys-kalpha' as const },
-  { deg: 2 * thetaFromLambda(MO_KB_PM, n), colour: 'phys-kbeta' as const },
-])
+const expectedLines = (dPm: number) =>
+  [1, 2, 3].flatMap((n) => [
+    { deg: 2 * thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha' as const },
+    { deg: 2 * thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const },
+  ])
 
 /** Folded target angle in degrees (float), as the display shows it. */
 const foldDeg = (tenths: number) => wrapTarget(tenths) / 10
@@ -102,7 +103,7 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     if (showHints()) {
       // Kβ shorter, so the two lines differ by more than colour
       ctx.lineWidth = 2 * k
-      for (const { deg, colour } of EXPECTED) {
+      for (const { deg, colour } of expectedLines(a.crystal.d_pm)) {
         const len = (colour === 'phys-kbeta' ? 0.25 : 0.4) * u
         ctx.beginPath()
         ctx.moveTo(cx + rT * Math.cos(deg * RAD), cy - rT * Math.sin(deg * RAD))

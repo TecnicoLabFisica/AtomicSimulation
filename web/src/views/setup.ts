@@ -2,10 +2,11 @@
 // Renders Apparatus.setup; every change goes to Apparatus.mount. Absorber tables load on first open.
 import type { Apparatus, Holder } from '../apparatus/apparatus'
 import { t } from '../i18n'
-import { FOILS_MG_CM2, loadAbsorbers } from '../physics/tables'
+import { getMode } from '../pedagogy/mode'
+import { FOILS_MG_CM2, loadAbsorbers, loadCrystals } from '../physics/tables'
 
 const HOLDERS: Holder[] = ['crystal', 'alWheel', 'materialWheel', 'empty']
-const FIELDS = ['holder', 'collimatorFilter', 'sensorFilter'] as const
+const FIELDS = ['holder', 'crystal', 'collimatorFilter', 'sensorFilter'] as const
 
 export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
   let loaded = false
@@ -16,6 +17,8 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     root.innerHTML = `
       <summary data-summary></summary>
       <label>${s.holder}<select data-field="holder">${opts(HOLDERS.map((h) => [h, s.holders[h]]))}</select></label>
+      <label data-crystal-row>${s.crystal}<select data-field="crystal">${opts(Object.entries(s.crystals))}</select></label>
+      <p class="hint" data-crystal-note hidden>${s.crystalHeightsNote}</p>
       <label>${s.collimatorFilter}<select data-field="collimatorFilter">${opts(foils)}</select></label>
       <label>${s.sensorFilter}<select data-field="sensorFilter">${opts(foils)}</select></label>
       <p class="hint" data-locked></p>`
@@ -30,16 +33,21 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     }
     root.scrollIntoView({ block: 'nearest' }) // the opened rows, not just the summary, in view
   })
-  root.addEventListener('change', () => {
-    const [holder, c, f] = FIELDS.map((k) => field(k).value)
-    a.mount({ holder: holder as Holder, collimatorFilter: c || null, sensorFilter: f || null })
+  root.addEventListener('change', async () => {
+    const [holder, crystal, c, f] = FIELDS.map((k) => field(k).value)
+    if (crystal !== 'NaCl') await loadCrystals() // the NaCl default never needs the table
+    a.mount({ holder: holder as Holder, crystal, collimatorFilter: c || null, sensorFilter: f || null })
   })
   const render = () => {
     const s = t()
     const setText = (el: HTMLElement, text: string) => {
       if (el.textContent !== text) el.textContent = text
     }
-    setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${s.holders[a.setup.holder]}`)
+    const onCrystal = a.setup.holder === 'crystal'
+    // Lab mode: the crystal's name only, as on a real bench.
+    setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${s.holders[a.setup.holder]}${onCrystal ? ` ${s.crystals[a.setup.crystal]}` : ''}`)
+    root.querySelector<HTMLElement>('[data-crystal-row]')!.hidden = !onCrystal
+    root.querySelector<HTMLElement>('[data-crystal-note]')!.hidden = !onCrystal || getMode() !== 'explore'
     setText(root.querySelector<HTMLElement>('[data-locked]')!, a.doorsClosed ? s.setupLocked : '')
     for (const k of FIELDS) {
       const sel = field(k)

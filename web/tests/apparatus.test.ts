@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { Apparatus, MOTOR_DEG_PER_S, OK_S, SAFE_S, adjustMultiplier, fmtMean, wheelSlot, wrapTarget, type Key, type Setup } from '../src/apparatus/apparatus'
 import { mulberry32 } from '../src/physics/detector'
 import { DEFAULT, directRate, expectedRate } from '../src/physics/scan'
-import { FOILS_MG_CM2, WHEELS_MG_CM2, loadAbsorbers } from '../src/physics/tables'
+import { CRYSTALS, FOILS_MG_CM2, WHEELS_MG_CM2, loadAbsorbers, loadCrystals } from '../src/physics/tables'
 
 const SAFETY_S = SAFE_S + OK_S
 
@@ -441,7 +441,7 @@ describe('setup (G1.7)', () => {
   function running(kV: number, mA: number, setup: Partial<Setup> = {}) {
     const a = device()
     a.setDoors(false)
-    expect(a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: null, ...setup })).toBe(true)
+    expect(a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null, ...setup })).toBe(true)
     a.setDoors(true)
     set(a, 'U', kV * 10 - a.u)
     set(a, 'I', mA * 100)
@@ -452,7 +452,7 @@ describe('setup (G1.7)', () => {
 
   test('mount needs the door open; RESET keeps the setup', () => {
     const a = device()
-    const setup: Setup = { holder: 'empty', collimatorFilter: 'Zr', sensorFilter: null }
+    const setup: Setup = { holder: 'empty', crystal: 'NaCl', collimatorFilter: 'Zr', sensorFilter: null }
     expect(a.mount(setup)).toBe(false)
     expect(a.setup.holder).toBe('crystal')
     a.setDoors(false)
@@ -548,7 +548,7 @@ describe('setup (G1.7)', () => {
 
   test('mount refused while HV is on; no specular beam without crystal; saturated off with HV off', () => {
     const a = running(35, 1, { holder: 'empty' })
-    expect(a.mount({ holder: 'crystal', collimatorFilter: null, sensorFilter: null })).toBe(false)
+    expect(a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })).toBe(false)
     expect(a.specularRate()).toBe(0)
     a.press('HV')
     expect(a.saturated).toBe(false)
@@ -589,7 +589,7 @@ describe('setup (G1.7)', () => {
   test('P1 workflow: a series of exposures is logged with its setup, REPLAY unchanged', () => {
     const a = device()
     a.setDoors(false)
-    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: null })
+    a.mount({ holder: 'alWheel', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })
     a.setDoors(true)
     expect(a.exposureLog).toHaveLength(0)
     expose(a, 30, 20)
@@ -678,7 +678,7 @@ describe('setup (G1.7)', () => {
   test('SENSOR-mode exposure records both arms and the slot under the target', () => {
     const a = device()
     a.setDoors(false)
-    a.mount({ holder: 'alWheel', collimatorFilter: null, sensorFilter: null })
+    a.mount({ holder: 'alWheel', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })
     a.setDoors(true)
     a.press('TARGET')
     a.adjust(300)
@@ -688,5 +688,66 @@ describe('setup (G1.7)', () => {
     a.press('SCAN')
     a.tick(SAFETY_S + 2)
     expect(a.exposureLog[0]).toMatchObject({ target: 300, sensor: 5, slot: 3, mode: 'SENSOR' })
+  })
+})
+
+describe('crystal picker (C2.2)', () => {
+  const base: Setup = { holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null }
+  beforeAll(loadCrystals)
+
+  function lif() {
+    const a = device()
+    a.setDoors(false)
+    expect(a.mount({ ...base, crystal: 'LiF' })).toBe(true)
+    a.setDoors(true)
+    return a
+  }
+
+  test('mounting a crystal needs the door open; RESET keeps it', () => {
+    const a = device()
+    expect(a.mount({ ...base, crystal: 'LiF' })).toBe(false)
+    expect(a.setup.crystal).toBe('NaCl')
+    const b = lif()
+    b.press('RESET')
+    expect(b.setup.crystal).toBe('LiF')
+  })
+
+  test('unknown preset is refused', () => {
+    const a = device()
+    a.setDoors(false)
+    expect(() => a.mount({ ...base, crystal: 'Quartz' })).toThrow(RangeError)
+  })
+
+  test('the apparatus rate follows the crystal, and NaCl is unchanged', () => {
+    for (const [name, th] of [['LiF', 10], ['NaCl', 7]] as const) {
+      const a = device()
+      a.setDoors(false)
+      a.mount({ ...base, crystal: name })
+      a.setDoors(true)
+      set(a, 'U', 350 - a.u)
+      set(a, 'I', 100)
+      a.press('COUPLED')
+      a.press('HV')
+      a.tick(SAFETY_S + 0.1)
+      a.adjust(th * 10 * 2)
+      while (a.moving) a.tick(0.5)
+      const want = expectedRate([a.target / 10], a.u / 10, a.i / 100, DEFAULT, [a.sensor / 10], [], CRYSTALS[name])[0]
+      expect(a.expectedRate()).toBe(want)
+    }
+  })
+
+  test('LiF differs from NaCl at the same angles', () => {
+    const [x, y] = [lif(), device()]
+    for (const a of [x, y]) {
+      set(a, 'U', 350 - a.u)
+      set(a, 'I', 100)
+      a.press('COUPLED')
+      a.press('HV')
+      a.tick(SAFETY_S + 0.1)
+      a.adjust(200)
+      while (a.moving) a.tick(0.5)
+    }
+    expect(x.expectedRate()).not.toBe(y.expectedRate())
+    expect(x.crystal.d_pm).toBeCloseTo(201.4, 1)
   })
 })

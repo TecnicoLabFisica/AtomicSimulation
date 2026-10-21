@@ -5,6 +5,7 @@
 // only when the physics is called: 100 × 0.01 mA summed in floats is 1.0000000000000007 mA > 1 mA.
 import { mulberry32, poisson, type Rng } from '../physics/detector'
 import { BETA_MAX_DEG, BETA_MIN_DEG, DEFAULT, directRate, expectedRate, type ModelParams } from '../physics/scan'
+import { crystalByName, type Crystal } from '../physics/crystal'
 import { FOILS_MG_CM2, WHEELS_MG_CM2, absorbersLoaded } from '../physics/tables'
 
 export type Key =
@@ -15,8 +16,12 @@ export type Mode = 'SENSOR' | 'TARGET' | 'COUPLED'
 type Param = 'U' | 'I' | 'DT' | 'DBETA' | 'LIMIT_LO' | 'LIMIT_HI'
 /** What sits in the beam path: the crystal, one of the two 554 834 absorber plates, or nothing. */
 export type Holder = 'crystal' | 'alWheel' | 'materialWheel' | 'empty'
-/** Accessories mounted with the door open; filter values are FOILS_MG_CM2 names (e.g. 'Zr'). */
-export type Setup = Readonly<{ holder: Holder; collimatorFilter: string | null; sensorFilter: string | null }>
+/** Accessories mounted with the door open; filter values are FOILS_MG_CM2 names (e.g. 'Zr'). `crystal`: CRYSTALS
+ * preset name, only meaningful when the holder is the crystal ('NaCl' needs no table; the others need loadCrystals()). */
+export type Setup = Readonly<{ holder: Holder; crystal: string; collimatorFilter: string | null; sensorFilter: string | null }>
+
+/** The crystal preset a setup names (throws if unknown or not loaded; NaCl never needs the table). */
+export const crystalOf = (setup: Pick<Setup, 'crystal'>): Crystal => crystalByName(setup.crystal)
 export type Phase = 'idle' | 'safety' | 'positioning' | 'scan' | 'exposure'
 type Arms = { target: number; sensor: number } // 0.1°
 
@@ -128,7 +133,7 @@ export class Apparatus {
   exposureDone = false // "0 s" stays on show after an exposure until the next key or turn
   speaker = false
   doorsClosed = true
-  private _setup: Setup = { holder: 'crystal', collimatorFilter: null, sensorFilter: null }
+  private _setup: Setup = { holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null }
   private _exposures: ExposureRecord[] = []
   private exposureStart: { u: number; i: number; changed: boolean } | null = null
   hvOn = false
@@ -189,6 +194,11 @@ export class Apparatus {
     return this._setup
   }
 
+  /** The crystal of the current setup (NaCl unless the picker chose another; only used when the holder is the crystal). */
+  get crystal(): Crystal {
+    return crystalOf(this._setup)
+  }
+
   /** The exposures finished so far, oldest first (simulation aid). Stopped exposures are not logged; RESET
    * keeps the log, as it keeps the setup; only clearExposureLog() empties it. */
   get exposureLog(): readonly ExposureRecord[] {
@@ -204,7 +214,7 @@ export class Apparatus {
   expectedRate(): number {
     const { u, i, sensor, target, params } = this
     if (!this.hvOn) return directRate(0, 0, [], params)
-    if (this._setup.holder === 'crystal') return expectedRate([target / 10], u / 10, i / 100, params, [sensor / 10], this.foils())[0]
+    if (this._setup.holder === 'crystal') return expectedRate([target / 10], u / 10, i / 100, params, [sensor / 10], this.foils(), this.crystal)[0]
     return this.direct(sensor / 10) ?? directRate(0, 0, [], params)
   }
 
@@ -222,7 +232,7 @@ export class Apparatus {
   specularRate(): number {
     const beta = wrapTarget(this.target) / 10
     if (!this.hvOn || this._setup.holder !== 'crystal' || beta < BETA_MIN_DEG || beta > BETA_MAX_DEG) return 0
-    return expectedRate([beta], this.u / 10, this.i / 100, this.params, undefined, this.foils())[0]
+    return expectedRate([beta], this.u / 10, this.i / 100, this.params, undefined, this.foils(), this.crystal)[0]
   }
 
   /** Expected rate straight through the target position (sensor at 0°) without the crystal, in counts/s:
@@ -243,6 +253,7 @@ export class Apparatus {
     const names = [setup.collimatorFilter, setup.sensorFilter].filter((n) => n !== null)
     if ((setup.holder.endsWith('Wheel') || names.length > 0) && !absorbersLoaded()) throw new RangeError('absorber tables not loaded')
     for (const n of names) if (!Object.hasOwn(FOILS_MG_CM2, n)) throw new RangeError(`unknown filter ${n}`)
+    crystalOf(setup) // unknown or unloaded preset throws
     this._setup = Object.freeze({ ...setup })
     return true
   }

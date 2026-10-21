@@ -24,7 +24,8 @@ function keyOf(r: ExportRecord): string | null {
 
 /** A coupled scan on the crystal, steady, fine enough and wide enough for an edge search. */
 const usable = (r: ExportRecord) =>
-  r.mode === 'COUPLED' && !r.changed && r.setup.holder === 'crystal' &&
+  r.mode === 'COUPLED' && !r.changed && r.setup.holder === 'crystal' && r.setup.crystal === 'NaCl' && // the edge check uses the NaCl d
+ 
   r.step > 0 && r.step / 10 <= MAX_EDGE_STEP_DEG && r.first <= FIRST && r.last >= LAST
 
 const sameBeam = (a: ExportRecord, b: ExportRecord) => a.u === b.u && a.i === b.i

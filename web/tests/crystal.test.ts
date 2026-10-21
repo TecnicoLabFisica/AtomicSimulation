@@ -30,3 +30,21 @@ test('LiF: d = 201.4 pm, first-order Kα at θ = asin(λ/2d)', () => {
   expect(lambdaFromTheta(theta, 1, dPm(lif))).toBeCloseTo(71.08, 9)
   expect(muFactor(lif, 71.08)).toBeGreaterThan(1) // LiF absorbs far less than NaCl
 })
+
+test('the built-in NACL matches the loaded table entry (no drift)', () => {
+  expect({ ...NACL, mu_per_cm: [], source: '' }).toEqual({ ...CRYSTALS.NaCl, mu_per_cm: [], source: '' }) // source text differs on purpose
+})
+
+test('isNacl is identity: a look-alike named NaCl still gets muFactor (needs its own μ table)', async () => {
+  const { isNacl } = await import('../src/physics/crystal')
+  expect(isNacl(NACL) && isNacl(CRYSTALS.NaCl)).toBe(true)
+  expect(isNacl({ ...CRYSTALS.LiF, name: 'NaCl' })).toBe(false)
+})
+
+test('crystalByName throws on unknown names, NaCl needs no table', async () => {
+  const { crystalByName } = await import('../src/physics/crystal')
+  expect(crystalByName('NaCl')).toBe(NACL)
+  expect(crystalByName('LiF')).toBe(CRYSTALS.LiF)
+  expect(() => crystalByName('lif')).toThrow(RangeError)
+  expect(Object.isFrozen(CRYSTALS.LiF.f_sq_rel)).toBe(true)
+})

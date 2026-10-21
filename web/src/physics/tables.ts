@@ -34,12 +34,21 @@ export async function loadAbsorbers(): Promise<void> {
 export const CRYSTALS: Record<string, Crystal> = {}
 export const crystalsLoaded = (): boolean => 'NaCl' in CRYSTALS
 
+const deepFreeze = <T extends object>(o: T): T => {
+  for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v)
+  return Object.freeze(o)
+}
+let crystalsPromise: Promise<void> | undefined
+
 /** Fill CRYSTALS from crystals.json (~52 kB gzip). A separate chunk, fetched only when a non-NaCl crystal is
- * chosen; idempotent. */
-export async function loadCrystals(): Promise<void> {
-  if (crystalsLoaded()) return
-  const { default: t } = await import('../../../artifacts/tables/crystals.json')
-  for (const [name, c] of Object.entries(t.crystals as unknown as Record<string, Omit<Crystal, 'name'>>)) CRYSTALS[name] = { name, ...c }
+ * chosen; idempotent, one import however often it is called. Entries are deep-frozen: the tube cache and the
+ * μ cache key on object identity. */
+export function loadCrystals(): Promise<void> {
+  return (crystalsPromise ??= (async () => {
+    const { default: t } = await import('../../../artifacts/tables/crystals.json')
+    const rows = Object.entries(t.crystals as unknown as Record<string, Omit<Crystal, 'name'>>)
+    for (const [name, c] of rows) CRYSTALS[name] = deepFreeze({ name, ...structuredClone(c) })
+  })())
 }
 export const STRUCTURE_FACTOR_SQ_REL: readonly number[] = structureFactor.f_sq_rel
 export const DEFAULT_PARAMS_JSON = modelParams.params
