@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-21
-current_phase: F1
-next_task: F1.1
+current_phase: Q1
+next_task: Q1.2
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,8 +54,8 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `F1.1`, the Forge engine (`form_factors.json`, Z = 1…92, Python reads the same table). L2, C1 and C2 closed on 2026-10-21.
-> Open for the user first: ⏸ a Darwin reflectivity model for Si/calcite (C1 "As built"), confirm the revised L2 Done when, Q10 (the wheel's open slot), and push the 29 local commits.
+> **Now:** `Q1`, the stray sweep (see [[#Q1 — Stray sweep after L2, C1, C2]]). **Then:** `F1.1`, the Forge engine (`form_factors.json`, Z = 1…92).
+> Settled 2026-10-21 (user: "physics rules"): Darwin/extinction reflectivity is in Q1, the revised L2 Done when is confirmed. Still open: Q10 (the wheel's open slot) and pushing the local commits.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -67,6 +67,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
+| Q1 | Stray sweep after L2/C1/C2 | 🟨 in progress | 1 | L2, C2 |
 | F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
 | F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
 | F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
@@ -111,6 +112,9 @@ These are the project invariants applied to the new work. Don't re-decide them p
   *minimal* MCA, only as far as the guide's procedure needs it.
 - **Licensing.** The EPN guides stay in `refs/` (gitignored). In committed files we paraphrase and keep only numbers.
   We copy no figures (Fig. 1.1, 5.1 and 6.1 are LD drawings).
+- **Physics rules (user, 2026-10-21).** Any deviation from the physics is a bug and gets fixed, even when it makes a signal
+  20–30× weaker. When it does, the app helps the student notice and recover (a weak-signal notice, a display gain and the real
+  levers: I, U, Δt), it never inflates the model.
 - **Phone budget.** Tables that only one feature needs (XRF kernels, Forge element tables) are lazy-loaded chunks.
 
 ---
@@ -130,6 +134,8 @@ flowchart TD
     C2 --> F2
     F2 --> F3["F3 · Forge pedagogy"]
     L1 -.uses.-> C2
+    C2 --> Q1["Q1 · Stray sweep (bugs, physics, alignment)"]
+    L2 --> Q1
 ```
 
 > [!note] Recommended order
@@ -367,7 +373,7 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
       nowrap `<ul>`, and the troubleshooting text moved to a footnote `actHelp`. Simplified on purpose: two pills, not the reviewer's single pill with a menu.
       Deferred: a visible exposure-log table on the monitor (a pedagogy decision: it may weaken "read REPLAY and note it").
 
-**Done when:** ln T vs d is visibly curved without the Zr filter (μ_eff falls by ≈ 20–25 % from 0.5 to 3 mm) and less curved with it at 21 kV
+**Done when** (revised 2026-10-20, **confirmed by the user 2026-10-21**: physics rules): ln T vs d is visibly curved without the Zr filter (μ_eff falls by ≈ 20–25 % from 0.5 to 3 mm) and less curved with it at 21 kV
 (≈ 12–17 %; the Zr leaves a 69–92 pm continuum band, not Mo Kα); at 35 kV with Zr it is not straighter. The key compares μ(Al) with and without Zr
 against the tabulated 5.11 cm²/g at Mo Kα and explains the gap (above at 21 kV, below at 35 kV), not hides it. (Revised 2026-10-20: "much straighter"
 is not what the physics gives.) The physics reviewer (2026-10-14) found
@@ -493,8 +499,8 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
 > - Cross-crystal scale, computed, not fitted: r_n = [|F_n|²/V²]_X/[|F_1|²/V²]_NaCl · exp(+2B_fit s₁²) · μ_NaCl(λ)/μ_X(λ). Order 1 at Mo Kα: LiF 4.77, Si 0.71,
 >   calcite 0.56, muscovite 0.023 × NaCl. These are **ideal-mosaic upper bounds**. Physics review: a perfect crystal (Darwin) gives 1/28 (Si) … 1/150 (LiF) of that, so a
 >   Si wafer should read ≈ 0.03 × NaCl, and LiF secondary extinction gives ≈ 2–3. Not tuned; worded in `PARAMETERS.md`.
-> - ⏸ **Decision for the user:** add a `reflectivity_model = "darwin"` (dynamical, Python-first) for Si and calcite before C2 shows their heights, or ship
->   ideal-mosaic heights labelled as upper bounds? (The plan's risk note already says heights are model estimates.)
+> - ~~⏸ Decision for the user: Darwin for Si and calcite, or ideal-mosaic upper bounds?~~ **Decided 2026-10-21 (user: physics rules):** Darwin–Prins for Si,
+>   calcite and muscovite, secondary extinction for LiF and for the NaCl reference. Built in Q1.2 (see [[#Q1 — Stray sweep after L2, C1, C2]]).
 
 #### S2
 - [x] **C1.4** Export `artifacts/tables/crystals.json` and per-crystal structure-factor tables. Fixtures: one scan per preset.
@@ -551,6 +557,34 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
 **Files:** `web/src/physics/{crystal,constants}.ts`, `web/src/views/{huygens,spectrum,goniometer,bench}.ts`, `web/src/pedagogy/`
 
 **Verify:** [[#Verify|standard]]; in the app switch NaCl → LiF and check the peaks, the Huygens panel and the overlays move together; Lab mode shows the name only
+
+### Q1 — Stray sweep after L2, C1, C2
+
+**Why:** the user asked (2026-10-21) for a sweep after the overnight L2 → C1 → C2 run: bugs a student would hit, physics errors, and drift
+from the plan, under the rule "physics rules" (see [[#Ground rules]]). Three read-only hunts (student flows, physics and port, weak-signal UI)
+found the items below; baseline pytest 203, Vitest 167.
+
+- [x] **Q1.1** Design gate (physics-reviewer): per-crystal reflectivity. Si, calcite, muscovite → Darwin–Prins with absorption (σ and π, f′/f″);
+      LiF → secondary extinction, η = 0.05° (assumption, 0.01–0.2°); the NaCl cross-crystal reference gets its own extinction (η 0.2°, B_th 1.3 Å²,
+      assumptions; evidence: B_fit 0.63 Å² < thermal 1.2–1.5 Å²). Checked against X0h (Si Darwin widths ≤ 0.2 %) and xraylib |F| (1e-4).
+      Muscovite is the least certain (a mosaic sheet would be 3.6–4.4× brighter): a bench check. Beam overfill at small θ: not modellable, a documented limit.
+- [ ] **Q1.2** `crystal.extinction_factor(crystal, n, λ)` and its use in `scan.py`; LiF a = 402.7 pm; `PARAMETERS.md` (models, assumptions, limits, stale numbers).
+- [ ] **Q1.3** `crystals.json` y tables, fixtures, TS port, teacher key, notebook 08.
+- [ ] **Q1.4** Orders with F = 0 (Si (222), (666)) and muscovite orders > 10: Python line analysis takes `d_pm` and allowed orders; spectrum, goniometer
+      and Huygens markers skip forbidden orders and cover every order in range; Huygens says "forbidden" instead of "met".
+- [ ] **Q1.5** Gated: K-edge nodes in the μ/ρ grid (an interpolation smear of ≈ +0.07 pm on the edges), only if Fig. 4 holds.
+- [ ] **Q1.6** Weak-signal aid: `analysis.line_prominence_sigma` (Python → TS, the task checks reuse it), a ×1/×10/×100 display gain, log floor 0.1/s,
+      a "¿No ves picos?" notice with "Amplificar" and the real levers (user's choice: display gain plus advice, both modes); heights note rewritten.
+- [x] **Q1.7** Student-flow bugs (`b81d74e`): leftover foils between tasks, Bragg checks blind to the scan's setup, the exposure log wiped on task start,
+      Huygens verdict while hints are hidden, failed lazy loads cached forever, a late crystal pick racing a task mount, a stale step on task start, locks
+      never released, a restarted free-pick task losing the student's crystal, a CSV hint for Excel (standard CSV kept, user's choice).
+- [ ] **Q1.8** Reviews: physics, apparatus, design, pedagogy.
+- [ ] **Q1.9** This note, session log, `graphify update`.
+
+**Done when:** every item above is fixed or documented as a limit; NaCl fixtures byte-identical (except an explained Q1.5 grid change); a Si scan
+at 35 kV 1 mA shows the notice and, amplified, (111) and (333) without (222).
+
+**Verify:** [[#Verify|standard]] + the teacher key byte-stable; notebooks 03 and 08 execute; app screenshots at 390/1440 px.
 
 ---
 
