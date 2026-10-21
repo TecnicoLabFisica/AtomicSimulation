@@ -112,6 +112,8 @@ def _moseley_section(rng):
     lam_tab = [HC_KEV_PM / K_EDGE_KEV[el] for el in P5_Z]
     R_tab, _, sigma_tab, _, _ = moseley_fit(z, lam_tab)
     th = {el: _theta(lam) for el, lam in zip(P5_Z, lam_tab, strict=True)}
+    bias_R = f"{100 * (R_exact / R_tab - 1):+.1f}".replace("-", "−")
+    bias_sigma = f"{sigma_exact - sigma_tab:+.2f}".replace("-", "−")
     out = [
         "## Moseley's law (task `moseley-k-edges`)",
         "",
@@ -148,8 +150,9 @@ def _moseley_section(rng):
         "K binding energy and the shorter λ_K, and a shorter wavelength reflects at a smaller "
         "angle.",
         "",
-        f"This simulated measurement lands {100 * (1 - R / R_INF_PER_M):.1f} % below R∞. Two "
-        "causes add up, and the rows above separate them.",
+        f"The noise-free evaluation lands {100 * (1 - R_exact / R_INF_PER_M):.1f} % below R∞ "
+        f"(this simulated measurement {100 * (1 - R / R_INF_PER_M):.1f} %; the difference is "
+        "counting noise). Two causes add up, and the rows above separate them.",
         "",
         f"- **Physics, {100 * (1 - R_tab / R_INF_PER_M):.1f} % (tabulated row).** The straight "
         "line absorbs two Z-dependent effects of opposite sign. Relativistic binding alone would "
@@ -159,7 +162,10 @@ def _moseley_section(rng):
         "row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's "
         "angular resolution blurs the two spectra before they are divided. The steep open "
         "spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts "
-        "the line (`model/PARAMETERS.md`). A real goniometer does the same.",
+        f"the line: R {bias_R} % and σ_K {bias_sigma} "
+        "against the tabulated edges (`model/PARAMETERS.md`). A real goniometer does the same. "
+        "The Explore edge markers sit at the tabulated angles, so the measured steps fall just "
+        "below them.",
         "",
         "The quoted ± is the counting error only: a measurement scatters by it around the "
         f"noise-free row, not around the tabulated one. χ²/dof = {chi2:.1f} (noise-free "

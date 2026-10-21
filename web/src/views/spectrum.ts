@@ -155,7 +155,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
                 ctx.lineTo(x + k / 2, bbox.top + bbox.height)
                 ctx.stroke()
               }
-              // foil K edges (stored scan's setup) in the foil colour, from the third row down, one row per foil
+              // foil K edges (stored scan's setup) in label-2 grey, from the third row down, one row per foil
               // (Zr and Mo sit 0.7° apart); long dash, so not colour alone
               ctx.fillStyle = ctx.strokeStyle = P['label-2']
               ctx.lineWidth = k

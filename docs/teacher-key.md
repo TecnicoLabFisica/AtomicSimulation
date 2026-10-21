@@ -82,10 +82,10 @@ Fit of √(1/λ_K) = √R (Z − σ_K):
 
 Prediction question: *where does the Ag edge fall compared with Zr?* At a smaller angle (4.94° against 7.02°): Ag has the higher Z, so the higher K binding energy and the shorter λ_K, and a shorter wavelength reflects at a smaller angle.
 
-This simulated measurement lands 3.4 % below R∞. Two causes add up, and the rows above separate them.
+The noise-free evaluation lands 3.6 % below R∞ (this simulated measurement 3.4 %; the difference is counting noise). Two causes add up, and the rows above separate them.
 
 - **Physics, 1.3 % (tabulated row).** The straight line absorbs two Z-dependent effects of opposite sign. Relativistic binding alone would raise R (a Dirac 1s fit with constant σ gives ≈ 1.07 R∞), and outer-electron screening that grows with Z outweighs it.
-- **Instrument, 2.3 % (noise-free row against tabulated row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's angular resolution blurs the two spectra before they are divided. The steep open spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts the line (`model/PARAMETERS.md`). A real goniometer does the same.
+- **Instrument, 2.3 % (noise-free row against tabulated row).** Each edge lands 0.005–0.05° below its tabulated angle, because the counter's angular resolution blurs the two spectra before they are divided. The steep open spectrum beside the Mo lines pulls Zr and Mo the most, so the shift is uneven and tilts the line: R −2.3 % and σ_K −0.57 against the tabulated edges (`model/PARAMETERS.md`). A real goniometer does the same. The Explore edge markers sit at the tabulated angles, so the measured steps fall just below them.
 
 The quoted ± is the counting error only: a measurement scatters by it around the noise-free row, not around the tabulated one. χ²/dof = 2.1 (noise-free 0.2) with 2 degrees of freedom is consistent with a straight line.
 

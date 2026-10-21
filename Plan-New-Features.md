@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-20
-current_phase: L1
-next_task: L1.8
+current_phase: L2
+next_task: L2.1
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,15 +54,16 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L1.8`, the `pedagogy-reviewer` over L1.6 + L1.7; then close L1 (its "Done when" was accepted 2026-10-20).
+> **Next:** `L2.1`, the remaining half: a test (and a `PARAMETERS.md` note) that the 0.4 mm Fe … Ag absorbers read near the
+> background and dead-time floor. The wheel data (G1.7) and L2.2 (G1.3/G1.4) are already done. Then L2.3.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
 |---|---|---|---|---|
 | G0 | Reference facts and scope | ✅ done | 1 | — |
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
-| L1 | Práctica 5: Moseley's law | 🟨 S2 in progress (L1.8 next) | 2 | G1 |
-| L2 | Práctica 1: attenuation | ⬜ todo | 2–3 | G1 |
+| L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
+| L2 | Práctica 1: attenuation | 🟨 L2.1 next (L2.2 done in G1) | 2–3 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
 | C2 | Crystal selector (port and UI) | ⬜ todo | 2 | C1 |
@@ -296,7 +297,10 @@ the EPN guide uses 3.7° → 7.5°. Both windows contain every edge.
       setup: a `--label-2` hairline (the foil colour) with a long dash, labelled "Zr K" from the third row down, one row per foil.
       Gated by `showHints()` like the other overlays (none in Lab mode or TARGET scans; 2θ for SENSOR). The plot cursor is now
       a solid hairline so it can't pass for an edge. Mo K sits 0.11° from Kβ, so its label touches the Kβ line at 390 px (physical).
-- [ ] **L1.8** `pedagogy-reviewer`.
+- [x] **L1.8** `pedagogy-reviewer`. Passed with fixes, nothing leaks in Lab mode. Applied: the edge mechanism and λ_K = 2d sin θ_K in
+      explain, "rate" instead of R in observe (R is the Rydberg constant), σ_K named as the screening constant, tube peaks vs edges,
+      the ¾-factor mistake in the teacher note, HV-off and a ✓ troubleshooting line in act, the overlay label "borde Zr" / "Zr edge"
+      ("Mo K" read as an emission line beside the Mo tube's Kβ), and the key's totals (noise-free 3.6 % = 1.3 + 2.3) with σ_K −0.57.
 
 **Done when:** a student can do the whole practice on a phone, and the key's R and σ_K agree with the fit of the tabulated edges
 within the model's counting error plus its documented instrument bias (R −2.3 %, σ_K −0.57, 2026-10-20; `PARAMETERS.md`). Revised
@@ -315,10 +319,10 @@ nearly Mo Kα and the line straightens. This is the main teaching point, and the
 Dead time at ~1000 /s also bends the data a little, which is real and worth a note.
 
 #### S1 — Python
-- [ ] **L2.1** Absorber sets as data: the Al wheel (0, 0.5 … 3.0 mm) and the material wheel (polystyrene, Al, Fe, Cu, Zr, Ag,
+- [ ] **L2.1** (data half done in G1.7: `filters.WHEELS_MM`, exported) Absorber sets as data: the Al wheel (0, 0.5 … 3.0 mm) and the material wheel (polystyrene, Al, Fe, Cu, Zr, Ag,
       0.4 mm each). At 0.4 mm the Fe … Ag absorbers transmit far below 1 %, so background and dead time dominate their
       readings. That is real (it's why the guide raises I to 1 mA for them) and a teaching point, so don't hide it.
-- [ ] **L2.2** Set `K_direct` and `background_per_s` from [[#Calibration anchors]] (no EPN data exists; mark both as anchored to
+- [x] **L2.2** (done in G1.3/G1.4: `direct_per_s` = 2.97e5, `background_per_s` = 0.2, both in `PARAMETERS.md`) Set `K_direct` and `background_per_s` from [[#Calibration anchors]] (no EPN data exists; mark both as anchored to
       published or guide values, not fitted to measurements).
 - [ ] **L2.3** `analysis.attenuation_fit(d_mm, R, R0, background)` → μ with error. Notebook `06_attenuation.ipynb`: T vs d,
       ln T vs d with and without Zr, μ vs Z (log-log), compared with xraylib μ at Mo Kα.
@@ -641,6 +645,17 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-20 · L1 · task L1.8 (L1 closed)
+- Done: L1.8. `pedagogy-reviewer` over L1.6 + L1.7 + the key (pass with fixes, 14 findings). Opus applied all of them except #13,
+  which the key already covered (one sentence on the Explore markers was added). Files: `web/src/pedagogy/i18n/{es,en}.ts`, `web/src/i18n.ts`
+  (`kEdge`), the `spectrum.ts` comment, `model/scripts/teacher_key.py` → `docs/teacher-key.md`.
+- Verify: pytest 155 · ruff clean · Vitest 110 · build OK (main 80.5 kB gzip) · key byte-stable · `artifacts/` unchanged.
+- Uncommitted: no, committed with this entry (user).
+- Surprises / decisions: the overlay label went from "Zr K" (L1.7 design review) to "borde Zr" / "Zr edge". It is still short, but no longer
+  reads as an emission line. At 390 px the Kα hairline grazes the "r" of "borde Zr" (legible, like Mo/Kβ; deferred). Headless
+  Firefox 390 px: Mo light es/en, Zr dark es. L2.2 was already delivered by G1, and L2.1 by half.
+- Next: L2.1, the remaining half (Fe … Ag at 0.4 mm near the background floor: test + note), then L2.3 `attenuation_fit`.
 
 ### 2026-10-20 · L1 · task L1.7
 - Done: L1.7 (Sonnet): `edgeMarkers` + the overlay block in `spectrum.ts`, i18n `kEdge`, `web/tests/spectrum.test.ts` (3 cases),
