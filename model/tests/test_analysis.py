@@ -19,7 +19,7 @@ from braggsim.analysis import (
     wavelength_table,
 )
 from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
-from braggsim.crystal import theta_from_lambda
+from braggsim.crystal import LIF, d_pm, theta_from_lambda
 from braggsim.detector import dead_time, sample_counts
 from braggsim.filters import FOILS_MM, WHEELS_MM, areal_density_mg_cm2
 from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate
@@ -311,6 +311,29 @@ def test_resolution_bias_of_model_edges_moves_the_moseley_fit_little():
         assert s == approx(s_tab, abs=0.7)
     assert np.isfinite(chi2) and chi2 < 1  # noise-free edges lie on a line within the errors
     assert np.isnan(chi2_u)
+
+
+def test_lif_variant_edges_use_the_lif_spacing_and_land_closer_to_the_tabulated_edges():
+    # The Moseley LiF variant (Plan C2.5): NaCl's 3.7–7.5° window translated to LiF is 5.2–10.5°.
+    # With LiF's d the edges convert to the tabulated λ_K; LiF spreads the angles further, so the
+    # same angular resolution shifts λ_K less and R lands closer to the tabulated-edge fit than
+    # on NaCl (noise-free ≈ 1.09e7 m⁻¹ against 1.058e7; pedagogy review 2026-10-21).
+    beta = coupled_betas(5.2, 10.5, 0.1)
+    rate = {
+        el: expected_rate(
+            beta, 35.0, 1.0, filters=((el, areal_density_mg_cm2(el, FOILS_MM[el])),), crystal=LIF
+        )
+        for el in P5_Z
+    }
+    rows = edge_wavelength_table(
+        beta, expected_rate(beta, 35.0, 1.0, crystal=LIF), rate, P5_DT_S, d_pm=d_pm(LIF)
+    )
+    for r in rows:
+        assert r["lambda_pm"] == approx(_lambda_k_pm(r["element"]), rel=5e-3)
+    z = list(P5_Z.values())
+    R_tab, *_ = moseley_fit(z, [_lambda_k_pm(el) for el in P5_Z])
+    R_lif, *_ = moseley_fit(z, [r["lambda_pm"] for r in rows], [r["lambda_err_pm"] for r in rows])
+    assert abs(R_lif / R_tab - 1) < 0.015  # NaCl's bias is 2.3 % (test above)
 
 
 def test_moseley_fit_of_tabulated_k_edges_falls_a_few_percent_below_rydberg():

@@ -15,7 +15,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from scipy.special import ndtr
 
-from braggsim.constants import MO_K_EDGE_KEV, MO_KA_PM, MO_KB_COMPONENTS, MO_KB_PM
+from braggsim.constants import D_NACL_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_COMPONENTS, MO_KB_PM
 from braggsim.crystal import dlambda_dtheta_pm_per_deg, lambda_from_theta, theta_from_lambda
 from braggsim.source import LINE_EXPONENT_M
 
@@ -393,12 +393,13 @@ def moseley_fit(Z, lambda_K_pm, lambda_err_pm=None):
     return float(k**2), float(2 * k * np.sqrt(cov[0, 0])), float(-c / k), float(sigma_err), chi2_dof
 
 
-def edge_wavelength_table(beta_deg, rate_open_per_s, foil_rates_per_s, dt_s):
+def edge_wavelength_table(beta_deg, rate_open_per_s, foil_rates_per_s, dt_s, d_pm=D_NACL_PM):
     """K edge of each foil in ``foil_rates_per_s`` ({element: rate}) against one open scan.
 
     One dict per foil, in input order: ``element``, ``theta_deg`` and ``theta_err_deg`` from
-    ``k_edge_deg``, and ``lambda_pm`` / ``lambda_err_pm`` by Bragg's law (1st order) with the
-    error propagated through dλ/dθ. These feed ``moseley_fit``.
+    ``k_edge_deg``, and ``lambda_pm`` / ``lambda_err_pm`` by Bragg's law (1st order, lattice
+    spacing ``d_pm`` of the crystal the scans used: ``crystal.d_pm(LIF)`` for the LiF variant) with
+    the error propagated through dλ/dθ. These feed ``moseley_fit``.
     """
     rows = []
     for element, rate in foil_rates_per_s.items():
@@ -408,8 +409,8 @@ def edge_wavelength_table(beta_deg, rate_open_per_s, foil_rates_per_s, dt_s):
                 "element": element,
                 "theta_deg": theta,
                 "theta_err_deg": err,
-                "lambda_pm": float(lambda_from_theta(theta)),
-                "lambda_err_pm": float(abs(dlambda_dtheta_pm_per_deg(theta)) * err),
+                "lambda_pm": float(lambda_from_theta(theta, 1, d_pm)),
+                "lambda_err_pm": float(abs(dlambda_dtheta_pm_per_deg(theta, 1, d_pm)) * err),
             }
         )
     return rows
