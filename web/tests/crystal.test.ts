@@ -1,5 +1,5 @@
 import { beforeAll, expect, test } from 'vitest'
-import { NACL, dPm, extinctionFactor, extinctionRatio, lambdaFromTheta, muFactor, thetaFromLambda } from '../src/physics/crystal'
+import { NACL, allowedOrders, dPm, extinctionFactor, extinctionRatio, lambdaFromTheta, muFactor, thetaFromLambda } from '../src/physics/crystal'
 import { DEFAULT, expectedRate, maxOrder, orderReflectivity, orderStrengths } from '../src/physics/scan'
 import { CRYSTALS, crystalsLoaded, loadCrystals } from '../src/physics/tables'
 
@@ -64,4 +64,14 @@ test('extinctionRatio: 1 for NaCl, y_X,n / y_NaCl,1 otherwise; every tabulated y
   expect(extinctionRatio(NACL, 1, 71.08)).toBe(1)
   expect(extinctionRatio(CRYSTALS.Si, 1, 71.08)).toBeCloseTo(extinctionFactor(CRYSTALS.Si, 1, 71.08) / extinctionFactor(CRYSTALS.NaCl, 1, 71.08), 14)
   for (const c of Object.values(CRYSTALS)) for (const row of c.extinction) for (const v of row) expect(v > 0 && v <= 1).toBe(true)
+})
+
+test('allowedOrders drops the extinct orders of Si (111): 2, 6, 10 …', () => {
+  const orders = allowedOrders(CRYSTALS.Si)
+  expect(orders.slice(0, 6)).toEqual([1, 3, 4, 5, 7, 8])
+  expect(orders.some((n) => n % 4 === 2)).toBe(false)
+})
+
+test('allowedOrders keeps every order of NaCl', () => {
+  expect(allowedOrders(NACL)).toHaveLength(NACL.max_order)
 })

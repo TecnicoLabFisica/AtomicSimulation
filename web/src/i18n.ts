@@ -21,6 +21,7 @@ const es = {
   huygensNote:
     'Cada plano dispersa una pequeña parte del haz. La onda del plano inferior recorre 2d sen θ más; se suman en fase solo si 2d sen θ = nλ.',
   pathDiff: '2d sen θ',
+  braggForbidden: (n: number) => `Ángulo de Bragg para n = ${n}, pero esta reflexión está prohibida (F = 0): las ondas de los átomos se anulan.`,
   braggMet: (line: string, n: number) => `${line} cumple la condición de Bragg (n = ${n})`,
   braggNot: (line: string) => `${line} no cumple la condición de Bragg; se refleja λ = 2d sen θ / n del continuo`,
   line: 'Línea espectral',
@@ -147,6 +148,7 @@ const en: Dict = {
   huygensNote:
     'Each plane scatters a small part of the beam. The wave from the lower plane travels 2d sin θ further; they add in phase only if 2d sin θ = nλ.',
   pathDiff: '2d sin θ',
+  braggForbidden: (n: number) => `Bragg angle for n = ${n}, but this reflection is forbidden (F = 0): the waves from the atoms cancel.`,
   braggMet: (line: string, n: number) => `${line} meets the Bragg condition (n = ${n})`,
   braggNot: (line: string) => `${line} misses the Bragg condition; the continuum's λ = 2d sin θ / n is reflected`,
   line: 'Spectral line',

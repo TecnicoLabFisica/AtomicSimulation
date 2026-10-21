@@ -83,6 +83,14 @@ export function crystalByName(name: string): Crystal {
   return CRYSTALS[name]
 }
 
+/** port of braggsim.crystal.ALLOWED_F_SQ_REL_MIN: an order with |F_n|²/|F_1|² not above this is extinct (F = 0 up to rounding). */
+export const ALLOWED_F_SQ_REL_MIN = 1e-6
+
+/** port of braggsim.crystal.allowed_orders: the orders n = 1 … max_order of the cut series that are not extinct,
+ * ascending (Si (111): 1, 3, 4, 5, 7 …). The model gives exactly nothing at the others; a real wafer may show a very weak (222). */
+export const allowedOrders = (crystal: Crystal): number[] =>
+  crystal.f_sq_rel.flatMap((f, i) => (f > ALLOWED_F_SQ_REL_MIN ? [i + 1] : []))
+
 /** port of braggsim.crystal.d_pm: spacing in pm of the first reflection of the cut series. */
 export const dPm = (crystal: Crystal): number => crystal.d_pm
 

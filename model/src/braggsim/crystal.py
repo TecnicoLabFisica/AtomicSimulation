@@ -304,6 +304,25 @@ def structure_factor_sq_rel_crystal(crystal, n_max):
     return tuple(x / f[0] for x in f)
 
 
+# An order whose |F_n|²/|F_1|² is not above this is systematically absent (F = 0 up to rounding,
+# e.g. Si (222)); every consumer, from peak pairing to the web markers, uses this one criterion.
+# The model gives exactly nothing there; a real wafer shows a very weak (222) (bonding charge,
+# Renninger multiple diffraction), which no kinematic structure factor of spherical atoms contains.
+ALLOWED_F_SQ_REL_MIN = 1e-6
+
+
+def allowed_orders(crystal):
+    """Orders n = 1 … max_order(crystal) of the cut series that are not extinct, ascending (tuple).
+
+    Si (111): 1, 3, 4, 5, 7 … (no 2, 6, 10 …); NaCl (200) has them all.
+    """
+    from braggsim.scan import max_order
+
+    n_max = max_order(crystal)
+    f = structure_factor_sq_rel_crystal(crystal, n_max)
+    return tuple(n for n, x in enumerate(f, start=1) if x > ALLOWED_F_SQ_REL_MIN)
+
+
 # --------------------------------------------------------------------------------------------
 # Extinction: how far a real crystal falls below the kinematic ideal-mosaic reflectivity
 # --------------------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
 import { t } from '../i18n'
 import { showHints } from '../pedagogy/mode'
 import { D_NACL_PM, MO_KA_PM, MO_KB_PM } from '../physics/constants'
-import { lambdaFromTheta, thetaFromLambda, type Crystal } from '../physics/crystal'
+import { allowedOrders, lambdaFromTheta, thetaFromLambda, type Crystal } from '../physics/crystal'
 import { DEFAULT } from '../physics/scan'
 import { dpr, palette, paletteVersion, reducedMotion, scaledFont, watchSize } from './canvas'
 
@@ -193,8 +193,9 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const valid = thetaDeg > 0 && thetaDeg < 90
     const n = valid ? nearestOrder(thetaDeg, lambdaPm, dPm) : 0
     const met = valid && Math.abs(thetaDeg - thetaFromLambda(lambdaPm, n, dPm)) < DEFAULT.sigma_deg
+    const forbidden = met && !allowedOrders(c).includes(n) // a Bragg angle of an order whose F = 0
     const hints = showHints() // a guided task hides the verdict (and the nλ it compares with) until its act step is done
-    const verdict = met && hints
+    const verdict = met && !forbidden && hints
 
     const s = t()
     const eqText = valid
@@ -206,9 +207,9 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
           .map((part) => `<span>${part.replaceAll(' ', '\u00a0')}</span>`)
           .join('')
       : `<span>${s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
-    const eqKey = `${eqText} ${hints} ${met}`
+    const eqKey = `${eqText} ${hints} ${met} ${forbidden}`
     if (eqKey !== shownEq) {
-      eq.innerHTML = `${eqText} <strong class="met" data-met="${verdict}">${!hints ? '' : met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
+      eq.innerHTML = `${eqText} <strong class="met" data-met="${verdict}">${!hints ? '' : forbidden ? s.braggForbidden(n) : met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
       shownEq = eqKey
     }
 

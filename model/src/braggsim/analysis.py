@@ -16,7 +16,14 @@ from scipy.signal import find_peaks
 from scipy.special import ndtr
 
 from braggsim.constants import D_NACL_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_COMPONENTS, MO_KB_PM
-from braggsim.crystal import dlambda_dtheta_pm_per_deg, lambda_from_theta, theta_from_lambda
+from braggsim.crystal import (
+    NACL,
+    allowed_orders,
+    d_pm,
+    dlambda_dtheta_pm_per_deg,
+    lambda_from_theta,
+    theta_from_lambda,
+)
 from braggsim.source import LINE_EXPONENT_M
 
 # A characteristic line is at most this wide (FWHM ≈ 0.3° at the leaflet's slits); the
@@ -32,9 +39,17 @@ MAX_STEP_DEG = 0.23
 # Closer peaks are one line's fine structure (Kβ₁,₃–Kβ₂: 0.37° in 3rd order, resolved at small σ);
 # the closest distinct lines, Kβ and Kα in 1st order, are 0.81° apart.
 MIN_PEAK_SEPARATION_DEG = 0.5
+
+
 # No Mo K line reflects below 1st-order Kβ₂ (6.32°); a peak further down, with ≈ 2.5σ margin, is
 # the bremsstrahlung hump (near 5.4° at 30 kV it is narrow enough to pass the width test).
-FIRST_LINE_DEG = float(theta_from_lambda(min(lam for lam, _ in MO_KB_COMPONENTS))) - 0.3
+def first_line_deg(crystal=NACL):
+    """Angle (degrees) below which no Mo K line of the crystal's cut series can sit."""
+    lam_pm = min(lam for lam, _ in MO_KB_COMPONENTS)
+    return float(theta_from_lambda(lam_pm, 1, d_pm(crystal))) - 0.3
+
+
+FIRST_LINE_DEG = first_line_deg()
 # Pairing checks. A peak paired into the wrong order or line is off by ≥ 30 pm in λ or ≥ 40 % in
 # λ(Kβ)/λ(Kα) (0.888, Table 1); these limits stay far below that, but above the honest bias of
 # 1st-order Kβ near the K edge (≈ −0.6 pm at 25 kV, PARAMETERS.md).
@@ -71,11 +86,12 @@ def _rate_var(rate_per_s, dt_s):
     return np.maximum(np.asarray(rate_per_s, dtype=float) * dt_s, 1) / dt_s**2
 
 
-def find_line_peaks(beta_deg, rate_per_s, dt_s):
+def find_line_peaks(beta_deg, rate_per_s, dt_s, crystal=NACL):
     """Target angles β (degrees, ascending) of the Mo K line peaks in a scan with step Δt_s.
 
     A line is a peak 1.2 steps to 0.8° wide, 5σ of counting noise above its surroundings and
-    above 6.0°. Of peaks closer than 0.5° only the most prominent is kept (fine structure).
+    above the crystal's 1st-order Kβ₂ less 0.3° (6.0° for NaCl).
+    Of peaks closer than 0.5° only the most prominent is kept (fine structure).
     """
     beta = np.asarray(beta_deg, dtype=float)
     rate = np.asarray(rate_per_s, dtype=float)
@@ -97,9 +113,10 @@ def find_line_peaks(beta_deg, rate_per_s, dt_s):
         prominence=MIN_PROMINENCE_SIGMA * np.sqrt(_rate_var(rate, dt_s)),
         width=(MIN_LINE_WIDTH_STEPS, MAX_LINE_FWHM_DEG / step),
     )
+    first_deg = FIRST_LINE_DEG if crystal is NACL else first_line_deg(crystal)
     keep = []
     for i in idx[np.argsort(-props["prominences"], kind="stable")]:
-        if beta[i] >= FIRST_LINE_DEG and all(
+        if beta[i] >= first_deg and all(
             abs(beta[i] - beta[j]) >= MIN_PEAK_SEPARATION_DEG for j in keep
         ):
             keep.append(i)
@@ -138,19 +155,24 @@ def peak_center(beta_deg, rate_per_s, dt_s, lo_deg, hi_deg):
     return Peak(float(center), float(err), float(width), float(area * step), float(area_err))
 
 
-def wavelength_table(beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDOW_DEG):
+def wavelength_table(
+    beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDOW_DEG, crystal=NACL
+):
     """Rows of LD P6.3.3.1 Tables 3 and 4: one dict per line and order.
 
-    Peaks are paired in ascending angle as (Kβ, Kα) of orders 1, 2, 3, as students count them,
-    so the scan must start half_window_deg below the 1st-order Kβ (6.4°) and hold at least two
-    orders. Each peak is marked ±half_window_deg, cut at the midpoint to its neighbours.
+    Peaks are paired in ascending angle as (Kβ, Kα) of the crystal's allowed orders (1, 2, 3 …
+    for NaCl; 1, 3, 4 … for Si, whose (222) is extinct), as students count them, so the scan must
+    start half_window_deg below the 1st-order Kβ (6.4° for NaCl) and hold at least two orders.
+    Each peak is marked ±half_window_deg, cut at the midpoint to its neighbours.
     Uncertainties are counting statistics only (no goniometer zero error, no uncertainty in d).
     Raises ValueError, with what to change, if the peaks do not form Kβ/Kα pairs (λ ratio 0.888)
-    of consecutive orders from n = 1.
+    of consecutive allowed orders from n = 1.
     """
     beta = np.asarray(beta_deg, dtype=float)
-    peaks = find_line_peaks(beta, rate_per_s, dt_s)
-    first_kb_deg = float(theta_from_lambda(MO_KB_PM)) - half_window_deg
+    peaks = find_line_peaks(beta, rate_per_s, dt_s, crystal)
+    d = d_pm(crystal)
+    orders = allowed_orders(crystal)
+    first_kb_deg = float(theta_from_lambda(MO_KB_PM, 1, d)) - half_window_deg
     if beta[0] > first_kb_deg:
         raise ValueError(
             f"the scan starts at {beta[0]:g}°: start it below {first_kb_deg:.1f}° so the "
@@ -161,13 +183,15 @@ def wavelength_table(beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDO
             f"found {peaks.size} line peaks, need Kβ/Kα pairs in at least two orders: "
             "raise U well above 20 kV, lengthen Δt, or extend the scan to ≈ 25°"
         )
+    if peaks.size > 2 * len(orders):
+        raise ValueError(f"found {peaks.size} line peaks, more than {crystal.name} has orders")
     mids = (peaks[1:] + peaks[:-1]) / 2
     lo = np.maximum(peaks - half_window_deg, np.r_[-np.inf, mids])
     hi = np.minimum(peaks + half_window_deg, np.r_[mids, np.inf])
     rows = []
     for i, (a, b) in enumerate(zip(lo, hi, strict=True)):
         peak = peak_center(beta_deg, rate_per_s, dt_s, a, b)
-        n = i // 2 + 1
+        n = orders[i // 2]
         rows.append(
             {
                 "n": n,
@@ -175,9 +199,9 @@ def wavelength_table(beta_deg, rate_per_s, dt_s, half_window_deg=PEAK_HALF_WINDO
                 "theta_deg": peak.center_deg,
                 "theta_err_deg": peak.center_err_deg,
                 "width_deg": peak.width_deg,
-                "lambda_pm": float(lambda_from_theta(peak.center_deg, n)),
+                "lambda_pm": float(lambda_from_theta(peak.center_deg, n, d)),
                 "lambda_err_pm": float(
-                    dlambda_dtheta_pm_per_deg(peak.center_deg, n) * peak.center_err_deg
+                    dlambda_dtheta_pm_per_deg(peak.center_deg, n, d) * peak.center_err_deg
                 ),
             }
         )

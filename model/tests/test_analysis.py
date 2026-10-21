@@ -19,10 +19,10 @@ from braggsim.analysis import (
     wavelength_table,
 )
 from braggsim.constants import HC_KEV_PM, MO_K_EDGE_KEV, MO_KA_PM, MO_KB_PM, R_INF_PER_M
-from braggsim.crystal import LIF, d_pm, theta_from_lambda
+from braggsim.crystal import LIF, NACL, SI, allowed_orders, d_pm, theta_from_lambda
 from braggsim.detector import dead_time, sample_counts
 from braggsim.filters import FOILS_MM, WHEELS_MM, areal_density_mg_cm2
-from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate
+from braggsim.scan import DEFAULT, coupled_betas, direct_rate, expected_rate, max_order
 from braggsim.source import LINE_EXPONENT_M
 
 # Leaflet settings: 2° → 25°, Δβ = 0.1°, Δt = 10 s, 35 kV, 1 mA (LD P6.3.3.1).
@@ -554,3 +554,29 @@ def test_attenuation_scaled_transmission_rejects_bad_rates():
         scaled_transmission(0.1, 900.0, 1.0, 1.0, 10.0, 10.0, 0.2)
     with pytest.raises(ValueError, match="1/tau"):
         scaled_transmission(1e4, 900.0, 1.0, 1.0, 10.0, 10.0, 0.2, tau_s=1e-4)
+
+
+# --- Crystals with extinct orders (Q1.4) ---------------------------------------------------------
+SI_BETA = coupled_betas(2.0, 28.0, 0.1)
+SI_DT_S = 100.0  # Si reflects far more weakly than NaCl
+
+
+def test_allowed_orders_skip_the_extinct_ones():
+    assert allowed_orders(NACL) == tuple(range(1, max_order(NACL) + 1))
+    si = allowed_orders(SI)
+    assert si[:6] == (1, 3, 4, 5, 7, 8)  # F = 0 for (222), (666), (10 10 10) …
+    assert not {2, 6, 10} & set(si)
+
+
+def test_si_peaks_are_paired_by_allowed_order():
+    rate = expected_rate(SI_BETA, 35.0, 1.0, crystal=SI)
+    rows = wavelength_table(SI_BETA, rate, SI_DT_S, crystal=SI)
+    assert [r["n"] for r in rows if r["line"] == "Ka"][:3] == [1, 3, 4]
+    assert order_means_pm(rows)["Ka"][0] == approx(MO_KA_PM, abs=0.3)
+    assert order_means_pm(rows)["Kb"][0] == approx(MO_KB_PM, abs=0.3)
+
+
+def test_nacl_default_equals_explicit_nacl():
+    rows = wavelength_table(BETA, R_BAR, DT_S)
+    assert rows == wavelength_table(BETA, R_BAR, DT_S, crystal=NACL)
+    assert analysis.FIRST_LINE_DEG == analysis.first_line_deg(NACL)

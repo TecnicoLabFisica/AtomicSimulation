@@ -8,19 +8,19 @@ import { t } from '../i18n'
 import { downloadCsv, downloadExposureCsv } from '../pedagogy/csv'
 import { showHints } from '../pedagogy/mode'
 import { D_NACL_PM, HC_KEV_PM, K_EDGE_KEV, MO_KA_PM, MO_KB_PM } from '../physics/constants'
-import { lambdaFromTheta, thetaFromLambda } from '../physics/crystal'
+import { allowedOrders, lambdaFromTheta, NACL, thetaFromLambda } from '../physics/crystal'
 import { lambdaMinPm } from '../physics/source'
 import { palette, paletteVersion, scaledFont } from './canvas'
 
 const LOG_RANGE = { min: 1, max: 1e5 } // 1/s
 const EMPTY_RANGE = { min: 0, max: 30 } // °, before the first scan
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
-// Explore mode: Bragg angles θₙ of the Mo K lines for every order the crystal reaches (n ≤ 2d/λ, at most MAX_ORDER).
-// NaCl in the usual 0–30° window shows n = 1–4 (Kα reflects up to n = 7); a large-d crystal such as muscovite has many more.
+// Explore mode: Bragg angles θₙ of the Mo K lines for every allowed order the crystal reaches (n ≤ 2d/λ; extinct orders,
+// such as Si 2, 6, 10 …, have no line). NaCl in the usual 0–30° window shows n = 1–4 (Kα reflects up to n = 7); a large-d
+// crystal such as muscovite has many more (the label thinning below keeps them legible).
 // `row` keeps Kα labels on the first row and Kβ on the second.
-const MAX_ORDER = 10
-export const lineMarkers = (dPm: number) =>
-  Array.from({ length: MAX_ORDER }, (_, i) => i + 1).flatMap((n) =>
+export const lineMarkers = (dPm: number, orders: readonly number[] = allowedOrders(NACL)) =>
+  orders.flatMap((n) =>
     [
       { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha-text' as const, row: 0 },
       { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const, row: 1 },
@@ -32,6 +32,9 @@ export function edgeMarkers(setup: Setup, dPm = D_NACL_PM): { el: string; theta:
   const els = [...new Set([setup.collimatorFilter, setup.sensorFilter])].filter((el): el is string => el != null && el in K_EDGE_KEV)
   return els.map((el) => ({ el, theta: thetaFromLambda(HC_KEV_PM / K_EDGE_KEV[el as keyof typeof K_EDGE_KEV], 1, dPm) })).filter((m) => !Number.isNaN(m.theta))
 }
+
+/** Allowed orders of the crystal a stored scan was made with (NaCl when its holder was no crystal). */
+export const scanOrders = (setup: Setup): number[] => allowedOrders(setup.holder === 'crystal' ? crystalOf(setup) : NACL)
 
 /** Plane spacing (pm) of the crystal a stored scan was made with; NaCl when its holder was no crystal. */
 export const scanD = (setup: Setup): number => (setup.holder === 'crystal' ? crystalOf(setup).d_pm : D_NACL_PM)
@@ -171,7 +174,7 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
               // a label closer than the widest one ("10·Kα") to the previous label of its row is left out; the hairline stays
               const minGap = ctx.measureText('10·Kα').width + 4 * k
               const lastLabel = [-Infinity, -Infinity]
-              for (const l of lineMarkers(dPm)) {
+              for (const l of lineMarkers(dPm, scanOrders(scan.setup))) {
                 const x = Math.round(u.valToPos(f * l.theta, 'x', true))
                 if (!(x >= left && x <= right)) continue
                 const y = bbox.top + l.row * row // Kα and Kβ labels on alternate rows
