@@ -9,10 +9,10 @@ tags:
   - plan
 status: planning
 created: 2026-10-14
-updated: 2026-10-20
+updated: 2026-10-21
 current_phase: C2
 next_task: C2.1
-last_session: 2026-10-20
+last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
   - "EPN guide Práctica 1: X-ray attenuation vs absorber material and thickness (refs/atenuacion_RX.pdf)"
@@ -54,8 +54,8 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L2.1`, the remaining half: a test (and a `PARAMETERS.md` note) that the 0.4 mm Fe … Ag absorbers read near the
-> background and dead-time floor. The wheel data (G1.7) and L2.2 (G1.3/G1.4) are already done. Then L2.3.
+> **Next:** `C2.1`, the TS port of the crystal engine (lazy `crystals.json`, the `fixtures/crystals/` fixtures at 1e-9), then C2.2–C2.6 (picker, knock-on views, tasks, reviews).
+> Open for the user: ⏸ Darwin reflectivity for Si/calcite (C1 "As built"), and confirm the revised L2 Done when.
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -696,6 +696,30 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-21 · C1 · tasks C1.1–C1.6 (C1 closed)
+- Done: C1.1 (research by Sonnet: COD/AMCSD CIFs, CODATA, Heacock 2021; `PARAMETERS.md` § Crystal presets). C1.2–C1.3 `crystal.Crystal`, presets, `crystal=` through `scan.py`,
+  `max_order`. C1.4–C1.5 `crystals.json`, `fixtures/crystals/`, `08_crystals.ipynb`. Commits `1282ced`, `e45d427`.
+- Reviews: physics ×2. The engine passed; the honesty wording was not. The mosaic scale is an upper bound (Darwin is 1/20–1/150 lower: a Si wafer is ≈ 0.03 × NaCl, not 0.7). Also fixed:
+  the −3.9 % order-1 reference bias (exp(+2B_fit s₁²)), the false "λ³ per θ" claim, the LiF B effect (≈ 9 %, not 0.5 %), the LiF window (θ₃ ≠ 3θ₁), and the muscovite "peak" (it was the leak edge).
+- Verify: pytest 202 · ruff clean · existing artifacts byte-identical (export twice) · Vitest 128 · notebook 08 executes.
+- Uncommitted: no.
+- Surprises / decisions: muscovite d(002) = 998.5 pm (table fixed). ⏸ Darwin reflectivity for Si/calcite is a user decision (see the C1 "As built" note).
+- Next: C2.1, the TS port (lazy `crystals.json`).
+
+### 2026-10-21 · L2 · tasks L2.1, L2.3–L2.7 (L2 closed)
+- Done: L2.1 test + `PARAMETERS.md` table (`ca30e14`). L2.5 exposure log (`833cfae`), L2.7 exposure CSV (`8541fa4`), L2.3/L2.4 `attenuation_fit`, `scaled_transmission`,
+  `dead_time_correct`, notebook 06, key section (`17e0584`), L2.6 three Lab tasks (`b942601`), design pass (`1b6a11f`). All by Sonnet, briefed and reviewed by Opus; one local commit per task (user, 2026-10-20).
+- Reviews: apparatus (a SENSOR-mode exposure named the wrong slot; sensor angle, counts and `changed` were missing). Physics (the Zr filter at 21 kV leaves a 69–92 pm band, not Mo Kα; the Zr-anomaly
+  wording was wrong; dead time was understated; "much straighter" is not met). Pedagogy (the same physics in the copy, a silent Δt dead end, material filters unchecked, concept chips
+  that hinted the answer). Design (the export read as loose text; the empty plot lied during exposures; the checklist broke "2.5 / mm").
+- Verify: pytest 167 (after L2) · ruff clean · artifacts unchanged · Vitest 128 · build OK (main 88.9 kB gzip, +7.6 kB, mostly task copy) · key byte-stable · notebook 06 executes ·
+  390/1440 px screenshots before and after (headless Firefox).
+- Uncommitted: no.
+- Surprises / decisions: the L2 Done when was revised to "less curved with Zr at 21 kV; at 35 kV not straighter". This changes an acceptance criterion, so the user should confirm it, as with L1's.
+  The guide's 0.02 mA open-beam reading trips the saturation aid, so the material task needs 0.01 mA. Deferred: lazy task strings; an exposure-log table on the monitor
+  (a pedagogy decision); the Zr filter thickness for run 1b (0.05 mm assumed).
+- Next: C1.
 
 ### 2026-10-20 · L1 · task L1.8 (L1 closed)
 - Done: L1.8. `pedagogy-reviewer` over L1.6 + L1.7 + the key (pass with fixes, 14 findings). Opus applied all of them except #13,
