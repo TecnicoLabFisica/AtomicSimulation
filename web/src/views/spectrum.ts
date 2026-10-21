@@ -47,10 +47,26 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   const data = (): uPlot.AlignedData => [xs, log ? ys.map((y) => (y > 0 ? y : null)) : ys] // log: no zeros
 
   root.innerHTML = `<div class="view-head" data-head></div>
-    <div class="plot" data-plot><p class="empty" data-empty><span></span></p></div>`
+    <div class="plot" data-plot><output class="readout" data-readout></output><p class="empty" data-empty><span></span></p></div>`
   const head = root.querySelector<HTMLElement>('[data-head]')!
   const box = root.querySelector<HTMLElement>('[data-plot]')!
   const empty = root.querySelector<HTMLElement>('[data-empty]')!
+
+  let emptyText = ''
+  /** The empty-plot message follows the state (exposure series have no spectrum); written only on change. */
+  const emptyMessage = () => {
+    const s = t()
+    const m = a.exposureLog.length
+    return a.phase === 'exposure' ? s.spectrumExposing : m > 0 ? s.spectrumExposures(m) : s.spectrumEmpty
+  }
+  const emptyShort = () => {
+    const m = a.exposureLog.length
+    return a.phase === 'exposure' ? t().spectrumExposing : m > 0 ? t().spectrumExposuresShort(m) : t().spectrumEmpty
+  }
+  const setEmpty = () => {
+    const txt = emptyMessage()
+    if (txt !== emptyText) empty.firstElementChild!.textContent = emptyText = txt
+  }
 
   const xRange = () => {
     if (!scan) return EMPTY_RANGE
@@ -63,15 +79,17 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     const s = t()
     head.innerHTML = `
       <h2>${s.spectrum}</h2>
-      <output class="readout" data-readout></output>
-      <div class="seg" role="group" aria-label="${s.scale}">
-        <button data-log="0" aria-pressed="${!log}">${s.linear}</button>
-        <button data-log="1" aria-pressed="${log}">${s.log}</button>
-      </div>
-      <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}" disabled>${s.csv}</button>
-      <button class="tool csv" data-csv-exp hidden></button>`
-    empty.firstElementChild!.textContent = s.spectrumEmpty
-    const readout = head.querySelector<HTMLElement>('[data-readout]')!
+      <div class="view-tools">
+        <div class="seg" role="group" aria-label="${s.scale}">
+          <button data-log="0" aria-pressed="${!log}">${s.linear}</button>
+          <button data-log="1" aria-pressed="${log}">${s.log}</button>
+        </div>
+        <button class="tool csv" data-csv aria-label="${s.csvLabel}" title="${s.csvLabel}" disabled>${s.csv}</button>
+        <button class="tool csv" data-csv-exp hidden></button>
+      </div>`
+    emptyText = ''
+    setEmpty()
+    const readout = box.querySelector<HTMLElement>('[data-readout]')!
     const explore = showHints()
     empty.hidden = xs.length > 0
     const P = palette
@@ -224,6 +242,9 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
     // Simulation aid: the exposure series (EPN P1) has its own export, shown once an exposure is logged.
     const exp = head.querySelector<HTMLButtonElement>('[data-csv-exp]')!
     const m = a.exposureLog.length
+    const noScan = n === 0 && m > 0 // exposures only: one export pill, not two
+    if (csv.hidden !== noScan) csv.hidden = noScan
+    setEmpty()
     if (exp.dataset.n !== String(m)) {
       exp.dataset.n = String(m)
       exp.hidden = m === 0
@@ -245,5 +266,5 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
   }
 
   build()
-  return { build, render, canvas: () => plot!.ctx.canvas, version: () => version, empty: () => xs.length === 0 }
+  return { build, render, canvas: () => plot!.ctx.canvas, version: () => version, empty: () => xs.length === 0, emptyText: emptyShort }
 }

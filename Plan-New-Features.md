@@ -10,7 +10,7 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-20
-current_phase: L2
+current_phase: C1
 next_task: C1.4
 last_session: 2026-10-20
 parent: "[[Bragg-Simulation-Plan]]"
@@ -63,9 +63,9 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | G0 | Reference facts and scope | ✅ done | 1 | — |
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
 | L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
-| L2 | Práctica 1: attenuation | 🟨 L2.1 next (L2.2 done in G1) | 2–3 | G1 |
+| L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
-| C1 | Crystal engine and presets (Python) | ⬜ todo | 2 | G0 |
+| C1 | Crystal engine and presets (Python) | 🟨 C1.1–C1.3 done, C1.4–C1.6 in review | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ⬜ todo | 2 | C1 |
 | F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
 | F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
@@ -362,7 +362,10 @@ Dead time at ~1000 /s also bends the data a little, which is real and worth a no
       As built: `csv.exposureCsv`/`downloadExposureCsv` (`xray-exposures-<date>.csv`). Columns are `target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,
       collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s`. An open slot reads `none,0` and the frame reads `frame`. The tables hold mg/cm², not mm.
       The control is a second `.tool.csv` button, "Exposiciones (n)", in the spectrum card header. It is hidden until the log is non-empty and labelled a simulation aid.
-      The design review comes with L2.6.
+      Design review (2026-10-21, with L2.6): approve with changes, applied. The exports are secondary pills in a `.view-tools` group that wraps as a unit, and the scan CSV hides while
+      only exposures exist. The readout moved into the plot. The empty plot now explains an exposure series (`spectrumExposures`) on the card and the 3D monitor. The checklist is a
+      nowrap `<ul>`, and the troubleshooting text moved to a footnote `actHelp`. Simplified on purpose: two pills, not the reviewer's single pill with a menu.
+      Deferred: a visible exposure-log table on the monitor (a pedagogy decision: it may weaken "read REPLAY and note it").
 
 **Done when:** ln T vs d is visibly curved without the Zr filter (μ_eff falls by ≈ 20–25 % from 0.5 to 3 mm) and less curved with it at 21 kV
 (≈ 12–17 %; the Zr leaves a 69–92 pm continuum band, not Mo Kα); at 35 kV with Zr it is not straighter. The key compares μ(Al) with and without Zr

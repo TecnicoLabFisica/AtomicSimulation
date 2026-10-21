@@ -13,6 +13,10 @@ const es = {
   linear: 'Lineal',
   log: 'Log',
   spectrumEmpty: 'Sin datos. Elige un modo, fija los límites y presiona SCAN.',
+  spectrumExposing: 'Exposición en curso (Δβ = 0): al terminar, REPLAY muestra la tasa media.',
+  spectrumExposures: (n: number) =>
+    `${n === 1 ? '1 exposición registrada' : `${n} exposiciones registradas`}. Con Δβ = 0 no hay espectro: REPLAY muestra la última y CSV las descarga todas.`,
+  spectrumExposuresShort: (n: number) => (n === 1 ? '1 exposición registrada' : `${n} exposiciones registradas`),
   huygens: 'Diferencia de camino',
   huygensNote:
     'Cada plano dispersa una pequeña parte del haz. La onda del plano inferior recorre 2d sen θ más; se suman en fase solo si 2d sen θ = nλ.',
@@ -83,7 +87,7 @@ const es = {
   },
   csv: 'CSV',
   csvLabel: 'Descargar los valores guardados (CSV)',
-  csvExposures: (n: number) => `Exposiciones (${n})`,
+  csvExposures: (n: number) => `Exposiciones · ${n}`,
   csvExposuresLabel: (n: number) => `Exportar exposiciones (CSV): ${n} registradas (simulación)`,
   lambdaMinBand: 'λ < λmín: el tubo no la emite',
   kEdge: (el: string) => `borde ${el}`,
@@ -120,6 +124,10 @@ const en: Dict = {
   linear: 'Linear',
   log: 'Log',
   spectrumEmpty: 'No data yet. Choose a mode, set the limits and press SCAN.',
+  spectrumExposing: 'Exposure running (Δβ = 0): when it ends, REPLAY shows the mean rate.',
+  spectrumExposures: (n: number) =>
+    `${n === 1 ? '1 exposure' : `${n} exposures`} logged. With Δβ = 0 there is no spectrum: REPLAY shows the last one and CSV downloads them all.`,
+  spectrumExposuresShort: (n: number) => (n === 1 ? '1 exposure logged' : `${n} exposures logged`),
   huygens: 'Path difference',
   huygensNote:
     'Each plane scatters a small part of the beam. The wave from the lower plane travels 2d sin θ further; they add in phase only if 2d sin θ = nλ.',
@@ -190,7 +198,7 @@ const en: Dict = {
   },
   csv: 'CSV',
   csvLabel: 'Download the stored values (CSV)',
-  csvExposures: (n: number) => `Exposures (${n})`,
+  csvExposures: (n: number) => `Exposures · ${n}`,
   csvExposuresLabel: (n: number) => `Export exposures (CSV): ${n} logged (simulation)`,
   lambdaMinBand: 'λ < λmin: not emitted by the tube',
   kEdge: (el: string) => `${el} edge`,

@@ -43,7 +43,7 @@ const TAP_PX = 6 // a pointer moving further is an orbit drag, not a tap
 export function mountBench(
   canvas: HTMLCanvasElement,
   a: Apparatus,
-  views: { spectrum: { canvas(): HTMLCanvasElement; version(): number; empty(): boolean }; dialDeg(): number },
+  views: { spectrum: { canvas(): HTMLCanvasElement; version(): number; empty(): boolean; emptyText(): string }; dialDeg(): number },
   onPick: (p: Pick | null) => void,
 ) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
@@ -377,7 +377,7 @@ export function mountBench(
   const mc = monitorCanvas.getContext('2d')!
   let monitorSig = ''
   const drawMonitor = (): boolean => {
-    const sig = `${views.spectrum.version()}|${paletteVersion}|${getLang()}`
+    const sig = `${views.spectrum.version()}|${views.spectrum.emptyText()}|${paletteVersion}|${getLang()}`
     if (sig === monitorSig) return false
     monitorSig = sig
     const P = palette
@@ -397,7 +397,7 @@ export function mountBench(
       mc.fillStyle = P['label-2']
       mc.textAlign = 'center'
       mc.font = `36px ${P.font}`
-      mc.fillText(t().spectrumEmpty, w / 2, h / 2, w - 80)
+      mc.fillText(views.spectrum.emptyText(), w / 2, h / 2, w - 80)
     }
     monitorTex.needsUpdate = true
     return true

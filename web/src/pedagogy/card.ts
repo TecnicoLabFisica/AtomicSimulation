@@ -53,14 +53,14 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       </ul>`
   }
 
-  /** The task's checklist as one line, "abierto ✓ · Zr – · …"; done items in the text colour (element symbols stay as they are). */
+  /** The task's checklist as a list, "abierto ✓", "Zr –", …; done items in the text colour (element symbols stay as they are). */
   const progressItems = (k: GuidedTask) =>
     k.progress!(a).map(({ key, done }) => ({
       text: `${(pt().progressLabels as Record<string, string>)[key] ?? key} ${done ? '✓' : '–'}`,
       done,
     }))
   const progressHtml = (items: { text: string; done: boolean }[]) =>
-    items.map((x) => `<span${x.done ? ' data-done' : ''}>${x.text}</span>`).join(' · ')
+    items.map((x) => `<li${x.done ? ' data-done' : ''}>${x.text}</li>`).join('')
 
   const bodyHtml = (k: GuidedTask) => {
     const p = pt()
@@ -76,8 +76,9 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
         <button class="primary" data-commit ${prediction === null ? 'disabled' : ''}>${p.commit}</button>`
     }
     if (step === 1) {
-      const line = k.progress ? `<p class="progress" data-progress>${progressHtml(progressItems(k))}</p>` : ''
-      return `<p>${x.act}</p>${line}<p class="hint">${p.waiting}</p>`
+      const line = k.progress ? `<ul class="progress" data-progress>${progressHtml(progressItems(k))}</ul>` : ''
+      const help = (x as { actHelp?: string }).actHelp
+      return `<p>${x.act}</p>${line}${help ? `<p class="hint">${help}</p>` : ''}<p class="hint">${p.waiting}</p>`
     }
     if (step === 2) {
       return `<p class="done">✓ ${p.done}</p><p>${x.observe}</p>
@@ -167,7 +168,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     if (task?.progress && step === 1) {
       const el = root.querySelector<HTMLElement>('[data-progress]')
       const items = progressItems(task)
-      const text = items.map((x) => x.text).join(' · ')
+      const text = items.map((x) => x.text).join('')
       if (el && el.textContent !== text) el.innerHTML = progressHtml(items) // calm live region: only on change
     }
     if (!task || step !== 1 || !task.success(a)) return false
