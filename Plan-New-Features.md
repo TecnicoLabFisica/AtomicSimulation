@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-21
 current_phase: C2
-next_task: C2.1
+next_task: C2.2
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -516,8 +516,11 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
 ### C2 — Crystal selector (port and UI)
 
 #### S1 — Port
-- [ ] **C2.1** TS port of the generic engine (`crystal.ts`). `D_NACL_PM` becomes an anchor constant, not the only d.
+- [x] **C2.1** TS port of the generic engine (`crystal.ts`). `D_NACL_PM` becomes an anchor constant, not the only d.
       Vitest on all preset fixtures.
+      As built (2026-10-21): `tables.loadCrystals()`/`CRYSTALS`/`crystalsLoaded()` load lazily. `crystal.ts` has `Crystal`, `NACL` (built in, no JSON), `isNacl` (by name; Python uses identity),
+      `dPm` and `muFactor`. `scan.ts` has `maxOrder`, `orderStrengths`, and `expectedRate(..., crystal)`; the tube cache is keyed on the crystal. The crystal fixtures match to ≤ 1.4e-14, and NaCl is unchanged.
+      Main bundle 89.5 kB gzip (+0.6). The `crystals` chunk appears once the UI calls `loadCrystals()`.
 
 #### S2 — UI and knock-on effects
 - [ ] **C2.2** Crystal picker on the target holder (setup tray from G1). The door must be open to swap.

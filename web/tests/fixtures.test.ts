@@ -4,14 +4,19 @@ import { beforeAll, describe, expect, test } from 'vitest'
 import { deadTime } from '../src/physics/detector'
 import { ABSORBERS, transmission } from '../src/physics/filters'
 import { DEFAULT, coupledBetas, directRate, expectedRate, modelParams, type ModelParams } from '../src/physics/scan'
-import { MODEL_VERSION, loadAbsorbers } from '../src/physics/tables'
+import { MODEL_VERSION, CRYSTALS, loadAbsorbers, loadCrystals } from '../src/physics/tables'
 
 type Case = { description?: string; function?: string; inputs: Record<string, any>; expected: Record<string, any> }
 type Fixture = Case & { name: string; function: string; model_version: string; cases?: Case[] }
 
-beforeAll(loadAbsorbers)
+beforeAll(async () => {
+  await loadAbsorbers()
+  await loadCrystals()
+})
 
-const files = import.meta.glob<Fixture>('../../artifacts/fixtures/*.json', { eager: true, import: 'default' })
+const baseFiles = import.meta.glob<Fixture>('../../artifacts/fixtures/*.json', { eager: true, import: 'default' })
+const crystalFiles = import.meta.glob<Fixture>('../../artifacts/fixtures/crystals/*.json', { eager: true, import: 'default' })
+const files = { ...baseFiles, ...crystalFiles }
 
 function expectClose(actual: ArrayLike<number>, expected: number[]) {
   expect(actual.length).toBe(expected.length)
@@ -27,12 +32,13 @@ function run(fn: string, c: Case) {
   switch (fn) {
     case 'scan.expected_rate': {
       const params: ModelParams = x.params ? modelParams(x.params) : DEFAULT
-      const rate = expectedRate(x.beta_deg, x.U_kV, x.I_mA, params, x.sensor_deg, x.filters)
+      const crystal = x.crystal ? CRYSTALS[x.crystal] : undefined
+      const rate = expectedRate(x.beta_deg, x.U_kV, x.I_mA, params, x.sensor_deg, x.filters, crystal)
       expectClose(rate, c.expected.rate_per_s)
       // The live apparatus asks for one β at a time: it must give the batch values.
       const n = x.beta_deg.length
       for (const i of [0, 1, n >> 2, n >> 1, (3 * n) >> 2, n - 2, n - 1].filter((i) => i >= 0 && i < n)) {
-        const one = expectedRate([x.beta_deg[i]], x.U_kV, x.I_mA, params, x.sensor_deg && [x.sensor_deg[i]], x.filters)
+        const one = expectedRate([x.beta_deg[i]], x.U_kV, x.I_mA, params, x.sensor_deg && [x.sensor_deg[i]], x.filters, crystal)
         expectClose(one, [c.expected.rate_per_s[i]])
       }
       return
@@ -57,6 +63,7 @@ function run(fn: string, c: Case) {
 
 describe('artifacts/fixtures', () => {
   test('fixtures exist and share the tables’ model version', () => {
+    expect(Object.keys(crystalFiles).length).toBe(4)
     expect(Object.keys(files).length).toBeGreaterThan(10)
     for (const f of Object.values(files)) expect(f.model_version).toBe(MODEL_VERSION)
   })

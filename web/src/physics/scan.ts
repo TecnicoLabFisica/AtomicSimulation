@@ -5,10 +5,14 @@
 // in DEFAULT is documented in model/PARAMETERS.md.
 import { D_NACL_PM, MO_KA_COMPONENTS, MO_KB_COMPONENTS } from './constants'
 import {
+  NACL,
+  dPm,
+  isNacl,
+  muFactor,
+  type Crystal,
   dlambdaDthetaPmPerDeg,
   lambdaFromTheta,
   lorentzPolarization,
-  structureFactorSqRel,
   thetaFromLambda,
 } from './crystal'
 import { deadTime } from './detector'
@@ -84,13 +88,26 @@ export function modelParams(
 
 export const DEFAULT = modelParams(DEFAULT_PARAMS_JSON)
 
-/** port of ModelParams.order_reflectivity: r_n for n = 1 … MAX_ORDER (index n − 1). */
-export function orderReflectivity(params: ModelParams): number[] {
-  const s1Sq = (1 / (2 * D_NACL_PM)) ** 2
-  return structureFactorSqRel(MAX_ORDER).map(
-    (f, i) => f * Math.exp(-2 * params.debye_waller_pm2 * ((i + 1) * (i + 1) - 1) * s1Sq),
-  )
+/** port of braggsim.scan.max_order: highest order that reaches the counter, n λ_min(U) ≤ 2d sin 85°. */
+export function maxOrder(crystal: Crystal = NACL, UkV: number = U_MAX_KV): number {
+  return Math.max(Math.trunc((2 * dPm(crystal) * Math.sin((BETA_MAX_DEG * Math.PI) / 180)) / lambdaMinPm(UkV)), 1)
 }
+
+/** port of ModelParams.order_strengths: r_n for n = 1 … maxOrder(crystal) (index n − 1), relative to NaCl order 1.
+ * k = cell_scale · exp(2 B_fit / (2 d_NaCl)²) for the non-anchor crystals; B is the fitted value for the anchor
+ * and 0 for the others. The λ-dependent muFactor is applied per λ in the scan. */
+export function orderStrengths(params: ModelParams, crystal: Crystal = NACL): number[] {
+  const s1Sq = (1 / (2 * dPm(crystal))) ** 2
+  const b = crystal.fitted_debye_waller ? params.debye_waller_pm2 : 0
+  let k = crystal.cell_scale
+  if (!crystal.fitted_debye_waller) k *= Math.exp((2 * params.debye_waller_pm2) / (2 * D_NACL_PM) ** 2)
+  const n = maxOrder(crystal)
+  if (n > crystal.f_sq_rel.length) throw new RangeError(`${crystal.name}: f_sq_rel stops at n = ${crystal.f_sq_rel.length}`)
+  return crystal.f_sq_rel.slice(0, n).map((f, i) => k * f * Math.exp(-2 * b * ((i + 1) * (i + 1) - 1) * s1Sq))
+}
+
+/** port of ModelParams.order_reflectivity: orderStrengths for NaCl. */
+export const orderReflectivity = (params: ModelParams): number[] => orderStrengths(params, NACL)
 
 /** port of braggsim.scan.coupled_betas: target angles from lo to at most hi in steps of step (°). */
 export function coupledBetas(loDeg: number, hiDeg: number, stepDeg: number): Float64Array {
@@ -125,6 +142,7 @@ function moLines(UkV: number, ImA: number, params: ModelParams): [number, number
 // this one grid over the whole range. That makes live single-β steps cheap (plan, Phase 5 notes).
 type Tube = {
   params: ModelParams
+  crystal: Crystal
   U: number
   I: number
   filtersKey: string // JSON of the filters: callers pass fresh arrays, so identity cannot key the cache
@@ -136,11 +154,13 @@ type Tube = {
 let cache: Tube | undefined
 const photonsOutRef = new WeakMap<ModelParams, number>()
 
-function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filters): Tube {
+function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filters, crystal: Crystal): Tube {
   const filtersKey = JSON.stringify(filters)
-  if (cache && cache.params === params && cache.U === UkV && cache.I === ImA && cache.filtersKey === filtersKey) return cache
+  if (cache && cache.params === params && cache.crystal === crystal && cache.U === UkV && cache.I === ImA && cache.filtersKey === filtersKey) return cache
   if (!validated.has(params)) throw new TypeError('params must come from modelParams()')
-  const orders = orderReflectivity(params)
+  const orders = orderStrengths(params, crystal)
+  const d = dPm(crystal)
+  const anchor = isNacl(crystal)
   const half = Math.ceil((KERNEL_HALF_WIDTH_SIGMA * params.sigma_deg) / THETA_STEP_DEG)
   const iHi = Math.ceil(BETA_MAX_DEG / THETA_STEP_DEG) + half
   const thetaGrid = Float64Array.from({ length: iHi }, (_, i) => THETA_STEP_DEG * (i + 1))
@@ -150,10 +170,12 @@ function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filte
       const n = i + 1
       for (let j = 0; j < iHi; j++) {
         const th = thetaGrid[j]
-        const lam = lambdaFromTheta(th, n)
+        const lam = lambdaFromTheta(th, n, d)
         const spec = continuum(lam, UkV, ImA)
-        if (spec > 0)
-          density[j] += r * spec * transmissionTotal(lam, params, filters) * dlambdaDthetaPmPerDeg(th, n) * lorentzPolarization(th)
+        if (spec > 0) {
+          const term = r * spec * transmissionTotal(lam, params, filters) * dlambdaDthetaPmPerDeg(th, n, d) * lorentzPolarization(th)
+          density[j] += anchor ? term : term * muFactor(crystal, lam)
+        }
       }
     })
   }
@@ -165,13 +187,14 @@ function tubeState(UkV: number, ImA: number, params: ModelParams, filters: Filte
   const moLineList = moLines(UkV, ImA, params)
   orders.forEach((r, i) => {
     for (const [lam, rate] of moLineList) {
-      const theta = thetaFromLambda(lam, i + 1)
+      const theta = thetaFromLambda(lam, i + 1, d)
       if (rate === 0 || Number.isNaN(theta)) continue
-      lines.push({ theta, weight: r * rate * transmissionTotal(lam, params, filters) * lorentzPolarization(theta) })
+      const weight = r * rate * transmissionTotal(lam, params, filters) * lorentzPolarization(theta)
+      lines.push({ theta, weight: anchor ? weight : weight * muFactor(crystal, lam) })
     }
   })
   cache = {
-    params, U: UkV, I: ImA, filtersKey, tube: tubeFactor(UkV, ImA, params, filters), thetaGrid,
+    params, crystal, U: UkV, I: ImA, filtersKey, tube: tubeFactor(UkV, ImA, params, filters), thetaGrid,
     smoothed: convolveSame(density, kernel.map((k) => k / kSum)), lines,
   } // prettier-ignore
   return cache
@@ -207,7 +230,7 @@ function checkTube(UkV: number, ImA: number): void {
 /** port of braggsim.scan.expected_rate: expected observed rate R̄ in counts/s (deterministic).
  * `betaDeg`: target angles; `sensorDeg`: sensor angles, same length, or null/undefined for the 2:1
  * coupled scan (sensor at 2β). Throws on the same invalid inputs as Python. A crystal turned half a
- * turn (β = S/2 + 180°) reflects nothing: its holder blocks the beam. `filters`: absorbers in the beam. */
+ * turn (β = S/2 + 180°) reflects nothing: its holder blocks the beam. `filters`: absorbers in the beam. `crystal`: default NaCl; the others need loadCrystals(). */
 export function expectedRate(
   betaDeg: ArrayLike<number>,
   UkV: number,
@@ -215,6 +238,7 @@ export function expectedRate(
   params: ModelParams = DEFAULT,
   sensorDeg?: ArrayLike<number> | null,
   filters: Filters = [],
+  crystal: Crystal = NACL,
 ): Float64Array {
   const beta = Float64Array.from(betaDeg)
   let sensor: Float64Array
@@ -234,7 +258,7 @@ export function expectedRate(
   checkFilters(filters)
   const out = new Float64Array(beta.length)
   if (beta.length === 0) return out
-  const t = tubeState(UkV, ImA, params, filters)
+  const t = tubeState(UkV, ImA, params, filters, crystal)
   const on = ImA > 0 && UkV > 0
   for (let i = 0; i < beta.length; i++) {
     const s = sensor[i]

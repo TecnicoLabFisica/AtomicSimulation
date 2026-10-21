@@ -1,7 +1,8 @@
 // port of braggsim.crystal: Bragg geometry at the NaCl monocrystal, n λ = 2 d sin θ
 // (LD P6.3.3.1, Eq. I). θ is the glancing angle in degrees. Scalar functions: map them over arrays.
 import { D_NACL_PM } from './constants'
-import { STRUCTURE_FACTOR_SQ_REL } from './tables'
+import { interp } from './numpy'
+import { CRYSTALS, LOG_MU_RHO_GRID, STRUCTURE_FACTOR_SQ_REL } from './tables'
 
 const DEG = 180 / Math.PI
 const RAD = Math.PI / 180
@@ -34,4 +35,64 @@ export function lorentzPolarization(thetaDeg: number): number {
 export function structureFactorSqRel(nMax: number): readonly number[] {
   if (nMax > STRUCTURE_FACTOR_SQ_REL.length) throw new RangeError(`table stops at n = ${STRUCTURE_FACTOR_SQ_REL.length}`)
   return STRUCTURE_FACTOR_SQ_REL.slice(0, nMax)
+}
+
+/** port of braggsim.crystal.Crystal, as exported to artifacts/tables/crystals.json (the atom basis stays in
+ * Python; the derived tables are what the browser needs). */
+export type Crystal = Readonly<{
+  name: string
+  a_pm: number
+  b_pm: number
+  c_pm: number
+  alpha_deg: number
+  beta_deg: number
+  gamma_deg: number
+  cut: readonly number[] // (h, k, l) of the first reflection of the series
+  d_pm: number // spacing of that first reflection
+  density_g_cm3: number
+  max_order: number // at 35 kV
+  cell_scale: number // (|F_1|²/V²) / (|F_1|²/V²)_NaCl
+  f_sq_rel: readonly number[] // |F_n|²/|F_1|², n = 1 … max_order
+  mu_per_cm: readonly number[] // linear attenuation on MU_RHO_GRID_PM; empty for the built-in NACL
+  fitted_debye_waller: boolean // true only for the NaCl anchor
+  reflectivity_model: string
+  source: string
+}>
+
+/** port of braggsim.crystal.NACL: the calibrated anchor, available without crystals.json. Its mu_per_cm table
+ * lives in CRYSTALS.NaCl once loadCrystals() has run (only non-NaCl crystals need it). */
+export const NACL: Crystal = Object.freeze({
+  name: 'NaCl', a_pm: 564.02, b_pm: 564.02, c_pm: 564.02, alpha_deg: 90, beta_deg: 90, gamma_deg: 90,
+  cut: [2, 0, 0], d_pm: D_NACL_PM, density_g_cm3: 2.1641351917042018, max_order: 15, cell_scale: 1,
+  f_sq_rel: STRUCTURE_FACTOR_SQ_REL.slice(0, 15), mu_per_cm: [], fitted_debye_waller: true,
+  reflectivity_model: 'ideal_mosaic', source: 'LD P6.3.3.1 (a0 = 564.02 pm, d = 282.01 pm)',
+}) // prettier-ignore
+
+/** The anchor is recognised by name, where Python tests `crystal is NACL`. */
+export const isNacl = (crystal: Crystal): boolean => crystal.name === 'NaCl'
+
+/** port of braggsim.crystal.d_pm: spacing in pm of the first reflection of the cut series. */
+export const dPm = (crystal: Crystal): number => crystal.d_pm
+
+const logMuCache = new WeakMap<Crystal, Float64Array>()
+function logMuPerCm(crystal: Crystal): Float64Array {
+  let t = logMuCache.get(crystal)
+  if (!t) {
+    if (crystal.mu_per_cm.length === 0) throw new Error(`${crystal.name}: no μ table (await loadCrystals())`)
+    logMuCache.set(crystal, (t = Float64Array.from(crystal.mu_per_cm, Math.log)))
+  }
+  return t
+}
+
+/** port of braggsim.crystal.linear_attenuation_per_cm: μ(λ) in 1/cm, log–log, end values held. */
+export function linearAttenuationPerCm(crystal: Crystal, lambdaPm: number): number {
+  return Math.exp(interp(Math.log(lambdaPm), LOG_MU_RHO_GRID, logMuPerCm(crystal)))
+}
+
+/** port of braggsim.crystal.mu_factor: μ_NaCl(λ) / μ_crystal(λ), 1 for NaCl. Needs loadCrystals(). */
+export function muFactor(crystal: Crystal, lambdaPm: number): number {
+  if (isNacl(crystal)) return 1
+  const nacl = CRYSTALS.NaCl
+  if (!nacl) throw new Error('crystals not loaded (await loadCrystals())')
+  return linearAttenuationPerCm(nacl, lambdaPm) / linearAttenuationPerCm(crystal, lambdaPm)
 }
