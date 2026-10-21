@@ -247,9 +247,9 @@ export class Apparatus {
     return this.expectedRate() * this.params.tau_s > SATURATION_OBSERVED_TAU
   }
 
-  /** Change the accessories; only with the door open (§6). Refused (false) with doors closed. */
+  /** Change the accessories; only with the door open and the HV off (§6). Refused (false) otherwise. */
   mount(setup: Setup): boolean {
-    if (this.doorsClosed) return false
+    if (this.doorsClosed || this.hvOn || this.busy) return false
     const names = [setup.collimatorFilter, setup.sensorFilter].filter((n) => n !== null)
     if ((setup.holder.endsWith('Wheel') || names.length > 0) && !absorbersLoaded()) throw new RangeError('absorber tables not loaded')
     for (const n of names) if (!Object.hasOwn(FOILS_MG_CM2, n)) throw new RangeError(`unknown filter ${n}`)

@@ -231,8 +231,9 @@ button, select { font: inherit; color: inherit; }
 .setup[open] summary::after { rotate: 90deg; }
 .setup label[hidden] { display: none; }
 .setup label { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: var(--touch); border-top: var(--stroke-hair) solid var(--separator); }
-.setup select { min-height: var(--touch); max-width: 60%; border: none; border-radius: var(--radius-full); background: var(--fill); color: var(--label); padding: 0 var(--space-3); font: inherit; }
+.setup select { min-height: var(--touch); inline-size: 50%; border: none; border-radius: var(--radius-full); background: var(--fill); color: var(--label); padding: 0 var(--space-3); font: inherit; }
 .setup select:disabled { opacity: 1; color: var(--label-2); background: none; appearance: none; padding-inline-end: 0; cursor: default; }
+.setup > .hint { padding-block-end: var(--space-2); }
 .chamber-card > .hint { margin: 0 var(--space-4) var(--space-2); }
 /* A guided task's act instruction while its card is closed; tap to reopen the card. */
 .act-strip {

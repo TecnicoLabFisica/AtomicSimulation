@@ -16,12 +16,15 @@ const DASH_PX_PER_S = 40 // the beam's dashes travel while the tube emits
 const LABEL_MIN_GAP_PX = 40 // angle labels every 5°, 10°, 20° or 30°, whichever keeps them this far apart ("170°" is ~28 px)
 const RAD = Math.PI / 180
 const GRAB_SLACK_CM = 1.3 // explore mode: a pointer this much closer to the axis than the handle's far side still grabs
-// Explore mode: where the counter meets each line, sensor angle 2θₙ (n = 1–3).
+// Explore mode: where the counter meets each line, sensor angle 2θₙ, for every order the crystal reaches (n ≤ 2d/λ,
+// at most 10) that fits on the 0–170° scale.
 const expectedLines = (dPm: number) =>
-  [1, 2, 3].flatMap((n) => [
-    { deg: 2 * thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha' as const },
-    { deg: 2 * thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const },
-  ])
+  Array.from({ length: 10 }, (_, i) => i + 1)
+    .flatMap((n) => [
+      { deg: 2 * thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha' as const },
+      { deg: 2 * thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const },
+    ])
+    .filter((m) => m.deg <= 170) // NaN fails too
 
 /** Folded target angle in degrees (float), as the display shows it. */
 const foldDeg = (tenths: number) => wrapTarget(tenths) / 10

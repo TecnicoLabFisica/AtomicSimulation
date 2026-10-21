@@ -549,6 +549,8 @@ describe('setup (G1.7)', () => {
   test('mount refused while HV is on; no specular beam without crystal; saturated off with HV off', () => {
     const a = running(35, 1, { holder: 'empty' })
     expect(a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })).toBe(false)
+    a.doorsClosed = false // forced: the interlock of mount() itself still refuses with HV on
+    expect(a.mount({ holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null })).toBe(false)
     expect(a.specularRate()).toBe(0)
     a.press('HV')
     expect(a.saturated).toBe(false)

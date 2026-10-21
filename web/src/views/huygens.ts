@@ -5,7 +5,7 @@
 import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
 import { t } from '../i18n'
 import { D_NACL_PM, MO_KA_PM, MO_KB_PM } from '../physics/constants'
-import { lambdaFromTheta, thetaFromLambda } from '../physics/crystal'
+import { lambdaFromTheta, thetaFromLambda, type Crystal } from '../physics/crystal'
 import { DEFAULT } from '../physics/scan'
 import { dpr, palette, paletteVersion, reducedMotion, scaledFont, watchSize } from './canvas'
 
@@ -56,16 +56,22 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     build()
   })
 
-  const draw = (thetaDeg: number, lambdaPm: number, met: boolean, dPm: number) => {
+  const draw = (thetaDeg: number, lambdaPm: number, met: boolean, crystal: Crystal) => {
+    const dPm = crystal.d_pm
     const P = palette
     const S = t()
     const k = dpr()
     const W = canvas.width
     const H = canvas.height
-    const d = 0.14 * H // plane spacing in px
-    const px = d / dPm // px per pm
+    const unit = 0.14 * H // schematic size: ions, in-plane spacing and crest marks never follow the zoomed d
+    // px per pm: the planes 0.14 H apart, but zoomed in until a Kβ wavelength is 8 px (muscovite: d ≈ 10 Å),
+    // the same for Kα and Kβ so the line toggle does not rescale the planes. Isotropic: the angles stay true.
+    const px = Math.max(unit / dPm, (8 * k) / MO_KB_PM)
+    const d = dPm * px // plane spacing in px
     const cx = W / 2
     const y0 = 0.3 * H
+    const planes = Math.min(PLANES, Math.max(2, Math.floor((0.78 * H - y0) / d) + 1)) // above the comparison bars
+    const single = crystal.name === 'Si' // one species: uniform dots
     const th = thetaDeg * RAD
     const [c, s] = [Math.cos(th), Math.sin(th)]
     const lineColour = P[line === 'ka' ? 'phys-kalpha' : 'phys-kbeta']
@@ -75,7 +81,7 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     // Lattice planes one d apart, with alternating ions along them (schematic: the in-plane spacing is d).
     ctx.strokeStyle = ctx.fillStyle = P['phys-crystal']
     ctx.lineWidth = k
-    for (let j = 0; j < PLANES; j++) {
+    for (let j = 0; j < planes; j++) {
       const y = y0 + j * d
       ctx.globalAlpha = 0.35
       ctx.beginPath()
@@ -83,9 +89,9 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
       ctx.lineTo(W, y)
       ctx.stroke()
       ctx.globalAlpha = 0.8
-      for (let i = -Math.ceil(cx / d); i <= Math.ceil(cx / d); i++) {
+      for (let i = -Math.ceil(cx / unit); i <= Math.ceil(cx / unit); i++) {
         ctx.beginPath()
-        ctx.arc(cx + i * d, y, ((i + j) % 2 ? 0.07 : 0.1) * d, 0, 2 * Math.PI)
+        ctx.arc(cx + i * unit, y, ((i + j) % 2 && !single ? 0.07 : 0.1) * unit, 0, 2 * Math.PI)
         ctx.fill()
       }
     }
@@ -95,8 +101,8 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     // Rays: in along (c, s), out along (c, −s), reflected at (cx, y0 + j d). Crests sit where the path
     // length u + j d sin θ (u: signed distance from the reflection point) is a whole number of λ.
     const R = Math.hypot(W, H)
-    const half = 0.15 * d
-    for (let j = 0; j < PLANES; j++) {
+    const half = 0.15 * unit
+    for (let j = 0; j < planes; j++) {
       const py = y0 + j * d
       ctx.strokeStyle = P['phys-beam']
       ctx.globalAlpha = 0.5
@@ -190,13 +196,13 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const s = t()
     const eqText = valid
       ? [
-          s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm), // Explore panel: showing d is fine here
+          s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut), // Explore panel: showing d is fine here
           `θ = β = ${thetaDeg.toFixed(1)}°`,
           `${s.pathDiff} = ${lambdaFromTheta(thetaDeg, 1, dPm).toFixed(1)} pm ${met ? '≈' : '≠'} nλ = ${n} × ${lambdaPm.toFixed(1)} = ${(n * lambdaPm).toFixed(1)} pm`,
         ]
           .map((part) => `<span>${part.replaceAll(' ', '\u00a0')}</span>`)
           .join('')
-      : `<span>${s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
+      : `<span>${s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
     const eqKey = `${eqText} ${met}`
     if (eqKey !== shownEq) {
       eq.innerHTML = `${eqText} <strong class="met" data-met="${met}">${met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
@@ -206,10 +212,10 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const animate = valid && !reducedMotion()
     if (animate) phasePm = (phasePm + CREST_PM_PER_S * dtS) % lambdaPm
     else phasePm = 0
-    const key = `${thetaDeg} ${line} ${met} ${paletteVersion} ${s.pathDiff} ${dPm}`
+    const key = `${thetaDeg} ${line} ${met} ${paletteVersion} ${s.pathDiff} ${c.name}`
     if (!resized && !animate && key === drawn) return
     ;[drawn, resized] = [key, false]
-    draw(thetaDeg, lambdaPm, met, dPm)
+    draw(thetaDeg, lambdaPm, met, c)
   }
 
   watchSize(canvas, () => {

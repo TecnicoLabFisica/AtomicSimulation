@@ -15,13 +15,17 @@ import { palette, paletteVersion, scaledFont } from './canvas'
 const LOG_RANGE = { min: 1, max: 1e5 } // 1/s
 const EMPTY_RANGE = { min: 0, max: 30 } // °, before the first scan
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
-// Explore mode: Bragg angles θₙ of the Mo K lines, n = 1–3 (Kα reflects up to n = 7; the leaflet's scan
-// shows three orders).
+// Explore mode: Bragg angles θₙ of the Mo K lines for every order the crystal reaches (n ≤ 2d/λ, at most MAX_ORDER).
+// NaCl in the usual 0–30° window shows n = 1–4 (Kα reflects up to n = 7); a large-d crystal such as muscovite has many more.
+// `row` keeps Kα labels on the first row and Kβ on the second.
+const MAX_ORDER = 10
 export const lineMarkers = (dPm: number) =>
-  [1, 2, 3].flatMap((n) => [
-    { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha-text' as const },
-    { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const },
-  ])
+  Array.from({ length: MAX_ORDER }, (_, i) => i + 1).flatMap((n) =>
+    [
+      { label: `${n}·Kα`, theta: thetaFromLambda(MO_KA_PM, n, dPm), colour: 'phys-kalpha-text' as const, row: 0 },
+      { label: `${n}·Kβ`, theta: thetaFromLambda(MO_KB_PM, n, dPm), colour: 'phys-kbeta' as const, row: 1 },
+    ].filter((m) => !Number.isNaN(m.theta)),
+  )
 
 /** K-edge angles (°) of the foils in a setup, first order: the practice and the step in T(λ) that students read are n = 1. */
 export function edgeMarkers(setup: Setup, dPm = D_NACL_PM): { el: string; theta: number }[] {
@@ -163,13 +167,19 @@ export function mountSpectrum(root: HTMLElement, a: Apparatus) {
                 if (empty.hidden && ctx.measureText(band).width < x1 - x0) ctx.fillText(band, x0 + 4 * k, bbox.top + bbox.height - row - 4 * k)
               }
               ctx.textAlign = 'center'
-              for (const [i, l] of lineMarkers(dPm).entries()) {
+              // a label closer than the widest one ("10·Kα") to the previous label of its row is left out; the hairline stays
+              const minGap = ctx.measureText('10·Kα').width + 4 * k
+              const lastLabel = [-Infinity, -Infinity]
+              for (const l of lineMarkers(dPm)) {
                 const x = Math.round(u.valToPos(f * l.theta, 'x', true))
                 if (!(x >= left && x <= right)) continue
-                const y = bbox.top + (i % 2) * row // Kα and Kβ labels on alternate rows
+                const y = bbox.top + l.row * row // Kα and Kβ labels on alternate rows
                 const kb = l.colour === 'phys-kbeta'
                 ctx.fillStyle = P[l.colour]
-                ctx.fillText(l.label, x, y)
+                if (x - lastLabel[l.row] >= minGap) {
+                  ctx.fillText(l.label, x, y)
+                  lastLabel[l.row] = x
+                }
                 // Kβ dashed, so the two lines differ by more than colour
                 ctx.strokeStyle = P[kb ? 'phys-kbeta' : 'phys-kalpha']
                 ctx.lineWidth = k

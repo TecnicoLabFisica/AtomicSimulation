@@ -13,6 +13,7 @@ export const task: GuidedTask = {
   mode: 'explore',
   level: 1,
   crystal: 'NaCl',
+  holder: 'crystal',
   controls: ['COUPLED', 'HV'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },
   predict: { kind: 'number', unit: '°' },

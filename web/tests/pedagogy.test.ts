@@ -69,6 +69,43 @@ describe('crystal of a task', () => {
     expect(a.setup.crystal).toBe('NaCl')
   })
 
+  test('a task started on an unsafe bench ends idle, HV off, doors closed, with its crystal and no replay', async () => {
+    await loadCrystals()
+    const dirty: [string, (a: Apparatus) => void][] = [
+      ['HV on', (a) => { a.press('HV'); a.tick(SAFETY_S) }],
+      ['self-test', (a) => a.press('HV')],
+      ['positioning', (a) => { a.press('COUPLED'); a.adjust(300); a.press('SCAN') }],
+      ['mid-scan', (a) => { a.press('COUPLED'); a.adjust(72); a.press('SCAN'); a.tick(SAFETY_S + 3) }],
+    ]
+    for (const [name, prepare] of dirty) {
+      const a = new Apparatus(mulberry32(1))
+      ;[a.u, a.i, a.dt, a.dBeta] = [210, 5, 4, 1]
+      prepare(a)
+      applyInitial(a, lif.initial, lif.crystal, lif.holder)
+      expect(a.busy, name).toBe(false)
+      expect(a.hvOn, name).toBe(false)
+      expect(a.doorsClosed, name).toBe(true)
+      expect(a.setup.crystal, name).toBe('LiF')
+      expect(a.replay, name).toHaveLength(0)
+    }
+  })
+
+  test('the Bragg tasks put the crystal holder back; the attenuation tasks leave their wheel', async () => {
+    expect(TASKS.filter((t) => t.holder === 'crystal').map((t) => t.id).sort()).toEqual(
+      ['kalpha-third-order', 'lambda-three-orders', 'lif-kalpha-angle', 'line-threshold', 'moseley-k-edges'])
+    expect(attThickness.holder).toBeUndefined()
+    expect(attMaterial.holder).toBeUndefined()
+    expect(background.holder).toBeUndefined()
+    await loadAbsorbers()
+    const a = new Apparatus(mulberry32(1))
+    a.setDoors(false)
+    a.mount({ ...a.setup, holder: 'alWheel' })
+    a.setDoors(true)
+    applyInitial(a, kalpha.initial, kalpha.crystal, kalpha.holder)
+    expect(a.setup.holder).toBe('crystal')
+    expect(a.doorsClosed).toBe(true)
+  })
+
   test('the attenuation tasks keep the plate wheel the student mounted', async () => {
     await loadAbsorbers()
     const a = new Apparatus(mulberry32(1))
@@ -497,9 +534,9 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
     const text = JSON.stringify(student)
     for (const leak of ['7.0', '6.3', '4.9', '4.5', '68', '62.0', '48', '44', '17.9', '25.5', '27.9'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
-    // The LiF variant's window and edges (≈ 6.0–10.2°, 6.3, 6.9, 8.9, 9.8°) stay in the teacher note, even as the
-    // sentence is in the student text: no angle of LiF there.
-    for (const leak of ['6.9', '8.9', '9.8', '10.2', '6.0°', 'LiF (d'])
+    // The LiF variant's edges (6.3, 6.9, 8.9, 9.8°) and windows (6.0–10.2°, 5.2–10.5°) stay in the teacher note: the
+    // student text names the crystal and its d (201.4 pm), never an angle of LiF.
+    for (const leak of ['6.9', '8.9', '9.8', '10.2', '6.0°', '5.2', '10.5'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
     // Attenuation: T, μ/ρ and rates are in the teacher notes only; the observation does not give the answer.
     for (const t of [attThickness, attMaterial, background]) {
@@ -538,10 +575,10 @@ describe('exposureCsv', () => {
       '# 1970-01-01T00:00:00.000Z',
     ])
     expect(lines[3]).toBe('# rate_per_s is the mean rate over dt, as REPLAY shows it (counts / dt); areal_density_mg_cm2 is that of the absorber in the beam')
-    expect(lines[4]).toBe('target_deg,sensor_deg,mode,holder,slot,absorber,areal_density_mg_cm2,collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s')
+    expect(lines[4]).toBe('target_deg,sensor_deg,mode,holder,crystal,slot,absorber,areal_density_mg_cm2,collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s')
     expect(lines).toHaveLength(5 + 2)
-    expect(lines[5]).toMatch(/^20\.0,0\.0,TARGET,alWheel,2,Al,269\.89,,Zr,21\.0,0\.05,4,0,\d+,\d+(\.\d+)?$/)
-    expect(lines[6]).toMatch(/^5\.0,0\.0,TARGET,alWheel,,frame,,,Zr,21\.0,0\.05,4,0,\d+,\d+(\.\d+)?$/)
+    expect(lines[5]).toMatch(/^20\.0,0\.0,TARGET,alWheel,,2,Al,269\.89,,Zr,21\.0,0\.05,4,0,\d+,\d+(\.\d+)?$/)
+    expect(lines[6]).toMatch(/^5\.0,0\.0,TARGET,alWheel,,,frame,,,Zr,21\.0,0\.05,4,0,\d+,\d+(\.\d+)?$/)
   })
 
   test('open slot, no plate, and a COUPLED crystal exposure with both angles', () => {
@@ -561,7 +598,8 @@ describe('exposureCsv', () => {
     a.press('SCAN')
     a.tick(SAFETY_S)
     const lines = exposureCsv(a, new Date(0))!.trimEnd().split('\n')
-    expect(lines[6]).toMatch(/^0\.0,0\.0,,alWheel,0,none,0,,,21\.0,/)
-    expect(lines[7]).toMatch(/^7\.2,14\.4,COUPLED,crystal,,,,,,21\.0,0\.05,4,0,/)
+    expect(lines[5]).toMatch(/^0\.0,0\.0,,alWheel,,0,none,0,,,21\.0,/)
+    expect(lines[6]).toMatch(/^7\.2,14\.4,COUPLED,crystal,NaCl,,,,,,21\.0,0\.05,4,0,/)
+    expect(lines.join('\n')).not.toContain('# crystal:')
   })
 })

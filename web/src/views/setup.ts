@@ -18,11 +18,10 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     root.innerHTML = `
       <summary data-summary></summary>
       <label>${s.holder}<select data-field="holder">${opts(HOLDERS.map((h) => [h, s.holders[h]]))}</select></label>
-      <label data-crystal-row>${s.crystal}<select data-field="crystal">${opts(Object.entries(s.crystals))}</select></label>
-      <p class="hint" data-crystal-note hidden>${s.crystalHeightsNote}</p>
+      <label data-crystal-row>${s.crystal}<select data-field="crystal" aria-describedby="crystal-note">${opts(Object.entries(s.crystals))}</select></label>
+      <p class="hint" data-crystal-note id="crystal-note" hidden></p>
       <label>${s.collimatorFilter}<select data-field="collimatorFilter">${opts(foils)}</select></label>
       <label>${s.sensorFilter}<select data-field="sensorFilter">${opts(foils)}</select></label>
-      <p class="hint" data-crystal-lock></p>
       <p class="hint" data-locked></p>`
   }
   const field = (f: (typeof FIELDS)[number]) => root.querySelector<HTMLSelectElement>(`[data-field="${f}"]`)!
@@ -37,8 +36,19 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
   })
   root.addEventListener('change', async () => {
     const [holder, crystal, c, f] = FIELDS.map((k) => field(k).value)
-    if (crystal !== 'NaCl') await loadCrystals() // the NaCl default never needs the table
-    a.mount({ holder: holder as Holder, crystal, collimatorFilter: c || null, sensorFilter: f || null })
+    let ok = true
+    if (crystal !== 'NaCl') {
+      try {
+        await loadCrystals() // the NaCl default never needs the table
+      } catch {
+        ok = false // offline: the picker goes back to what is mounted
+      }
+    }
+    if (!ok || !a.mount({ holder: holder as Holder, crystal, collimatorFilter: c || null, sensorFilter: f || null })) {
+      const sel = field('crystal')
+      sel.value = a.setup.crystal
+      sel.blur()
+    }
   })
   const render = () => {
     const s = t()
@@ -47,12 +57,17 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     }
     const onCrystal = a.setup.holder === 'crystal'
     // Lab mode: the crystal's name only, as on a real bench.
-    setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${s.holders[a.setup.holder]}${onCrystal ? ` ${s.crystals[a.setup.crystal]}` : ''}`)
+    const holderText = onCrystal ? s.setupCrystal(s.crystals[a.setup.crystal]) : s.holders[a.setup.holder]
+    setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${holderText}`)
     root.querySelector<HTMLElement>('[data-crystal-row]')!.hidden = !onCrystal
-    root.querySelector<HTMLElement>('[data-crystal-note]')!.hidden = !onCrystal || getMode() !== 'explore'
     setText(root.querySelector<HTMLElement>('[data-locked]')!, a.doorsClosed ? s.setupLocked : '')
+    // One line under the crystal row: the task's lock, else (Explore only, not NaCl, whose heights are fitted) the heights note.
     const lock = lockedCrystal() // a guided task fixes the crystal: the picker shows its name, disabled
-    setText(root.querySelector<HTMLElement>('[data-crystal-lock]')!, lock && onCrystal ? `${s.taskCrystal} ${s.crystals[lock] ?? lock}.` : '')
+    const note = root.querySelector<HTMLElement>('[data-crystal-note]')!
+    const heights = getMode() === 'explore' && a.setup.crystal !== 'NaCl' ? s.heightsNote[a.setup.crystal === 'Si' || a.setup.crystal === 'calcite' ? 'perfect' : 'mosaic'] : ''
+    const text = !onCrystal ? '' : lock ? s.taskCrystal(s.crystals[lock] ?? lock) : heights
+    setText(note, text)
+    note.hidden = text === ''
     for (const k of FIELDS) {
       const sel = field(k)
       const off = a.doorsClosed || !loaded || (k === 'crystal' && lock !== null)

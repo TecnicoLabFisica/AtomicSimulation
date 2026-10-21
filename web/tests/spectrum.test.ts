@@ -30,4 +30,14 @@ describe('crystal-aware overlays (C2.3)', () => {
     expect(edgeMarkers(setup('Zr', null), 201.4)[0].theta).toBeGreaterThan(edgeMarkers(setup('Zr', null))[0].theta)
     expect(scanD({ ...setup(null, null), holder: 'empty' })).toBeCloseTo(282.01, 2)
   })
+
+  it('line markers cover every order the crystal reaches, capped at 10, Kα on row 0 and Kβ on row 1', async () => {
+    const { lineMarkers } = await import('../src/views/spectrum')
+    const nacl = lineMarkers(282.01)
+    expect(nacl.filter((m) => m.row === 0).map((m) => m.label)).toEqual([1, 2, 3, 4, 5, 6, 7].map((n) => `${n}·Kα`))
+    expect(nacl.filter((m) => m.row === 1)).toHaveLength(8)
+    expect(nacl.slice(0, 6).map((m) => m.label)).toEqual(['1·Kα', '1·Kβ', '2·Kα', '2·Kβ', '3·Kα', '3·Kβ'])
+    expect(lineMarkers(996).filter((m) => m.row === 0)).toHaveLength(10)
+    expect(lineMarkers(996).every((m) => m.theta > 0 && m.theta <= 90)).toBe(true)
+  })
 })

@@ -1,5 +1,5 @@
 // Kα with another crystal: the same Mo line sits at a larger angle on LiF (d = 201.4 pm) than on NaCl
-// (282.0 pm), because sin θ = λ/2d. Confronts "the angle depends only on the X-ray tube". Explore mode, so the
+// (282.0 pm), because sin θ = λ/(2d). Confronts "the angle depends only on the X-ray tube". Explore mode, so the
 // prompt may state d (the Huygens panel shows it). The app checks the scan, never the student's number.
 import { MAX_STEP_DEG, MIN_PROMINENCE_SIGMA, PEAK_HALF_WINDOW_DEG } from '../../physics/analysis'
 import { MO_KA_PM, MO_KB_PM } from '../../physics/constants'
@@ -15,7 +15,8 @@ export const task: GuidedTask = {
   mode: 'explore',
   level: 2,
   crystal: CRYSTAL,
-  controls: ['U', 'I', 'DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
+  holder: 'crystal',
+  controls: ['DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },
   predict: { kind: 'number', unit: '°' },
   // A finished coupled scan on LiF, at steady U and I, that braggsim.analysis could work with: the 1st-order Kα

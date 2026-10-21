@@ -122,10 +122,10 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
       setMode(k.mode)
       onMode()
     }
-    setActiveTask(k)
     const begin = () => {
       if (task !== k) return // the student went back while the crystal table loaded
-      applyInitial(a, k.initial, k.crystal)
+      applyInitial(a, k.initial, k.crystal, k.holder)
+      setActiveTask(k) // after the mount, so the lock never names a crystal not yet on the holder
       clearExports(a) // a restart begins fresh
       a.clearExposureLog()
       void loadAbsorbers() // the foils the task mounts

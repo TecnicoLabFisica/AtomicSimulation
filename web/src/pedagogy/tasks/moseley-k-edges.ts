@@ -119,6 +119,7 @@ export const task: GuidedTask = {
   mode: 'lab',
   level: 2,
   crystal: 'NaCl', // the default bench; the LiF variant needs the picker
+  holder: 'crystal',
   crystalLocked: false,
   controls: ['U', 'I', 'DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },

@@ -21,6 +21,7 @@ export const task: GuidedTask = {
   mode: 'lab',
   level: 2,
   crystal: 'NaCl',
+  holder: 'crystal',
   controls: ['U', 'I', 'DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED' },
   predict: { kind: 'choice', answer: 0 },

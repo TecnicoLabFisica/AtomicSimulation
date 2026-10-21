@@ -1,6 +1,6 @@
 // A guided task: predict → act → observe → explain (write-guided-task skill). Its success condition asks
 // the physics model or the apparatus, never a hand-tuned number.
-import type { Apparatus, Key, Mode } from '../apparatus/apparatus'
+import type { Apparatus, Holder, Key, Mode } from '../apparatus/apparatus'
 import type { AppMode } from './mode'
 
 export type GuidedTask = {
@@ -17,23 +17,25 @@ export type GuidedTask = {
   crystal?: string
   /** The setup tray's crystal picker stays on `crystal` while the task is active (default true). */
   crystalLocked?: boolean
+  /** What the teacher puts on the target holder at the start; undefined leaves it (the attenuation tasks keep their wheel). */
+  holder?: Holder
   /** Optional checklist shown under the act text: what the task has collected so far, by label key. */
   progress?: (a: Apparatus) => { key: string; done: boolean }[]
 }
 
 /** Start from the device defaults (RESET: HV off, arms driven home), then the task's settings. */
-export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal = 'NaCl'): void {
+export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal = 'NaCl', holder?: Holder): void {
   a.press('RESET')
-  // The task setup is the teacher preparing the bench, so the crystal goes on with the doors treated as open
-  // (mount() itself still refuses a student with the doors closed). The holder is left alone: the attenuation
-  // tasks have a plate wheel there. A non-NaCl preset must be loaded first (loadCrystals()).
-  if (a.setup.crystal !== crystal) {
+  // The task setup is the teacher preparing the bench: the doors are opened through the guarded API (RESET left
+  // the HV off and the arms idle) and put back as they were. A non-NaCl preset must be loaded first (loadCrystals()).
+  // The holder is left alone unless the task names one: the attenuation tasks have a plate wheel there.
+  if (a.setup.crystal !== crystal || (holder && a.setup.holder !== holder)) {
     const closed = a.doorsClosed
-    a.doorsClosed = false
+    if (!a.setDoors(false)) throw new Error('bench not safe to prepare')
     try {
-      a.mount({ ...a.setup, crystal })
+      a.mount({ ...a.setup, crystal, ...(holder && { holder }) })
     } finally {
-      a.doorsClosed = closed
+      a.setDoors(closed)
     }
   }
   if (init.U_kV !== undefined) a.u = Math.round(init.U_kV * 10)

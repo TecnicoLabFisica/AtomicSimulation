@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-21
-current_phase: C2
-next_task: C2.6
+current_phase: F1
+next_task: F1.1
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -66,7 +66,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
 | L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
-| C2 | Crystal selector (port and UI) | ⬜ todo | 2 | C1 |
+| C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
 | F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
 | F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
@@ -538,7 +538,13 @@ KCl and KBr are no longer presets, but the Forge can still build them (F3).
 - [x] **C2.5** L1 Moseley gains an optional "use LiF" variant (the guide notes that the angular window changes with the crystal).
       As built: groups are on one crystal (NaCl or LiF). NaCl keeps the EPN 3.7–7.5° window; for LiF the window is computed from d (≈ 6.0–10.2°), and `edgeStands` uses the group's crystal.
       The picker is free in this task (`crystalLocked: false`). No LiF angles appear in student text; the teacher note gives In 6.3°, Ag 6.9°, Mo 8.9°, Zr 9.8°.
-- [ ] **C2.6** Design, apparatus and pedagogy reviews.
+- [x] **C2.6** Design, apparatus and pedagogy reviews.
+      Applied (2026-10-21). Apparatus: no blocker; `mount()` now refuses with HV on or busy, `applyInitial` uses `setDoors`, tasks declare `holder`, the exposure CSV has a crystal column, the scan filename names the crystal.
+      Design: the heights note is hidden for NaCl (fitted) and says "upper bound" in two variants (mosaic LiF/mica; near-perfect Si/calcite 20–30× lower). The lock line sits under the row (`aria-describedby`).
+      The Huygens drawing zooms isotropically (muscovite: 2 planes, legible crests), Si gets uniform dots, and the head line shows (hkl). Markers cover orders 1–10 within range, thinning labels.
+      Pedagogy: the LiF act window includes Kβ; the Moseley explain uses "the d of your crystal"; the LiF variant gives d = 201.4 pm (an input, not an answer); LiF's R is closer to R∞ (noise-free ≈ 1.09e7);
+      no doublet derivative. `analysis.edge_wavelength_table(..., d_pm)` (`ba8f47f`). Main bundle 93.1 kB gzip (+2.8 kB over C2.3), `crystals` lazy 48.3 kB.
+      Deferred: hiding the door hint for a task-locked field; "Mica (moscovita) (002)" double parentheses in the Huygens head line; a 3D cue per crystal (optional).
 
 **Done when:** switching crystals updates everything consistently, and Lab mode shows only what a real bench shows (the crystal's name, not its d).
 
