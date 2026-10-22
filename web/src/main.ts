@@ -202,9 +202,12 @@ function toggleDoor() {
   if (apparatus.setDoors(!apparatus.doorsClosed)) return
   // Refused by the interlock: say why.
   bench?.shake()
+  showToast(t().doorLocked)
+}
+function showToast(text: string) {
   const el = q('[data-toast]')
-  el.textContent = '' // so a repeated refusal is announced again
-  el.textContent = t().doorLocked
+  el.textContent = '' // so a repeated message is announced again
+  el.textContent = text
   el.dataset.show = 'true'
   clearTimeout(toastTimer)
   toastTimer = setTimeout(() => (el.dataset.show = 'false'), TOAST_MS)
@@ -226,7 +229,10 @@ let forge: ReturnType<typeof mountForge> | null = null
 async function openForge(open: boolean) {
   if (open && !forge) {
     try {
-      forge = (await import('./views/forge')).mountForge(forgeSheet)
+      forge = (await import('./views/forge')).mountForge(forgeSheet, apparatus, (msg) => {
+        void openForge(false)
+        showToast(msg)
+      })
     } catch {
       return // chunk failed to load: the button just does nothing
     }
@@ -265,6 +271,7 @@ app.addEventListener('click', (e) => {
     } catch {}
     applyTheme()
     labels()
+    forge?.redraw()
   } else if (b.dataset.lang !== undefined) {
     setLang((getLang() === 'es' ? 'en' : 'es') as Lang)
     labels()

@@ -1,4 +1,6 @@
 // UI strings, Spanish (default) and English. Views never hard-code user-facing text.
+import { CRYSTALS } from './physics/tables'
+
 const es = {
   title: 'X-Ray Lab · Equipo de rayos X 554 800',
   titleShort: 'X-Ray Lab',
@@ -92,10 +94,12 @@ const es = {
   taskCrystal: (n: string) => `Esta tarea fija el cristal: ${n}.`,
   // Heights are fitted to Fig. 4 for NaCl only; the other presets come from the model (perfect crystal, or an assumed mosaic for LiF).
   heightsNote: {
+    forged: 'Cristal hipotético de la Forja: los ángulos siguen la ley de Bragg; las alturas son una estimación del modelo de reflectividad que elegiste, no una medida.',
     perfect: 'Ángulos: ley de Bragg. Alturas: calculadas por el modelo (solo NaCl está ajustado a datos); este cristal, casi perfecto, refleja mucho menos que NaCl.',
     mosaic: 'Ángulos: ley de Bragg. Alturas: calculadas por el modelo con un mosaico supuesto (solo NaCl está ajustado a datos); LiF refleja algo más que NaCl.',
   },
   setupCrystal: (name: string) => `Cristal: ${name}`,
+  hypothetical: 'hipotético',
   setupFilters: (names: string[]) => `${names.length === 1 ? 'filtro' : 'filtros'} ${names.join(' + ')}`,
   crystalDExplore: (name: string, d: number, hkl: readonly number[]) => `${name} · (${hkl.join('')}) · d = ${d.toFixed(2)} pm`,
   holders: { crystal: 'Cristal', alWheel: 'Placa de Al (554 834)', materialWheel: 'Placa de materiales (554 834)', empty: 'Vacío' },
@@ -235,10 +239,12 @@ const en: Dict = {
   crystals: { NaCl: 'NaCl', LiF: 'LiF', Si: 'Si', calcite: 'Calcite', muscovite: 'Mica (muscovite)' } as Record<string, string>,
   taskCrystal: (n: string) => `This task sets the crystal: ${n}.`,
   heightsNote: {
+    forged: 'Hypothetical Forge crystal: angles follow Bragg’s law; heights are an estimate from the reflectivity model you chose, not a measurement.',
     perfect: 'Angles: Bragg’s law. Heights: computed by the model (only NaCl is fitted to data); this near-perfect crystal reflects much less than NaCl.',
     mosaic: 'Angles: Bragg’s law. Heights: computed by the model with an assumed mosaic (only NaCl is fitted to data); LiF reflects slightly more than NaCl.',
   },
   setupCrystal: (name: string) => `Crystal: ${name}`,
+  hypothetical: 'hypothetical',
   setupFilters: (names: string[]) => `${names.length === 1 ? 'filter' : 'filters'} ${names.join(' + ')}`,
   crystalDExplore: (name: string, d: number, hkl: readonly number[]) => `${name} · (${hkl.join('')}) · d = ${d.toFixed(2)} pm`,
   holders: { crystal: 'Crystal', alWheel: 'Al plate (554 834)', materialWheel: 'Material plate (554 834)', empty: 'Empty' },
@@ -293,6 +299,18 @@ let lang: Lang = 'es'
 try {
   if (localStorage.getItem('lang') === 'en') lang = 'en'
 } catch {}
+
+/** The crystal a setup key names, for display: the preset's name, or a Forge crystal's own name marked hypothetical. The
+ * name can come from a stranger's share link: callers write it with textContent, Option or escapeHtml, never raw markup. */
+export function crystalLabel(key: string, language: Lang = lang): string {
+  const d = dicts[language]
+  if (Object.hasOwn(d.crystals, key)) return d.crystals[key]
+  if (!isForgeKey(key)) return key
+  return `${CRYSTALS[key]?.name || key} (${d.hypothetical})`
+}
+export const isForgeKey = (key: string): boolean => key.startsWith('forge:')
+export const escapeHtml = (s: string): string =>
+  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 export function t(): Dict {
   return dicts[lang]

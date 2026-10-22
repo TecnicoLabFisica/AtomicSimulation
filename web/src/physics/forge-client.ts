@@ -1,8 +1,10 @@
 // TS-only transport for the Forge view (not physics): the pure handler run inside the worker, and the main-thread client.
 import { ForgeInputError, forgeEntry, forgeWarnings, type ForgeInput } from './forge'
 import type { Crystal } from './crystal'
+import type { WouldBeSpectrum } from './forge-plot'
 
-export type ForgeOk = { entry: Crystal; warnings: string[] }
+/** `plot` is added by the worker (the pure handler leaves it out). */
+export type ForgeOk = { entry: Crystal; warnings: string[]; plot?: WouldBeSpectrum }
 export type ForgeErr = { error: { code: string; hint: readonly number[] | null; message: string } }
 export type ForgeResult = ForgeOk | ForgeErr
 /** Resolved for a request that a newer one overtook; the caller ignores it. */

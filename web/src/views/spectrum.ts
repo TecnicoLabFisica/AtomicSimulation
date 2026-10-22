@@ -14,10 +14,10 @@ import { allowedOrders, lambdaFromTheta, NACL, thetaFromLambda } from '../physic
 import { lambdaMinPm } from '../physics/source'
 import { palette, paletteVersion, scaledFont } from './canvas'
 
-const LOG_RANGE = { min: 0.1, max: 1e5 } // 1/s: reaches the 0.2/s background
+export const LOG_RANGE = { min: 0.1, max: 1e5 } // 1/s: reaches the 0.2/s background
 const GAINS = [10, 100] as const // linear display zoom (a simulation aid): the y range is [0, yMax / zoom]; pressing the active one goes back to ×1
 const EMPTY_RANGE = { min: 0, max: 30 } // °, before the first scan
-const SUP: Record<string, string> = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' }
+export const SUP: Record<string, string> = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' }
 // Explore mode: Bragg angles θₙ of the Mo K lines for every allowed order the crystal reaches (n ≤ 2d/λ; extinct orders,
 // such as Si 2, 6, 10 …, have no line). NaCl in the usual 0–30° window shows n = 1–4 (Kα reflects up to n = 7); a large-d
 // crystal such as muscovite has many more (the label thinning below keeps them legible).
@@ -43,14 +43,14 @@ export const scanOrders = (setup: Setup): number[] => allowedOrders(setup.holder
 export const scanD = (setup: Setup): number => (setup.holder === 'crystal' ? crystalOf(setup).d_pm : D_NACL_PM)
 
 /** The powers of ten within [min, max] (the log axis' grid). */
-const decades = (min: number, max: number): number[] => {
+export const decades = (min: number, max: number): number[] => {
   const out: number[] = []
   for (let n = Math.ceil(Math.log10(min) - 1e-9); n <= Math.log10(max) + 1e-9; n++) out.push(10 ** n)
   return out
 }
 
 /** Smallest 1-2-5 × 10ⁿ at or above x (at least 10). */
-function niceCeil(x: number): number {
+export function niceCeil(x: number): number {
   for (let p = 10; ; p *= 10) for (const m of [1, 2, 5]) if (m * p >= x) return m * p
 }
 

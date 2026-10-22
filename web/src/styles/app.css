@@ -435,7 +435,21 @@ button, select { font: inherit; color: inherit; }
 .forge-warn { margin: 0 0 var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); background: var(--fill); font: var(--text-footnote); color: var(--label); }
 .forge-add { min-height: var(--touch); margin-top: var(--space-2); padding: 0 var(--space-4); border: none; border-radius: var(--radius-full); background: var(--fill); cursor: pointer; }
 .forge-add:disabled, .forge-atoms .tool:disabled { opacity: 0.5; cursor: not-allowed; }
-.forge-plot { margin-top: var(--space-4); }
+.forge-add.primary { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; margin-top: 0; }
+.forge-add.primary:disabled { background: var(--fill); color: var(--label-2); opacity: 1; }
+.forge-use { display: grid; gap: var(--space-2); justify-items: start; margin-top: var(--space-4); }
+.forge-plot { margin-top: var(--space-5); transition: opacity var(--dur-base) var(--ease-out); }
+.forge-plot[data-stale='true'] { opacity: 0.45; }
+.forge-plot-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.forge-plot-head h3 { margin: 0; }
+.forge-legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); list-style: none; margin: 0 0 var(--space-2); padding: 0; font: var(--text-footnote); color: var(--label-2); }
+.forge-legend li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.forge-legend span { overflow-wrap: anywhere; }
+.forge-legend i { flex: none; width: var(--space-5); border-top: 2px solid var(--label); }
+.forge-legend i.dash { border-top: 2px dashed var(--label-2); }
+.forge-plot-box { position: relative; height: 16rem; }
+.forge-plot-box .uplot { position: absolute; inset: 0; }
+.forge-plot .hint { margin-top: var(--space-2); }
 @media (min-width: 1024px) {
   .forge-sheet { background: color-mix(in srgb, var(--bg) 70%, transparent); display: grid; place-items: center; }
   .forge-sheet[data-open='false'] { display: none; }

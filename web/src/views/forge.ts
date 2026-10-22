@@ -1,7 +1,9 @@
 // Materials Forge: design a crystal (lattice, cell, atoms, cut plane, reflectivity model) and read, live, its d-spacing,
 // density, the allowed/forbidden orders and any warnings. No physics here: forgeInWorker builds the crystal, the view
 // shows it. User-supplied strings (the name, a share link's design) are only ever written with textContent / .value.
-import { t } from '../i18n'
+import type { Apparatus } from '../apparatus/apparatus'
+import { crystalLabel, t } from '../i18n'
+import { lockedCrystal } from '../pedagogy/task'
 import { MO_KA_PM } from '../physics/constants'
 import { thetaFromLambda, type Crystal } from '../physics/crystal'
 import type { ForgeInput } from '../physics/forge'
@@ -11,7 +13,10 @@ import {
   type Cell, type LatticeId, type Preset,
 } from '../physics/forge-lattices'
 import { BETA_MAX_DEG } from '../physics/scan'
+import { CRYSTALS, deepFreeze, loadCrystals } from '../physics/tables'
 import { errorText, ft } from './forge-i18n'
+import { mountForgePlot } from './forge-plot'
+import { crystalAllowed } from './setup'
 
 /** Element symbols by atomic number (index Z − 1). A label list for the picker, not physics. */
 export const ELEMENTS =
@@ -79,11 +84,35 @@ export function orderRows(c: Crystal): OrderRow[] {
   })
 }
 
-export function mountForge(root: HTMLElement) {
+/** The key the next forged crystal gets: forge:1, forge:2 … Keys are never reused, because a stored scan names its crystal by key. */
+export function nextForgeKey(): string {
+  let n = 1
+  while (Object.hasOwn(CRYSTALS, `forge:${n}`)) n++
+  return `forge:${n}`
+}
+
+/** Why the bench cannot take the crystal now (the doors must be open, the HV off and nothing running; a task may lock the crystal), or null. */
+export function benchRefusal(a: Pick<Apparatus, 'doorsClosed' | 'hvOn' | 'busy'>, lock: string | null, key: string): 'locked' | 'doors' | 'busy' | null {
+  if (!crystalAllowed(lock, key)) return 'locked'
+  if (a.doorsClosed) return 'doors'
+  return a.hvOn || a.busy ? 'busy' : null
+}
+
+/** Register a forged entry (frozen copy) under a new key and return it. */
+export function registerForged(entry: Crystal): string {
+  const key = nextForgeKey()
+  CRYSTALS[key] = deepFreeze(structuredClone(entry))
+  return key
+}
+
+/** `onUsed(message)` runs after the crystal is mounted on the bench (the host closes the sheet and shows the message). */
+export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (message: string) => void) {
   let d = designFromPreset(PRESETS[0])
   let seq = 0
   let debounce: ReturnType<typeof setTimeout> | undefined
   let okInput: ForgeInput | null = null // the design of the last successful build, if no edit since
+  let lastEntry: Crystal | null = null // its crystal
+  let plot: ReturnType<typeof mountForgePlot>
   const $ = <T extends HTMLElement = HTMLElement>(sel: string) => root.querySelector<T>(sel)!
 
   const num = (k: string, v: number, extra = '') => `<input type="number" step="any" inputmode="decimal" data-${k} value="${v}" ${extra}>`
@@ -140,8 +169,10 @@ export function mountForge(root: HTMLElement) {
       <div class="forge-body"><form class="forge-controls" data-controls novalidate></form>
         <section class="forge-out" aria-labelledby="forge-out-h"><h3 id="forge-out-h">${s.readout}</h3>
           <div data-result></div>
-          <!-- F2.2: the would-be spectrum plot goes here -->
+          <div class="forge-use"><button type="button" class="forge-add primary" data-use title="${s.useOnBenchHint}" disabled>${s.useOnBench}</button>
+            <p class="hint" role="status" data-use-msg></p></div>
           <div class="forge-plot" data-forge-plot></div></section></div></div>`
+    plot = mountForgePlot($('[data-forge-plot]'))
     $('[data-forge-close]').textContent = '×'
     $('[data-forge-close]').setAttribute('aria-label', t().close)
     root.setAttribute('aria-label', s.title)
@@ -156,12 +187,17 @@ export function mountForge(root: HTMLElement) {
     if ('stale' in r) return
     sum.dataset.state = 'ok'
     if ('error' in r) {
+      plot.dim()
       sum.dataset.state = 'error'
       sum.textContent = errorText(r.error.code, r.error.hint, s)
       res.replaceChildren()
       return
     }
     const c = r.entry
+    lastEntry = c
+    if (r.plot) plot.update(r.plot, c)
+    else plot.dim()
+    $<HTMLButtonElement>('[data-use]').disabled = false
     sum.textContent = s.summary(c.d_pm.toFixed(2), c.density_g_cm3.toPrecision(4))
     const rows = orderRows(c)
     const shown = rows.slice(0, VISIBLE_ORDERS)
@@ -192,6 +228,8 @@ export function mountForge(root: HTMLElement) {
   }
   function schedule() {
     okInput = null
+    $<HTMLButtonElement>('[data-use]').disabled = true
+    plot.dim()
     clearTimeout(debounce)
     debounce = setTimeout(run, DEBOUNCE_MS)
   }
@@ -237,7 +275,8 @@ export function mountForge(root: HTMLElement) {
   })
   root.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button')
-    if (b?.dataset.add !== undefined && d.atoms.length < MAX_ATOMS) {
+    if (b?.dataset.use !== undefined) void useOnBench()
+    else if (b?.dataset.add !== undefined && d.atoms.length < MAX_ATOMS) {
       d.atoms.push([d.atoms.at(-1)?.[0] ?? 11, 0, 0, 0, DEFAULT_B_A2, 1])
       rebuild(`[data-atom="${d.atoms.length - 1}:0"]`)
     } else if (b?.dataset.remove !== undefined && d.atoms.length > 1) {
@@ -247,9 +286,38 @@ export function mountForge(root: HTMLElement) {
   })
   root.addEventListener('submit', (e) => e.preventDefault())
 
+  const say = (text: string) => void ($('[data-use-msg]').textContent = text)
+  async function useOnBench() {
+    if (!lastEntry || !okInput) return
+    const s = ft()
+    const refusal = () => benchRefusal(apparatus, lockedCrystal(), nextForgeKey())
+    let why = refusal()
+    if (why) return say(s.refused[why])
+    try {
+      await loadCrystals() // expectedRate needs the table for any non-NaCl crystal
+    } catch {
+      return say(s.refused.load)
+    }
+    why = refusal() // the bench may have changed while the table loaded
+    if (why) return say(s.refused[why])
+    const key = registerForged(lastEntry)
+    let ok = false
+    try {
+      ok = apparatus.mount({ ...apparatus.setup, holder: 'crystal', crystal: key })
+    } catch {}
+    if (!ok) {
+      delete CRYSTALS[key] // never mounted, so no scan can name it
+      return say(s.refused.busy)
+    }
+    say('')
+    onUsed?.(s.mounted(crystalLabel(key)))
+  }
+
   build()
   return {
     build,
+    /** The theme changed: repaint the plot with the new palette. */
+    redraw: () => plot.rebuild(),
     /** Load a design: a ForgeInput (share link) opens as the general lattice with its atoms by hand; none keeps the current one. */
     open(input?: ForgeInput) {
       if (input) d = designFromInput(input)

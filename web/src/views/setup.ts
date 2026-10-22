@@ -1,7 +1,7 @@
 // Setup tray: the accessories mounted on the 554 800 (target holder, collimator and sensor filters).
 // Renders Apparatus.setup; every change goes to Apparatus.mount. Absorber tables load on first open.
 import type { Apparatus, Holder } from '../apparatus/apparatus'
-import { getLang, t } from '../i18n'
+import { crystalLabel, getLang, isForgeKey, t } from '../i18n'
 import { getMode } from '../pedagogy/mode'
 import { lockedCrystal } from '../pedagogy/task'
 import { FOILS_MG_CM2, loadAbsorbers, loadCrystals } from '../physics/tables'
@@ -82,7 +82,7 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     }
     const onCrystal = a.setup.holder === 'crystal'
     // Lab mode: the crystal's name only, as on a real bench.
-    const holderText = onCrystal ? s.setupCrystal(s.crystals[a.setup.crystal]) : s.holders[a.setup.holder]
+    const holderText = onCrystal ? s.setupCrystal(crystalLabel(a.setup.crystal)) : s.holders[a.setup.holder]
     const mounted = [a.setup.collimatorFilter, a.setup.sensorFilter].filter((n) => n !== null)
     const filterText = mounted.length ? ` · ${s.setupFilters(mounted)}` : ''
     setText(root.querySelector<HTMLElement>('[data-summary]')!, `${s.setup} · ${holderText}${filterText}`)
@@ -91,15 +91,17 @@ export function mountSetup(root: HTMLDetailsElement, a: Apparatus) {
     // One line under the crystal row: the task's lock, else (Explore only, not NaCl, whose heights are fitted) the heights note.
     const lock = lockedCrystal() // a guided task fixes the crystal: the picker shows its name, disabled
     const note = root.querySelector<HTMLElement>('[data-crystal-note]')!
-    const heights = getMode() === 'explore' && a.setup.crystal !== 'NaCl' ? s.heightsNote[a.setup.crystal === 'LiF' ? 'mosaic' : 'perfect'] : ''
-    const text = !onCrystal ? '' : lock ? s.taskCrystal(s.crystals[lock] ?? lock) : heights
+    const kind = isForgeKey(a.setup.crystal) ? 'forged' : a.setup.crystal === 'LiF' ? 'mosaic' : 'perfect'
+    const heights = getMode() === 'explore' && a.setup.crystal !== 'NaCl' ? s.heightsNote[kind] : ''
+    const text = !onCrystal ? '' : lock ? s.taskCrystal(crystalLabel(lock)) : heights
     setText(note, text)
     note.hidden = text === ''
-    const picker = crystalPicker(lock, a.setup.crystal, Object.keys(s.crystals))
+    // the presets, plus the forged crystal on the holder (the select cannot show a value it has no option for)
+    const picker = crystalPicker(lock, a.setup.crystal, [...Object.keys(s.crystals), ...(isForgeKey(a.setup.crystal) ? [a.setup.crystal] : [])])
     const key = `${picker.ids.join()} ${getLang()}`
     if (key !== pickerKey) {
       pickerKey = key
-      field('crystal').innerHTML = picker.ids.map((id) => `<option value="${id}">${s.crystals[id] ?? id}</option>`).join('')
+      field('crystal').replaceChildren(...picker.ids.map((id) => new Option(crystalLabel(id), id))) // text, never markup: a forged name is a stranger's
     }
     for (const k of FIELDS) {
       const sel = field(k)

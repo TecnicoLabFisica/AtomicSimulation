@@ -3,7 +3,7 @@
 // crests line up with the one above when that equals a whole number of wavelengths. Drawn to scale in
 // pm: plane spacing d, λ of the selected Mo line.
 import { wrapTarget, type Apparatus } from '../apparatus/apparatus'
-import { t } from '../i18n'
+import { crystalLabel, escapeHtml, isForgeKey, t } from '../i18n'
 import { showHints } from '../pedagogy/mode'
 import { D_NACL_PM, MO_KA_PM, MO_KB_PM } from '../physics/constants'
 import { allowedOrders, lambdaFromTheta, thetaFromLambda, type Crystal } from '../physics/crystal'
@@ -72,7 +72,7 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const cx = W / 2
     const y0 = 0.3 * H
     const planes = Math.min(PLANES, Math.max(2, Math.floor((0.78 * H - y0) / d) + 1)) // above the comparison bars
-    const single = crystal.name === 'Si' // one species: uniform dots
+    const single = crystal.name === 'Si' && !isForgeKey(a.setup.crystal) // one species: uniform dots
     const th = thetaDeg * RAD
     const [c, s] = [Math.cos(th), Math.sin(th)]
     const lineColour = P[line === 'ka' ? 'phys-kalpha' : 'phys-kbeta']
@@ -200,13 +200,13 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const s = t()
     const eqText = valid
       ? [
-          s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut), // Explore panel: showing d is fine here
+          s.crystalDExplore(escapeHtml(crystalLabel(a.setup.crystal)), dPm, c.cut), // Explore panel: showing d is fine here
           `θ = β = ${thetaDeg.toFixed(1)}°`,
           `${s.pathDiff} = ${lambdaFromTheta(thetaDeg, 1, dPm).toFixed(1)} pm${hints ? ` ${met ? '≈' : '≠'} nλ = ${n} × ${lambdaPm.toFixed(1)} = ${(n * lambdaPm).toFixed(1)} pm` : ''}`,
         ]
           .map((part) => `<span>${part.replaceAll(' ', '\u00a0')}</span>`)
           .join('')
-      : `<span>${s.crystalDExplore(s.crystals[c.name] ?? c.name, dPm, c.cut)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
+      : `<span>${s.crystalDExplore(escapeHtml(crystalLabel(a.setup.crystal)), dPm, c.cut)}</span><span>θ = β = ${thetaDeg.toFixed(1)}°</span>`
     const eqKey = `${eqText} ${hints} ${met} ${forbidden}`
     if (eqKey !== shownEq) {
       eq.innerHTML = `${eqText} <strong class="met" data-met="${verdict}">${!hints ? '' : forbidden ? s.braggForbidden(LINES[line].label, n) : met ? s.braggMet(LINES[line].label, n) : s.braggNot(LINES[line].label)}</strong>`
@@ -216,7 +216,7 @@ export function mountHuygens(root: HTMLElement, a: Apparatus) {
     const animate = valid && !reducedMotion()
     if (animate) phasePm = (phasePm + CREST_PM_PER_S * dtS) % lambdaPm
     else phasePm = 0
-    const key = `${thetaDeg} ${line} ${verdict} ${paletteVersion} ${s.pathDiff} ${c.name}`
+    const key = `${thetaDeg} ${line} ${verdict} ${paletteVersion} ${s.pathDiff} ${a.setup.crystal}`
     if (!resized && !animate && key === drawn) return
     ;[drawn, resized] = [key, false]
     draw(thetaDeg, lambdaPm, verdict, c)

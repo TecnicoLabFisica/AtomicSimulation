@@ -1,6 +1,20 @@
 // Lab mode: the stored scan points as CSV, for the student's own analysis (LD P6.3.3.1 Tables 3–5).
 import { type Apparatus, type Mode, type ReplayPoint, type Setup } from '../apparatus/apparatus'
-import { WHEELS_MG_CM2 } from '../physics/tables'
+import { crystalLabel, isForgeKey } from '../i18n'
+import { CRYSTALS, WHEELS_MG_CM2 } from '../physics/tables'
+
+/** The crystal as a CSV file names it: a preset's key, or a Forge crystal's name marked hypothetical (English, as the headers). */
+const crystalCsv = (key: string): string => (isForgeKey(key) ? crystalLabel(key, 'en') : key)
+/** One RFC 4180 field. A leading = + - @ (or tab/CR) would be run as a formula by a spreadsheet: an apostrophe defuses it. */
+export const csvField = (v: string | number): string => {
+  let s = String(v)
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+  return /[",\n\r]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
+}
+/** The crystal part of the download's file name: the preset key, or "forged-" and the sanitised name of a Forge crystal. */
+export const fileCrystal = (key: string): string => (isForgeKey(key) ? `forged-${fileSafe(CRYSTALS[key]?.name ?? '')}` : key)
+/** A file-name part: only [A-Za-z0-9_-]. */
+export const fileSafe = (v: string, fallback = 'forged'): string => v.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24) || fallback
 
 /** Stored-value arrays already exported, with how many points they held then (a scan grows while it runs). */
 const exported = new WeakMap<ReplayPoint[], number>()
@@ -37,7 +51,7 @@ export function replayCsv(a: Apparatus, date = new Date()): string | null {
   return [
     '# Bragg reflection, simulated LD X-ray apparatus 554 800 (not measured data)',
     `# ${date.toISOString()}`,
-    `# setup: holder ${scan.setup.holder}${scan.setup.holder === 'crystal' ? ` (${scan.setup.crystal})` : ''}; collimator filter ${scan.setup.collimatorFilter ?? 'none'}; sensor filter ${scan.setup.sensorFilter ?? 'none'}`,
+    `# setup: holder ${scan.setup.holder}${scan.setup.holder === 'crystal' ? ` (${crystalCsv(scan.setup.crystal).replace(/[\r\n]+/g, ' ')})` : ''}; collimator filter ${scan.setup.collimatorFilter ?? 'none'}; sensor filter ${scan.setup.sensorFilter ?? 'none'}`,
     `# mode ${scan.mode}; at the start: U = ${(scan.u / 10).toFixed(1)} kV, I = ${(scan.i / 100).toFixed(2)} mA, dt = ${scan.dt} s`,
     `${angle},rate_per_s`,
     ...a.replay.map((p) => `${(p.angle / 10).toFixed(1)},${p.rate}`),
@@ -56,7 +70,7 @@ export function exposureCsv(a: Apparatus, date = new Date()): string | null {
     // Open slot: "none", 0; frame in the beam: no slot, "frame"; no plate mounted: all three empty.
     const absorber = plate === null ? ['', '', ''] : e.slot === null ? ['', 'frame', ''] : [e.slot, slot?.[0] ?? 'none', slot?.[1] ?? 0]
     return [
-      (e.target / 10).toFixed(1), (e.sensor / 10).toFixed(1), e.mode ?? '', holder, holder === 'crystal' ? e.setup.crystal : '', ...absorber,
+      (e.target / 10).toFixed(1), (e.sensor / 10).toFixed(1), e.mode ?? '', holder, holder === 'crystal' ? csvField(crystalCsv(e.setup.crystal)) : '', ...absorber,
       collimatorFilter ?? '', sensorFilter ?? '', (e.u / 10).toFixed(1), (e.i / 100).toFixed(2), e.dt, e.changed ? 1 : 0,
       Math.round(e.rate * e.dt), e.rate,
     ].join(',')
@@ -88,7 +102,7 @@ export function downloadCsv(a: Apparatus): void {
   if (csv === null) return
   const link = document.createElement('a')
   link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-  link.download = `bragg-scan-${a.lastScan!.setup.holder === 'crystal' ? `${a.lastScan!.setup.crystal}-` : ''}${foilLabel(a.lastScan!.setup)}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`
+  link.download = `bragg-scan-${a.lastScan!.setup.holder === 'crystal' ? `${fileCrystal(a.lastScan!.setup.crystal)}-` : ''}${foilLabel(a.lastScan!.setup)}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`
   link.click()
   URL.revokeObjectURL(link.href)
   markExported(a)
