@@ -242,7 +242,7 @@ export function tubeFactor(UkV: number, ImA: number, params: ModelParams = DEFAU
   return ImA * (photonsOut(UkV, params, filters) / ref)
 }
 
-function checkTube(UkV: number, ImA: number): void {
+export function checkTube(UkV: number, ImA: number): void {
   if (!(UkV >= 0 && UkV <= U_MAX_KV && ImA >= 0 && ImA <= I_MAX_MA))
     throw new RangeError(`U_kV must be in 0 … ${U_MAX_KV}, I_mA in 0 … ${I_MAX_MA} (LD 554 800)`)
 }

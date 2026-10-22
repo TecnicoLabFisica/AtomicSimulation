@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-22
 current_phase: L3
-next_task: L3.5
+next_task: L3.6
 last_session: 2026-10-22
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L3.5` (export the XRF kernels as a lazy table, fixtures, TS port). L3.1–L3.4 (Python) done 2026-10-22, local commits, unpushed. Open: Q10 (lab); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
+> **Next:** `L3.6` (MCA view; load `bragg-ui`). L3.1–L3.5 done 2026-10-22, local commits, unpushed (user: no push that session). Open: Q10 (lab), Q12 (GM ε(λ) consistency, decide before L3.8 quotes absolute counts); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -64,7 +64,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
 | L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
 | L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
-| L3 | Práctica 6: X-ray fluorescence | 🟨 in progress (S1–S2 done) | 5–6 | G1 |
+| L3 | Práctica 6: X-ray fluorescence | 🟨 in progress (S1–S3 done) | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
@@ -425,7 +425,7 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 > [!note] As built (2026-10-22), L3.1–L3.2 (`d754fbb`)
 > - Kernels live on `MU_RHO_GRID_PM` split at each sample's K/L edges (nodes λ(1 ± 1e-5)) plus the 4 Mo components; **L3.5 must export each sample's `lam_pm`** with its kernels. Rate = scale · I · [trapezoid(Φ̃K) + Σ Mo]. Kernels use xraylib `CS_Total` directly, not the μ/ρ table.
 > - Physics: Sherman primary with xraylib `CS_FluorLine_Kissel_Cascade`; Shiraiwa–Fujino secondary in the bulk alloys (Cu Kα +4.2 %, Zn Kα +1.5 % in CuZn39Pb3) and across the coin's Cu/Fe interface (Fe Kα +33 %); 90° Rayleigh/Compton (Compton = +2.426 pm). 13 Pb L lines (≥ 1 % of Lα1). `kernels` accepts one bulk layer or a single-element plating on a bulk core.
-> - **Absolute scale (user, 2026-10-22):** flux on the sample = GM reading at 21 kV (`direct_per_s` · `tube_factor(21, 1)`) / ∫(21 kV tube spectrum × ε_GM), with `detector.gm_efficiency` for the 559 01 (mica 13.5 µm, 36 mm of Ne + 0.5 % Ar + 0.1 % Br₂ at an assumed 500 hPa, ×5 uncertain). ε ≈ 0.4 % at Mo Kα, so the flux is ×176 the ε = 1 bound (bug hunt 2026-10-22: anchoring at 35 kV had given ×310, mixing ε = 1 and ε-weighted spectra). At 35 kV / 1 mA: ≈ 90 photons/s into the 559 938 (pure Cu: Cu Kα 77/s; brass Pb Lα1 0.75/s ≈ 135 counts in 180 s). **Lab check wanted:** one Cu-sheet spectrum (35 kV, 1 mA, 180 s, s1 = s2 = 6 cm).
+> - **Absolute scale (user, 2026-10-22):** flux on the sample = GM reading at 21 kV (`direct_per_s` · `tube_factor(21, 1)`) / ∫(21 kV tube spectrum × ε_GM), with `detector.gm_efficiency` for the 559 01 (mica 13.5 µm, 36 mm of Ne + 0.5 % Ar + 0.1 % Br₂ at an assumed 500 hPa, ×5 uncertain). ε ≈ 0.4 % at Mo Kα; the flux is ×176 = 1/ε̄ over the 21 kV spectrum (0.0057) the ε = 1 bound (bug hunt 2026-10-22: anchoring at 35 kV had given ×310, mixing ε = 1 and ε-weighted spectra). At 35 kV / 1 mA: ≈ 90 photons/s into the 559 938 (pure Cu: Cu Kα 77/s; brass Pb Lα1 0.75/s: ≈ 135 photons at the window, ≈ 82 counts in the MCA in 180 s). **Lab check wanted:** one Cu-sheet spectrum (35 kV, 1 mA, 180 s, s1 = s2 = 6 cm).
 > - Physics review: edges were not bracketed (Cu Kβ +36 % at 9.2 kV), fixed. Reviewer's first-order estimate: plain normalisation gives Cu ≈ 56 % (low), but LD's ρ-weighted normalisation gives ≈ 61.0 / 35.2 / 3.8 (LD 61.6 / 35.6 / 2.9): the bias is the method's, so the Done-when stands (L3.4 checks it).
 
 #### S2 — Python: detector and MCA
@@ -443,7 +443,13 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 > - **For L3.5/L3.8:** with fixed centres and σ the fit is linear least squares (portable to TS without Levenberg–Marquardt).
 
 #### S3 — Export and port
-- [ ] **L3.5** `artifacts/tables/xrf_kernels.json` (lazy) and fixtures for 3 samples × 2 voltages. TS port and Vitest.
+- [x] **L3.5** `artifacts/tables/xrf/<sample>.json` (lazy, one file per sample) and fixtures for 3 samples × 2 voltages. TS port and Vitest.
+
+> [!note] As built (2026-10-22), L3.5
+> - Tables: one file per sample (6; the pre-commit hook caps files at 500 kB and a phone loads only the samples in use), each with `lam_pm`, line kernels `k` (+ `pin_eff`), `rayleigh`, `compton`, and `pin_eff_mid_*` at the continuum interval midpoints (grid-only energies, valid for any U), plus `scale_per_source_unit`, `air_in_mg_cm2`, `pin_eff_mo_lines`. 125–297 kB raw, 54–111 kB gzip each, own chunks (`loadXrfSample(name)`); eager bundle unchanged (73.65 kB gz). Trimming trailing zeros saved 1 %, skipped.
+> - TS: `web/src/physics/fluorescence.ts` (`lineRates`, `scatteredContinuum`, `mcaSpectrum`, always DEFAULT params since the exported scale is `_scale(DEFAULT)`), `detector.ts` (`pinFwhmKeV`, `kevPerChannel`, `mcaLiveTime`, `mcaCounts`, efficiencies from the table).
+> - 13 fixture cases + rejected inputs in `artifacts/fixtures/xrf/` (adds 15.5 kV Pb L3+L2, 9.3 kV Cu K only, 8.5 kV scatter only, I = 0, U = 0, t_s = 0); Vitest at rel 1e-9.
+> - Bug hunt before it: the XRF flux mixed ε = 1 and ε_GM weightings (anchored at 35 kV); now anchored at the 21 kV reading (`scan.DIRECT_ANCHOR_*`), rates ×0.57. Validation: integer channel count, NaN t_s and gain rejected in both languages.
 
 #### S4 — MCA view
 - [ ] **L3.6** New view `web/src/views/mca.ts`: counts vs channel, live accumulation, settings (channels, gain, time),
@@ -461,7 +467,7 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 published example (Cu high, Zn low, Pb about right), and the
 Cu/Zn/Pb spectra look like typical Si-PIN XRF spectra (line positions exact, Cu Kβ/Zn Kα blend visible).
 
-**Files:** `model/src/braggsim/{fluorescence,detector,analysis}.py`, `model/notebooks/07_xrf_brass.ipynb`, `artifacts/tables/xrf_kernels.json`, `web/src/physics/fluorescence.ts`, `web/src/views/mca.ts`, `web/src/pedagogy/tasks/xrf-*.ts`
+**Files:** `model/src/braggsim/{fluorescence,detector,analysis}.py`, `model/notebooks/07_xrf_brass.ipynb`, `artifacts/tables/xrf/*.json`, `web/src/physics/fluorescence.ts`, `web/src/views/mca.ts`, `web/src/pedagogy/tasks/xrf-*.ts`
 
 **Verify:** [[#Verify|standard]] + `pytest model -k "fluorescence or xrf"`; run `07_xrf_brass.ipynb`; `npm run build` shows the XRF kernels in a lazy chunk, main bundle unchanged
 
@@ -727,6 +733,11 @@ The engine already exists after C1. What's missing is **data for any element** i
 >     Evidence (apparatus review 2026-10-14): at the guide's 1 mA, an open slot anywhere in 30°–60° saturates the GM (true ≈ 2.8e5/s, Rτ ≈ 28),
 >     so the guide presumably never measures the open slot at 1 mA. An open slot at 0° would fit the Al plate, but it contradicts "the first three materials at 0°–20°".
 
+> 12. **GM counter ε(λ) (model decision, physics review 2026-10-22):** `tube_factor` / `direct_rate` count photons with ε = 1,
+>     and the Fig. 4 absorber fit absorbs part of ε(λ), while the XRF flux anchor weights by `detector.gm_efficiency` on top.
+>     Weighting `direct_rate` by ε_GM would move the attenuation numbers a lot (T(Cu 0.4 mm, 30 kV) ×0.30) and needs a refit
+>     of the absorber against Fig. 4. Decide before L3.8 quotes absolute XRF counts; the Cu-sheet lab check would settle the XRF side.
+
 > [!success]- Answered 2026-10-22 (user)
 > 11. **Doublet valley check:** closed, not built. The geometry gate (separation ≥ 4σ, Δβ 0.1°, Δt ≥ 10 s) already rejects the n = 4 shoulder and passes n = 5.
 
@@ -819,6 +830,13 @@ Newest first. One entry per session. This is what the next session reads to know
 - Uncommitted: no.
 - Surprises / decisions: ε_GM = 1 made XRF ~300× too faint (Pb in brass invisible in 180 s); user chose a physical 559 01 efficiency (gas pressure assumed, ×5) plus a lab Cu-sheet check. Reviews caught unbracketed edges (+36 % near threshold), a Pb fit artefact and a wrong stated cause of LD's Cu-high bias (it is the ρ weighting).
 - Next: L3.5. Export per-sample `lam_pm` + kernels + the GM-weighted flux constant to `artifacts/tables/xrf_kernels.json` (lazy; check gz size), fixtures for 3 samples × 2 voltages, port `line_rates`/`mca_counts` to TS.
+
+### 2026-10-22 · L3 · bug hunt + task L3.5
+- Done: bug hunt of L3.1–L3.4; fixed the XRF flux anchor (2ae4097: ×1.76 too high, 35 kV extrapolation with ε = 1 divided by an ε-weighted sum). L3.5 export, fixtures, TS port (Sonnet builder), physics review applied (counts-vs-photons wording, TS params half-applied, single anchor constant, physics test of the anchor, more fixtures, input validation). Local, unpushed (user).
+- Verify: pytest 343 · Vitest 322 · ruff clean · export byte-identical twice · build: eager 73.65 kB gz unchanged, xrf chunks 54–111 kB gz per sample.
+- Uncommitted: no.
+- Surprises / decisions: Q12 opened: `direct_rate` counts photons with ε = 1 while the XRF flux weights by ε_GM on top of a Fig. 4 absorber that already carries part of ε(λ). Decide before L3.8.
+- Next: L3.6 MCA view (load `bragg-ui`, uPlot), then L3.7 apparatus energy-detector mode.
 
 ### 2026-10-22 · F3 · tasks F3.1, F3.2 (F3 closed)
 - Done: four Forge tasks (see the F3 as-built note). Commits 0bc7fb9, 0d83462 (local, unpushed).

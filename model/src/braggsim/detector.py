@@ -111,8 +111,8 @@ def kev_per_channel(n_channels=512, gain=-2.5):
     """Channel width in keV: full scale ∝ 1/|gain|, spread over ``n_channels`` (assumption).
     Raises ValueError for gain 0 or a channel wider than ``PIN_SIGMA_EL_KEV``: sampling a Gaussian
     at the channel centres then no longer conserves its area (error ~ exp(−2π²σ²/h²))."""
-    if gain == 0 or n_channels < 1:
-        raise ValueError("gain must be non-zero and n_channels >= 1")
+    if not (abs(gain) > 0 and float(n_channels).is_integer() and n_channels >= 1):  # NaN fails
+        raise ValueError("gain must be non-zero and n_channels an integer >= 1")
     kpc = MCA_FULL_SCALE_KEV_AT_REF_GAIN * (MCA_REF_GAIN / abs(gain)) / n_channels
     if kpc > PIN_SIGMA_EL_KEV:
         raise ValueError(f"channel width {kpc:.3f} keV exceeds the line σ {PIN_SIGMA_EL_KEV} keV")
@@ -141,7 +141,7 @@ def mca_counts(lines, continuum, t_s, n_channels=512, gain=-2.5):
     from the total detected rate. Channel i is centred on i · keV per channel (offset 0).
     Returns (counts per channel, live_time_s, channel_energy_keV).
     """
-    if t_s < 0:
+    if not t_s >= 0:  # NaN fails too
         raise ValueError("t_s must be >= 0")
     kpc = kev_per_channel(n_channels, gain)
     e_ch = np.arange(n_channels) * kpc

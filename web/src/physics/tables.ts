@@ -99,3 +99,49 @@ export const loadForgeElements = retryableOnce(async () => {
   FORGE.constants = t.constants
   FORGE.elements = deepFreeze(structuredClone(t.elements) as unknown as ForgeElement[])
 })
+
+/** One fluorescence line of an XRF sample (port of fluorescence.LineKernel without the secondary part). */
+export type XrfLine = { label: string; energy_keV: number; k: readonly number[]; pin_eff: number }
+/** One sample of artifacts/tables/xrf/<name>.json; every k, rayleigh, compton has lam_pm.length + 4 entries (Mo components last). */
+export type XrfSample = {
+  lam_pm: readonly number[]
+  lines: readonly XrfLine[]
+  rayleigh: readonly number[]
+  compton: readonly number[]
+  pin_eff_mid_rayleigh: readonly number[]
+  pin_eff_mid_compton: readonly number[]
+}
+type XrfFile = {
+  scale_per_source_unit: number
+  compton_shift_pm: number
+  air_in_mg_cm2: number
+  pin_eff_mo_lines: Readonly<Record<string, number>>
+  sample: XrfSample
+}
+/** XRF kernels (braggsim.fluorescence.kernels) by sample name, filled by loadXrfSample(); the shared constants
+ * are 0 until the first sample loads. */
+export const XRF: Omit<XrfFile, 'sample'> & { samples: Record<string, XrfSample> } = {
+  scale_per_source_unit: 0, compton_shift_pm: 0, air_in_mg_cm2: 0, pin_eff_mo_lines: {}, samples: {},
+}
+const xrfFiles = import.meta.glob<XrfFile>('../../../artifacts/tables/xrf/*.json', { import: 'default' })
+const xrfPath = (name: string) => `../../../artifacts/tables/xrf/${name}.json`
+/** Every exported XRF sample (fluorescence.SAMPLES), loaded or not. */
+export const XRF_SAMPLE_NAMES: readonly string[] = Object.keys(xrfFiles).map((p) => p.slice(p.lastIndexOf('/') + 1, -5))
+const xrfLoaders = new Map<string, () => Promise<void>>()
+
+/** Load one sample's kernels (~70 kB gzip each, own chunk), fetched only by the XRF practice; idempotent per
+ * sample (a failed fetch can be retried). Rejects with RangeError for a sample that was never exported. */
+export function loadXrfSample(name: string): Promise<void> {
+  const file = xrfFiles[xrfPath(name)]
+  if (!file) return Promise.reject(new RangeError(`unknown XRF sample ${JSON.stringify(name)}: use one of ${XRF_SAMPLE_NAMES}`))
+  let load = xrfLoaders.get(name)
+  if (!load) {
+    load = retryableOnce(async () => {
+      const { sample, ...shared } = deepFreeze(structuredClone(await file()))
+      Object.assign(XRF, shared)
+      XRF.samples[name] = sample
+    })
+    xrfLoaders.set(name, load)
+  }
+  return load()
+}

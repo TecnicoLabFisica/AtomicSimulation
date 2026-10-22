@@ -248,10 +248,14 @@ def test_xrf_flux_scale_is_the_gm_reading_over_its_efficiency_weighted_spectrum(
     p = fl.scan.DEFAULT
     # anchored at the 21 kV reading itself: tube_factor's ε = 1 extrapolation to 35 kV must not
     # meet the ε-weighted sum (ε̄_GM is 0.0057 at 21 kV but 0.0032 at 35 kV)
-    reading_21kv = p.direct_per_s * fl.scan.tube_factor(21.0, 1.0, p)
-    assert fl._scale(p) == pytest.approx(reading_21kv / fl._gm_weighted_photons(p), rel=1e-15)
-    eps_bar_21kv = reading_21kv / fl._scale(p) / fl.scan._photons_out(21.0, p)
-    assert eps_bar_21kv == pytest.approx(0.0057, rel=0.01)
+    # meet the ε-weighted sum (ε̄_GM is 0.0057 at 21 kV but 0.0032 at 35 kV). The XRF flux model,
+    # counted by the GM at the guide's setting, must give back the guide's reading.
+    s = fl.scan
+    true_rate = (
+        fl._scale(p) * fl._gm_weighted_photons(p) * s.DIRECT_ANCHOR_I_MA + p.background_per_s
+    )
+    observed = detector.dead_time(true_rate, p.tau_s)
+    assert observed == pytest.approx(s.DIRECT_ANCHOR_PER_S, rel=1e-3)
     # ε_GM is a few per mille at Mo energies, so the flux is a few hundred times the ε = 1 value
     ratio = fl._scale(p) / (p.direct_per_s / fl.scan._photons_out(35.0, p))
     assert 100 < ratio < 1000
@@ -259,7 +263,7 @@ def test_xrf_flux_scale_is_the_gm_reading_over_its_efficiency_weighted_spectrum(
 
 def test_mca_spectrum_cu():
     counts, live, e = fl.mca_spectrum("Cu", 35, 1, 180)
-    assert 0.95 < live / 180 < 0.99  # 3.2 % dead-time loss
+    assert 0.95 < live / 180 < 0.99  # 1.9 % dead-time loss
     kpc = detector.kev_per_channel()
     assert int(np.argmax(counts[: int(9 / kpc)])) == round(8.04 / kpc)
     assert np.all(fl.mca_spectrum("Cu", 35, 0, 180)[0] == 0)

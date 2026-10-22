@@ -20,7 +20,7 @@ import numpy as np
 import xraylib
 
 import braggsim
-from braggsim import analysis, forge, scan
+from braggsim import analysis, detector, fluorescence, forge, scan
 from braggsim.constants import (
     HC_KEV_PM,
     MO_K_EDGE_KEV,
@@ -185,6 +185,105 @@ def _rejected_case():
         else:
             raise AssertionError(f"scan.{fn} accepted {inputs}")
     return {"function": "rejected", "description": "Inputs the model refuses", "cases": out}
+
+
+def _xrf_kernels_table():
+    """Per-sample XRF kernels for the web port (``fluorescence.kernels``) plus the xraylib-derived
+    detector efficiencies it cannot compute: ``pin_eff`` per line and at the midpoints of the
+    scatter-continuum intervals (``detector.mca_counts``; the energies depend on the grid only)."""
+    out = {}
+    for name, sample in fluorescence.SAMPLES.items():
+        kern = fluorescence.kernels(sample)
+        # detected energies hc/(λ + shift), ascending as in scattered_continuum: grid only, any U
+        mid = {}
+        for kind, shift in (("rayleigh", 0.0), ("compton", fluorescence.COMPTON_SHIFT_PM)):
+            e = HC_KEV_PM / (kern.lam_pm + shift)[::-1]
+            mid[kind] = 0.5 * (e[1:] + e[:-1])
+        out[name] = {
+            "lam_pm": _floats(kern.lam_pm),
+            "lines": [
+                {
+                    "label": lk.label,
+                    "energy_keV": lk.energy_keV,
+                    "k": _floats(lk.k),
+                    "pin_eff": float(detector.pin_efficiency(lk.energy_keV)),
+                }
+                for lk in kern.lines
+            ],  # fmt: skip
+            "rayleigh": _floats(kern.rayleigh),
+            "compton": _floats(kern.compton),
+            "pin_eff_mid_rayleigh": _floats(detector.pin_efficiency(mid["rayleigh"])),
+            "pin_eff_mid_compton": _floats(detector.pin_efficiency(mid["compton"])),
+        }
+    mo = {
+        ln.label: float(detector.pin_efficiency(ln.energy_keV))
+        for ln in fluorescence.line_rates("Cu", 35.0, 1.0)
+        if ln.label.startswith("Mo ")
+    }
+    return out, mo
+
+
+_XRF_T_S = 180.0
+# (sample, U_kV, I_mA, t_s, n_channels, gain). 15 kV: Pb L3 only (L2 15.20, L1 15.86 keV); 15.5 kV:
+# L3 + L2; 9.3 kV: Cu K (8.98) excited, Zn K (9.66) not; 8.5 kV: below Cu K, scatter only.
+_XRF_RUNS = (
+    *((s, 35.0, 1.0, _XRF_T_S, 512, -2.5) for s in ("Cu", "CuZn39Pb3", "centavo2003")),
+    *((s, 15.0, 0.6, _XRF_T_S, 512, -2.5) for s in ("Cu", "CuZn39Pb3", "centavo2003")),
+    ("CuZn39Pb3", 35.0, 1.0, _XRF_T_S, 256, -5.0),
+    ("CuZn39Pb3", 15.5, 1.0, _XRF_T_S, 512, -2.5),
+    ("CuZn39Pb3", 9.3, 1.0, _XRF_T_S, 512, -2.5),
+    ("Cu", 8.5, 1.0, _XRF_T_S, 512, -2.5),
+    ("Cu", 35.0, 0.0, _XRF_T_S, 512, -2.5),
+    ("Cu", 0.0, 1.0, _XRF_T_S, 512, -2.5),
+    ("Cu", 35.0, 1.0, 0.0, 512, -2.5),
+)
+
+
+def _xrf_fixtures():
+    out = {}
+    for sample, U, i_mA, t_s, n_ch, gain in _XRF_RUNS:
+        inputs = {"sample": sample, "U_kV": U, "I_mA": i_mA, "t_s": t_s,
+                  "n_channels": n_ch, "gain": gain}  # fmt: skip
+        counts, live, e_ch = fluorescence.mca_spectrum(sample, U, i_mA, t_s, n_ch, gain)
+        lines = fluorescence.line_rates(sample, U, i_mA)
+        name = f"{sample}_{U:g}kV_{i_mA:g}mA_{n_ch}ch_{t_s:g}s"
+        out[name] = {
+            "function": "fluorescence.xrf",
+            "description": f"XRF of {sample} at {U:g} kV, {i_mA:g} mA: line rates and expected MCA "
+            f"spectrum ({n_ch} channels, gain {gain:g}, {t_s:g} s)",
+            "inputs": inputs,
+            "expected": {
+                "line_rates": [{"label": ln.label, "energy_keV": ln.energy_keV,
+                                "rate_per_s": ln.rate_per_s} for ln in lines],
+                "mca_counts": _floats(counts),
+                "live_time_s": float(live),
+                "channel_energy_keV": _floats(e_ch),
+            },
+        }  # fmt: skip
+    return out
+
+
+def _xrf_rejected_case():
+    ok = {"sample": "Cu", "U_kV": 35.0, "I_mA": 1.0, "t_s": 180.0}
+    cases = [
+        ("U above 35 kV", {**ok, "U_kV": 35 + 1e-9}),
+        ("I above 1 mA", {**ok, "I_mA": 1 + 1e-9}),
+        ("unknown sample", {**ok, "sample": "unobtainium"}),
+        ("channel wider than σ_el", {**ok, "n_channels": 256, "gain": -2.0}),
+        ("negative t_s", {**ok, "t_s": -1.0}),
+        ("non-integer channel count", {**ok, "n_channels": 512.5}),
+        ("gain 0", {**ok, "gain": 0.0}),
+    ]
+    out = []
+    for description, inputs in cases:
+        try:
+            fluorescence.mca_spectrum(**inputs)
+        except ValueError as e:
+            out.append({"function": "fluorescence.xrf", "description": description,
+                        "inputs": inputs, "expected": {"error": type(e).__name__}})  # fmt: skip
+        else:
+            raise AssertionError(f"fluorescence.mca_spectrum accepted {inputs}")
+    return {"function": "rejected", "description": "XRF inputs the model refuses", "cases": out}
 
 
 def _crystal_tables():
@@ -812,6 +911,32 @@ def build():
             **forge.element_tables(),
         },
         compact=True,
+    )
+    kernels_by_sample, mo_pin_eff = _xrf_kernels_table()
+    for name, sample_table in kernels_by_sample.items():  # one file per sample: the web loads
+        files[f"tables/xrf/{name}.json"] = _dump(  # only the samples in use, each < 500 kB
+            {
+                "description": "XRF kernels of braggsim.fluorescence.kernels for one sample: "
+                "detected photons per incident photon on lam_pm (pm) then the four Mo components "
+                "Kα1, Kα2, Kβ1,3, Kβ2 (every k, rayleigh, compton has len(lam_pm) + 4 entries); "
+                "pin_eff = detector.pin_efficiency at the line energy, at the midpoints of the "
+                "Rayleigh / Compton continuum intervals of mca_counts, and for the Mo scatter "
+                "lines (pin_eff_mo_lines). scale_per_source_unit = "
+                "fluorescence._scale(scan.DEFAULT); air_in_mg_cm2 = incident air path of _t_in",
+                "source": f"xraylib {xraylib.__version__} CS_Total, "
+                "CS_FluorLine_Kissel_Cascade, CS_Photo",
+                "scale_per_source_unit": fluorescence._scale(scan.DEFAULT),
+                "compton_shift_pm": fluorescence.COMPTON_SHIFT_PM,
+                "air_in_mg_cm2": fluorescence._MG_CM2_PER_CM_AIR * fluorescence.AIR_IN_CM,
+                "pin_eff_mo_lines": mo_pin_eff,
+                "sample": sample_table,
+            },
+            compact=True,
+        )
+    for name, case in _xrf_fixtures().items():
+        files[f"fixtures/xrf/{name}.json"] = _dump({"name": name, **case})
+    files["fixtures/xrf/rejected_inputs.json"] = _dump(
+        {"name": "rejected_inputs", **_xrf_rejected_case()}
     )
     for name, case in _forge_fixtures().items():
         files[f"fixtures/forge/{name}.json"] = _dump({"name": name, **case})

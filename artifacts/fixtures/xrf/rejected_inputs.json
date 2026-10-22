@@ -1,0 +1,103 @@
+{
+ "cases": [
+  {
+   "description": "U above 35 kV",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.000000001,
+    "sample": "Cu",
+    "t_s": 180.0
+   }
+  },
+  {
+   "description": "I above 1 mA",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.000000001,
+    "U_kV": 35.0,
+    "sample": "Cu",
+    "t_s": 180.0
+   }
+  },
+  {
+   "description": "unknown sample",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "sample": "unobtainium",
+    "t_s": 180.0
+   }
+  },
+  {
+   "description": "channel wider than σ_el",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "gain": -2.0,
+    "n_channels": 256,
+    "sample": "Cu",
+    "t_s": 180.0
+   }
+  },
+  {
+   "description": "negative t_s",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "sample": "Cu",
+    "t_s": -1.0
+   }
+  },
+  {
+   "description": "non-integer channel count",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "n_channels": 512.5,
+    "sample": "Cu",
+    "t_s": 180.0
+   }
+  },
+  {
+   "description": "gain 0",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "fluorescence.xrf",
+   "inputs": {
+    "I_mA": 1.0,
+    "U_kV": 35.0,
+    "gain": 0.0,
+    "sample": "Cu",
+    "t_s": 180.0
+   }
+  }
+ ],
+ "description": "XRF inputs the model refuses",
+ "function": "rejected",
+ "model_version": "0.4.0",
+ "name": "rejected_inputs"
+}

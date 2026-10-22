@@ -70,7 +70,6 @@ _FLUOR_FRACTION = OMEGA_SR / (4 * math.pi)  # isotropic emission into the detect
 _MG_CM2_PER_CM_AIR = scan.AIR_MG_CM2 / scan.AIR_PATH_CM
 _SCATTER_ANGLE_RAD = math.pi / 2
 COMPTON_SHIFT_PM = 2.42631023867  # h/(m_e c), CODATA 2018: λ' − λ at 90°
-GM_ANCHOR_U_KV = 21.0  # voltage of the GM reading behind direct_per_s (EPN Práctica 1, 0.05 mA)
 
 _MO_COMPONENTS = MO_KA_COMPONENTS + MO_KB_COMPONENTS  # Kα1, Kα2, Kβ1,3, Kβ2
 _MO_LAMBDA_PM = np.array([lam for lam, _ in _MO_COMPONENTS])
@@ -373,17 +372,17 @@ def _flux(kern, U_kV, params):
 
 @functools.lru_cache(maxsize=8)
 def _gm_weighted_photons(params):
-    """``scan._photons_out(GM_ANCHOR_U_KV)`` with every photon weighted by
+    """``scan._photons_out(scan.DIRECT_ANCHOR_U_KV)`` with every photon weighted by
     ``detector.gm_efficiency`` and the same trapezoid rule, split at the K, L edges of the
     counter's window and gas elements."""
     lam = _bracketed_grid(_edge_nodes(("O", "Al", "Si", "K", "Ne", "Ar", "Br")))
     total = np.trapezoid(
-        source.continuum(lam, GM_ANCHOR_U_KV, 1.0)
+        source.continuum(lam, scan.DIRECT_ANCHOR_U_KV, 1.0)
         * scan._transmission(lam, params)
         * detector.gm_efficiency(lam),
         lam,
     )
-    ka, kb = source.line_rates(GM_ANCHOR_U_KV, 1.0, params.line_to_cont)
+    ka, kb = source.line_rates(scan.DIRECT_ANCHOR_U_KV, 1.0, params.line_to_cont)
     for rate, components in ((ka, MO_KA_COMPONENTS), (kb, MO_KB_COMPONENTS)):
         for lam_pm, fraction in components:
             total += (
@@ -394,12 +393,12 @@ def _gm_weighted_photons(params):
 
 
 def _scale(params):
-    """Photons/s on the sample per source unit. The GM counter's reading is anchored at
-    ``GM_ANCHOR_U_KV`` (``direct_per_s`` · ``tube_factor(21 kV, 1 mA)``, 18 cm of air), which is
+    """Photons/s on the sample per source unit. The GM counter's reading at
+    ``scan.DIRECT_ANCHOR_U_KV`` (``direct_per_s`` · ``tube_factor(21 kV, 1 mA)``, 18 cm of air) is
     ∫ Φ_GM(λ) ε_GM(λ) dλ + Σ Mo lines at that voltage, so one source unit is worth that reading /
     (that sum with ε_GM weights); independent of sample, U and I. Anchoring at 35 kV instead would
     mix ``tube_factor``'s ε = 1 extrapolation with the ε-weighted sum (×1.76 too much flux)."""
-    reading = params.direct_per_s * scan.tube_factor(GM_ANCHOR_U_KV, 1.0, params)
+    reading = params.direct_per_s * scan.tube_factor(scan.DIRECT_ANCHOR_U_KV, 1.0, params)
     return reading / _gm_weighted_photons(params)
 
 

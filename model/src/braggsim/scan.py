@@ -132,6 +132,8 @@ class ModelParams:
 # Fitted to leaflet Fig. 4 on 2026-09-25 (notebooks/03_full_spectrum_vs_fig4.ipynb); tau_s fixed.
 # 2026-10-14: the fitted floor 5.54/s is split into scatter 5.34 + background 0.2 (bookkeeping, no
 # refit); direct_per_s is anchored to EPN Práctica 1 (model/PARAMETERS.md).
+DIRECT_ANCHOR_U_KV, DIRECT_ANCHOR_I_MA = 21.0, 0.05  # the guide's direct-beam reading
+DIRECT_ANCHOR_PER_S = 950.0  # observed counts/s there: the guide's pass threshold
 DEFAULT = ModelParams(
     scale=1.676e5,
     line_to_cont=7.43e-3,

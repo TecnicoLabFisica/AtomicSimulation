@@ -78,3 +78,76 @@ export function mulberry32(seed: number): Rng {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
+
+// LD 559 938 Si-PIN energy detector, port of braggsim.detector (model/PARAMETERS.md, 2026-10-22).
+export const PIN_SIGMA_EL_KEV = 0.16
+export const PIN_FANO = 0.15
+export const PIN_EPS_KEV = 0.0038
+export const PIN_DEAD_TIME_S = 250e-6
+const FWHM_PER_SIGMA = 2 * Math.sqrt(2 * Math.log(2))
+export const MCA_FULL_SCALE_KEV_AT_REF_GAIN = 40.0
+export const MCA_REF_GAIN = 2.5
+
+/** port of braggsim.detector.pin_fwhm_keV: FWHM in keV of the Gaussian line response. */
+export function pinFwhmKeV(EkeV: number): number {
+  return FWHM_PER_SIGMA * Math.sqrt(PIN_SIGMA_EL_KEV ** 2 + PIN_FANO * PIN_EPS_KEV * EkeV)
+}
+
+/** port of braggsim.detector.kev_per_channel: channel width in keV; throws for gain 0, n not an integer ≥ 1 or a channel wider than σ_el. */
+export function kevPerChannel(nChannels = 512, gain = -2.5): number {
+  if (!(Math.abs(gain) > 0 && Number.isInteger(nChannels) && nChannels >= 1))
+    throw new RangeError('gain must be non-zero and n_channels an integer >= 1')
+  const kpc = (MCA_FULL_SCALE_KEV_AT_REF_GAIN * (MCA_REF_GAIN / Math.abs(gain))) / nChannels
+  if (kpc > PIN_SIGMA_EL_KEV) throw new RangeError(`channel width ${kpc.toFixed(3)} keV exceeds the line σ ${PIN_SIGMA_EL_KEV} keV`)
+  return kpc
+}
+
+/** port of braggsim.detector.mca_live_time: t_s / (1 + R τ) of a non-paralyzable counter. */
+export function mcaLiveTime(totalRatePerS: number, tS: number): number {
+  return tS / (1 + totalRatePerS * PIN_DEAD_TIME_S)
+}
+
+/** Add `weight` × a unit-area Gaussian (port of detector._gauss_per_channel) at `e0` sampled at the channel centres. */
+function addGauss(pulses: Float64Array, eCh: Float64Array, e0: number, fwhm: number, weight: number, kpc: number): void {
+  const sig = fwhm / FWHM_PER_SIGMA
+  const norm = sig * Math.sqrt(2 * Math.PI)
+  for (let i = 0; i < pulses.length; i++) pulses[i] += weight * (Math.exp(-0.5 * ((eCh[i] - e0) / sig) ** 2) / norm) * kpc
+}
+
+/** A scatter continuum for mcaCounts: ascending energies, rate per keV, and `pin_efficiency` at the interval midpoints. */
+export type McaContinuum = { eKeV: ArrayLike<number>; ratePerS_perKeV: ArrayLike<number>; pinEffMid: ArrayLike<number> }
+
+/** port of braggsim.detector.mca_counts: expected counts per channel over `tS` of real time. `lines` are
+ * [energy_keV, rate_per_s, pin_efficiency(energy)] (the efficiency comes from the exported table, not xraylib).
+ * Returns the counts, the live time and the channel energies. */
+export function mcaCounts(
+  lines: readonly (readonly [number, number, number])[],
+  continuum: readonly McaContinuum[],
+  tS: number,
+  nChannels = 512,
+  gain = -2.5,
+): { counts: Float64Array; liveTimeS: number; channelEnergyKeV: Float64Array } {
+  if (!(tS >= 0)) throw new RangeError('t_s must be >= 0')
+  const kpc = kevPerChannel(nChannels, gain)
+  const eCh = Float64Array.from({ length: nChannels }, (_, i) => i * kpc)
+  const pulses = new Float64Array(nChannels)
+  let total = 0
+  for (const [e0, rate, eff] of lines) {
+    const r = rate * eff
+    total += r
+    addGauss(pulses, eCh, e0, pinFwhmKeV(e0), r, kpc)
+  }
+  for (const { eKeV: e, ratePerS_perKeV: dens, pinEffMid } of continuum) {
+    let sum = 0
+    for (let i = 0; i + 1 < e.length; i++) {
+      const em = 0.5 * (e[i + 1] + e[i])
+      const rm = 0.5 * (dens[i + 1] + dens[i]) * (e[i + 1] - e[i]) * pinEffMid[i]
+      sum += rm
+      if (rm > 0 && em < eCh[nChannels - 1] + 5) addGauss(pulses, eCh, em, pinFwhmKeV(em), rm, kpc)
+    }
+    total += sum
+  }
+  const live = mcaLiveTime(total, tS)
+  for (let i = 0; i < nChannels; i++) pulses[i] *= live
+  return { counts: pulses, liveTimeS: live, channelEnergyKeV: eCh }
+}
