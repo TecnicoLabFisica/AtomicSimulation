@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L3.6` (MCA view; load `bragg-ui`). L3.1–L3.5 done 2026-10-22, local commits, unpushed (user: no push that session). Open: Q10 (lab), Q12 (GM ε(λ) consistency, decide before L3.8 quotes absolute counts); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
+> **Next:** `L3.6` (MCA view; load `bragg-ui`). L3.1–L3.5 done and pushed 2026-10-22 (3cd4f88..56fc7c6, Pages deploy green). Open: Q10 (lab), Q12 (GM ε(λ) consistency, decide before L3.8 quotes absolute counts); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -832,7 +832,7 @@ Newest first. One entry per session. This is what the next session reads to know
 - Next: L3.5. Export per-sample `lam_pm` + kernels + the GM-weighted flux constant to `artifacts/tables/xrf_kernels.json` (lazy; check gz size), fixtures for 3 samples × 2 voltages, port `line_rates`/`mca_counts` to TS.
 
 ### 2026-10-22 · L3 · bug hunt + task L3.5
-- Done: bug hunt of L3.1–L3.4; fixed the XRF flux anchor (2ae4097: ×1.76 too high, 35 kV extrapolation with ε = 1 divided by an ε-weighted sum). L3.5 export, fixtures, TS port (Sonnet builder), physics review applied (counts-vs-photons wording, TS params half-applied, single anchor constant, physics test of the anchor, more fixtures, input validation). Local, unpushed (user).
+- Done: bug hunt of L3.1–L3.4; fixed the XRF flux anchor (2ae4097: ×1.76 too high, 35 kV extrapolation with ε = 1 divided by an ε-weighted sum). L3.5 export, fixtures, TS port (Sonnet builder), physics review applied (counts-vs-photons wording, TS params half-applied, single anchor constant, physics test of the anchor, more fixtures, input validation). Pushed 3cd4f88..56fc7c6 (user); test + Pages deploy green.
 - Verify: pytest 343 · Vitest 322 · ruff clean · export byte-identical twice · build: eager 73.65 kB gz unchanged, xrf chunks 54–111 kB gz per sample.
 - Uncommitted: no.
 - Surprises / decisions: Q12 opened: `direct_rate` counts photons with ε = 1 while the XRF flux weights by ε_GM on top of a Fig. 4 absorber that already carries part of ε(λ). Decide before L3.8.
