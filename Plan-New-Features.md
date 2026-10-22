@@ -9,10 +9,10 @@ tags:
   - plan
 status: planning
 created: 2026-10-14
-updated: 2026-10-21
-current_phase: F2
-next_task: F2.1
-last_session: 2026-10-21
+updated: 2026-10-22
+current_phase: F3
+next_task: F3.1
+last_session: 2026-10-22
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
   - "EPN guide Práctica 1: X-ray attenuation vs absorber material and thickness (refs/atenuacion_RX.pdf)"
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `F2.1`, the Forge view (`forge.ts` lazy chunk). F1, the Forge engine, closed on 2026-10-21 (uncommitted until the user asks).
+> **Next:** `F3.1`, the Forge guided tasks. F2, the Forge UI, closed on 2026-10-22 (F2.3 3D cell deferred to the backlog).
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets). Still open: Q10 (the wheel's open slot).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -69,7 +69,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
 | F1 | Forge engine (any element) | ✅ done | 1 | C1 |
-| F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
+| F2 | Forge UI | ✅ done | 1 | F1, C2 |
 | F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
 
 Legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸ blocked (say on what in the [[#Session log]]).
@@ -653,15 +653,27 @@ The engine already exists after C1. What's missing is **data for any element** i
 > Run `forgeEntry` in a Web Worker (it is pure) with a progress cue; debounce edits. Map `ForgeInputError.code` and the warning codes to i18n strings (ES/EN).
 > The forged entry needs `loadForgeElements()` and `loadCrystals()` (NaCl reference). Name forged crystals so `isNacl` never matches them. Consider a MAX_ATOMS limit.
 
-- [ ] **F2.1** `web/src/views/forge.ts` (lazy chunk): lattice picker, parameter sliders with numeric fields, basis table
+- [x] **F2.1** `web/src/views/forge.ts` (lazy chunk): lattice picker, parameter sliders with numeric fields, basis table
       (element picker plus x, y, z), (hkl) picker, live d and orders table (allowed/forbidden, relative |F|²).
-- [ ] **F2.2** Live "would-be spectrum" (uPlot, linear/log), overlaid on NaCl, plus a "Use on the bench" button that mounts the
+- [x] **F2.2** Live "would-be spectrum" (uPlot, linear/log), overlaid on NaCl, plus a "Use on the bench" button that mounts the
       forged crystal (labelled *hypothetical* everywhere).
 
 #### S2
-- [ ] **F2.3** Optional unit-cell 3D view, reusing the three.js chunk of the bench (atoms as spheres, the cut plane as a translucent plane).
-- [ ] **F2.4** Persistence: `localStorage` plus a share link (crystal encoded in the URL query) so teachers can hand out a crystal.
-- [ ] **F2.5** Design and pedagogy reviews, checked on a phone at 390 px.
+- ⏭ **F2.3** *(deferred to the backlog, user 2026-10-21)* Optional unit-cell 3D view, reusing the three.js chunk of the bench (atoms as spheres, the cut plane as a translucent plane).
+- [x] **F2.4** Persistence: `localStorage` plus a share link (crystal encoded in the URL query) so teachers can hand out a crystal.
+- [x] **F2.5** Design and pedagogy reviews, checked on a phone at 390 px.
+
+> [!note] As built (2026-10-22)
+> - **Entry:** a "Forja / Forge" topbar tool, Explore only, opens a full-screen sheet (`web/src/views/forge.ts`, lazy; strings in `forge-i18n.ts`, own chunk). The page behind is `inert` while it is open.
+> - **Logic (TS-only, no physics):** `physics/forge-lattices.ts` holds the templates (cubic P/I/F, rock salt, CsCl, diamond, zincblende, hexagonal, general), `matchLattice` (so a link or a reload reopens as its template), the presets NaCl/LiF/Si/KCl (values in `PARAMETERS.md` § Forge presets), `MAX_ATOMS = 64` and the share codec (`decodeForge` is the trust boundary, `bad_link`).
+> - **Worker:** `physics/forge.worker.ts` + `forge-client.ts` run `forgeEntry` and the would-be spectrum (`forge-plot.ts`: `expectedRate`, 35 kV, 1 mA, no filters, no noise). A large cell took 580 ms on the main thread. The worker is an ES module (`vite.config.ts`, annotation comments stripped) so its `forge_elements`/`crystals` chunks are byte-identical to the page's and download once. `forgeEntry` needs no `crystals.json` (the NaCl reference is the built-in `NACL`; test `forge-no-crystals`).
+> - **Readout:** `d(hkl)`, density, the orders table (|F|² relative to the strongest allowed order, forbidden in words, θ or "none (nλ > 2d)" or "θ > 85°"), the plot vs the fitted NaCl, with notes on what is fitted and what is model.
+> - **Bench:** "Use on the bench" registers the entry as `forge:N` (immutable: stored scans reference the key) and mounts it through the interlock. `crystalLabel` shows "<name> (hipotético)" everywhere. Forged names are untrusted: they are written as text, the CSV is quoted against formula injection, and filenames are sanitised.
+> - **Share:** `?forge=<base64url>` opens the Forge (switching to Explore), and the param is stripped. The last design is kept in `localStorage`.
+> - **Sizes:** the eager set (index + modulepreloaded `tables` + `scan`) is 98.8 kB gz (was 98.15). Forge 6.3 kB, forge-i18n 4.9 kB, forge-share 2.1 kB, worker ≈ 36 kB gz (all lazy).
+> - **Reviews:** design (atom inputs collapsed, θ clipped, plot buried), pedagogy (|F|² normalised to n = 1 hid weak odd orders; "out of reach" merged nλ > 2d with the goniometer limit) and physics (KCl B 0.5 → Debye 1.6/1.8 Å², the ideal-mosaic note omitted LP, a forged NaCl ≠ the fitted anchor). All fixed.
+> - **Declined:** accepting a cut whose first order is absent (that is a Python engine change). F3 uses Si (111) → (222) forbidden instead. The "hipotético" label is kept.
+> - **Deferred:** F2.3 (3D cell). The ×10ⁿ notation for tiny |F|² (shows "< 0.001"). Only a share link was checked in a headless browser; the "Use on the bench" click flow is unit-tested only.
 
 **Files:** `web/src/views/forge.ts`, `web/src/styles/`, `web/src/pedagogy/i18n/`
 
@@ -774,6 +786,12 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 ## Session log
 
 Newest first. One entry per session. This is what the next session reads to know what happened.
+
+### 2026-10-22 · F2 · tasks F2.1, F2.2, F2.4, F2.5 (F2 closed; F2.3 deferred)
+- Done: Forge UI (see the F2 as-built note). Commits 27f1559, 98b841e, 2a029a2, 6cfa358, 11c20f3, a408fd0 (local, unpushed).
+- Verify: Vitest 284 · pytest 306 · ruff clean · build OK, eager set 98.8 kB gz.
+- Uncommitted: no.
+- Surprises / decisions: the user chose (2026-10-21) local commits per task, no push, F2 + F3 only, Forge in the topbar Explore-only, F2.3 skipped. A Vite worker inlined every table (311 kB gz) until it became an ES worker. A share link opened every design as "general" until `matchLattice`.
 
 > [!example]- Entry template
 > ```
