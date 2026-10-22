@@ -4,7 +4,7 @@ import { forgeEntry, forgeWarnings, type ForgeInput } from '../src/physics/forge
 import { handleForge } from '../src/physics/forge-client'
 import { PRESETS } from '../src/physics/forge-lattices'
 import { loadCrystals, loadForgeElements } from '../src/physics/tables'
-import { ELEMENTS, designFromInput, designFromPreset, orderRows, switchLattice, toInput } from '../src/views/forge'
+import { ELEMENTS, classifyReach, designFromInput, designFromPreset, orderRows, switchLattice, toInput } from '../src/views/forge'
 import { FORGE_I18N, errorText } from '../src/views/forge-i18n'
 
 const all = import.meta.glob<any>('../../artifacts/fixtures/forge/*.json', { eager: true, import: 'default' })
@@ -41,6 +41,24 @@ describe('design conversion', () => {
     const back = toInput(designFromInput(input))
     expect(back).toEqual(input)
   })
+  test.each(PRESETS.map((p) => p.id))('%s is recognised as its own template after the round trip', (id) => {
+    const p = PRESETS.find((q) => q.id === id)!
+    const back = designFromInput(toInput(designFromPreset(p)))
+    expect(back.lattice).toBe(p.lattice)
+    expect(back.elements).toEqual([...p.elements])
+    expect(back.atoms).toEqual([])
+  })
+  test('a perturbed basis falls back to the general lattice', () => {
+    const input = toInput(designFromPreset(PRESETS[0]))
+    const basis = input.basis.map((r, k) => (k === 3 ? r.map((v, i) => (i === 1 ? v + 0.01 : v)) : r))
+    expect(designFromInput({ ...input, basis }).lattice).toBe('general')
+  })
+  test('a hexagonal cell is recognised, atoms by hand', () => {
+    const d = switchLattice(designFromPreset(PRESETS[0]), 'hexagonal')
+    const back = designFromInput(toInput(d))
+    expect(back.lattice).toBe('hexagonal')
+    expect(back.atoms).toHaveLength(1)
+  })
   test('rock salt → general keeps the same crystal', () => {
     const d = designFromPreset(PRESETS[0])
     expect(toInput(switchLattice(d, 'general'))).toEqual(toInput(d))
@@ -60,8 +78,22 @@ describe('orders table', () => {
     const rows = orderRows(forgeEntry(toInput(designFromPreset(PRESETS[2]))))
     expect(rows[0]).toMatchObject({ n: 1, allowed: true })
     expect(rows[0].thetaDeg).toBeCloseTo(6.51, 2)
+    expect(rows[0].fRel).toBeCloseTo(1, 2)
     expect(rows.some((r) => !r.allowed)).toBe(true)
     expect(rows.every((r) => r.allowed || r.n >= 1)).toBe(true)
+  })
+  test('KCl (1 1 1): the odd order is weak next to n = 2, which is the maximum', () => {
+    const rows = orderRows(forgeEntry(toInput({ ...designFromPreset(PRESETS[3]), cut: [1, 1, 1] })))
+    expect(rows[0].fRel).toBeLessThan(0.01)
+    expect(rows[1].fRel).toBeCloseTo(1, 10)
+  })
+  test('LiF (2 0 0): order 6 has no Bragg solution; the classifier splits "none" from "too far"', () => {
+    const rows = orderRows(forgeEntry(toInput(designFromPreset(PRESETS[1]))))
+    expect(rows[5].reach).toBe('none')
+    expect(rows[0].reach).toBe('ok')
+    expect(classifyReach(Number.NaN)).toBe('none')
+    expect(classifyReach(85.5)).toBe('far')
+    expect(classifyReach(30)).toBe('ok')
   })
   test('cut_absent hint reaches the text', () => {
     const d = designFromPreset(PRESETS[2])

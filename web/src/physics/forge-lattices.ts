@@ -62,6 +62,40 @@ export function expandLattice(t: LatticeId, p: LatticeParams): number[][] {
   return (SITES[t] as number[][][]).flatMap((pts, i) => pts.map((q) => [p.elements[i], ...q, B(i), 1]))
 }
 
+const TOL = 1e-9
+const frac = (v: number) => {
+  const f = ((v % 1) + 1) % 1
+  return f > 1 - TOL ? 0 : f
+}
+const siteKey = (r: readonly number[]) => [r[0], ...r.slice(1, 4).map((v) => frac(v).toFixed(8)), r[4].toFixed(8), r[5]].join()
+
+/** Which template (if any) reproduces this cell and basis exactly (as an atom set, order-independent, positions mod 1,
+ * occupancy 1)? Returns the template and its parameters, or null. Hexagonal is recognised from the cell alone (atoms by hand). */
+export function matchLattice(input: Pick<ForgeInput, 'cell' | 'basis'>): { lattice: LatticeId; a_pm: number; elements: number[]; B_A2: number[] } | null {
+  const { cell: c, basis } = input
+  const near = (x: number, y: number) => Math.abs(x - y) <= TOL * Math.max(1, Math.abs(y))
+  const rightAngles = near(c.alpha_deg, 90) && near(c.beta_deg, 90)
+  if (rightAngles && near(c.b_pm, c.a_pm) && near(c.gamma_deg, 120)) return { lattice: 'hexagonal', a_pm: c.a_pm, elements: [basis[0][0]], B_A2: [basis[0][4]] }
+  if (!rightAngles || !near(c.gamma_deg, 90) || !near(c.b_pm, c.a_pm) || !near(c.c_pm, c.a_pm)) return null
+  const want = basis.map(siteKey).sort().join('|')
+  for (const id of Object.keys(SITES) as LatticeId[]) {
+    const sites = SITES[id] as number[][][]
+    if (sites.reduce((n, pts) => n + pts.length, 0) !== basis.length) continue
+    const elements: number[] = []
+    const B_A2: number[] = []
+    for (const pts of sites) {
+      const row = basis.find((r) => pts[0].every((v, k) => Math.abs(frac(r[k + 1]) - frac(v)) < TOL))
+      if (!row) break
+      elements.push(row[0])
+      B_A2.push(row[4])
+    }
+    if (elements.length !== sites.length) continue
+    const got = expandLattice(id, { elements, B_A2 }).map(siteKey).sort().join('|')
+    if (got === want) return { lattice: id, a_pm: c.a_pm, elements, B_A2 }
+  }
+  return null
+}
+
 // ---- presets of the Forge view -------------------------------------------------------------------------------------
 
 export type Preset = {

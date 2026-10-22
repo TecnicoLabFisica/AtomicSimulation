@@ -24,7 +24,7 @@ export function mountForgePlot(slot: HTMLElement) {
     const g = t()
     slot.innerHTML = `<div class="forge-plot-head"><h3>${s.plotTitle}</h3>
         <div class="seg" role="group" aria-label="${g.scale}"><button type="button" data-log="0" aria-pressed="${!log}">${g.linear}</button><button type="button" data-log="1" aria-pressed="${log}">${g.log}</button></div></div>
-      <ul class="forge-legend"><li><i class="solid"></i><span data-forged></span></li><li><i class="dash"></i><span>${s.legendNacl}</span></li></ul>
+      <ul class="forge-legend"><li><i class="solid"></i><span data-forged></span></li><li><i class="dash"></i><span>${s.legendNacl}</span></li><li><i class="mark"></i><span>${s.legendLines}</span></li></ul>
       <div class="forge-plot-box" role="img" aria-label="${s.plotAlt}"></div>
       <p class="hint">${s.plotNote}</p>`
     box = slot.querySelector<HTMLElement>('.forge-plot-box')!

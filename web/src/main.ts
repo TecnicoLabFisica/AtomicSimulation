@@ -89,7 +89,10 @@ function applyTheme() {
 }
 applyTheme()
 setMode(getMode())
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readPalette)
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  readPalette()
+  forge?.redraw()
+})
 
 const apparatus = new Apparatus()
 const sound = mountSound(apparatus)
@@ -226,6 +229,7 @@ import('./views/bench')
 // The Materials Forge: a full-screen sheet in its own lazy chunk (the worker and tables load when it builds).
 const forgeSheet = q('#forge')
 let forge: ReturnType<typeof mountForge> | null = null
+const underForge: HTMLElement[] = []
 async function openForge(open: boolean) {
   if (open && !forge) {
     try {
@@ -240,7 +244,10 @@ async function openForge(open: boolean) {
   forgeSheet.dataset.open = String(open)
   forgeSheet.inert = !open
   q('[data-forge]').setAttribute('aria-pressed', String(open))
-  // ponytail: focus moves in and back, no focus trap (Esc closes it)
+  // modal: the rest of the app is inert while the sheet is open (only what was live before is restored)
+  if (open) {
+    for (const el of app.children as Iterable<HTMLElement>) if (el !== forgeSheet && !el.inert) ((el.inert = true), underForge.push(el))
+  } else for (const el of underForge.splice(0)) el.inert = false
   ;(open ? forgeSheet : q('[data-forge]')).focus()
 }
 
