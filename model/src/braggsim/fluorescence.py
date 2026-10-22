@@ -460,3 +460,25 @@ def scattered_continuum(sample, U_kV, I_mA, params=scan.DEFAULT):
         per_pm = amp * phi[:n] * k[:n]
         out[kind] = (HC_KEV_PM / lam_d[::-1], (per_pm * lam_d**2 / HC_KEV_PM)[::-1])
     return out
+
+
+def mca_spectrum(sample, U_kV, I_mA, t_s, n_channels=512, gain=-2.5, params=scan.DEFAULT):
+    """Expected MCA spectrum of the LD 559 938 for ``sample``: (counts per channel, live_time_s,
+    channel_energy_keV) over ``t_s`` of real time. Lines and scatter continuum from ``line_rates``
+    and ``scattered_continuum``, then ``detector.mca_counts``. Deterministic; Poisson-sample with
+    ``detector.sample_counts(counts, 1.0, rng)``."""
+    sample = _resolve(sample)
+    lines = [(ln.energy_keV, ln.rate_per_s) for ln in line_rates(sample, U_kV, I_mA, params)]
+    cont = list(scattered_continuum(sample, U_kV, I_mA, params).values())
+    return detector.mca_counts(lines, cont, t_s, n_channels, gain)
+
+
+def detected_line_counts(sample, U_kV, I_mA, t_s, n_channels=512, gain=-2.5, params=scan.DEFAULT):
+    """Expected counts {label: counts} under each fluorescence line in the MCA over ``t_s`` of
+    real time: window rate × ``detector.pin_efficiency`` × live time (the truth the line fits are
+    compared with; same live time as ``mca_spectrum``)."""
+    live = mca_spectrum(sample, U_kV, I_mA, t_s, n_channels, gain, params)[1]
+    return {
+        ln.label: ln.rate_per_s * float(detector.pin_efficiency(ln.energy_keV)) * live
+        for ln in line_rates(_resolve(sample), U_kV, I_mA, params)
+    }

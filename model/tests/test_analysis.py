@@ -4,6 +4,7 @@ import xraylib
 from pytest import approx
 
 import braggsim.analysis as analysis
+from braggsim import detector
 from braggsim.analysis import (
     MAX_EDGE_STEP_DEG,
     THRESHOLD_HALF_WINDOW_DEG,
@@ -708,3 +709,83 @@ def test_strongest_line_is_the_most_prominent_not_the_highest_rate():
     assert leak[2] < 0
     best = max(rows, key=lambda r: r[2])
     assert strongest_line_rate_per_s(1, 12, 35.0, 1.0, crystal=mus) == best[1] < leak[1]
+
+
+# --- L3.4: XRF line fits and composition ---
+def test_two_point_calibration():
+    k, off = analysis.two_point_calibration(100, 8.04, 200, 10.56)
+    assert k == approx(0.0252) and off == approx(8.04 - 2.52)
+
+
+def test_gauss_fit_lines_recovers_blend():
+    e = np.arange(0, 512) * 0.078
+    sig, w = 0.17, 0.078
+    truth = [(8.04, 11000.0), (8.64, 8700.0), (8.91, 1600.0)]
+    y = 5.0 + sum(
+        a * w * np.exp(-0.5 * ((e - c) / sig) ** 2) / (sig * np.sqrt(2 * np.pi)) for c, a in truth
+    )
+    fit = analysis.gauss_fit_lines(e, y, [8.04, 8.64, 8.91], (7.6, 9.2))
+    assert fit.area == approx([a for _, a in truth], rel=1e-3)
+    assert fit.sigma_keV == approx(sig, rel=1e-3)
+
+
+def test_composition_pure_alloy_is_100():
+    out = analysis.composition({"Cu": 5.0}, {"Cu": 5.0}, {"Cu": 8.96})
+    assert out["Cu"][0] == approx(100.0)
+
+
+def test_gauss_fit_lines_fixed_sigma_and_evaluate():
+    e = np.arange(0, 512) * 0.078
+    sig, w = 0.17, 0.078
+    y = 5.0 + 150.0 * w * np.exp(-0.5 * ((e - 10.55) / sig) ** 2) / (sig * np.sqrt(2 * np.pi))
+    fit = analysis.gauss_fit_lines(e, y, [10.55], (10.1, 11.0), sigma_keV=sig)
+    assert fit.area[0] == approx(150.0, rel=1e-3) and fit.sigma_err_keV == 0.0
+    assert fit.evaluate(e).sum(axis=0).max() == approx(y.max() - 5.0, rel=2e-3)
+
+
+def test_composition_covariance_shrinks_the_error_of_a_correlated_pair():
+    a, p = {"Cu": 100.0, "Zn": 80.0}, {"Cu": 180.0, "Zn": 200.0}
+    err = {"Cu": 3.0, "Zn": 3.0}
+    indep = analysis.composition(a, p, None, err)
+    corr = analysis.composition(a, p, alloy_cov=[[9.0, 0.8 * 9.0], [0.8 * 9.0, 9.0]])
+    assert corr["Cu"][0] == indep["Cu"][0]
+    assert 0 < corr["Cu"][1] < indep["Cu"][1]
+    assert analysis.composition(a, p, None, err, areas_pure_err=err)["Cu"][1] > indep["Cu"][1]
+    assert isinstance(indep["Cu"][0], float) and isinstance(indep["Cu"][1], float)
+
+
+def test_brass_ld_rho_weighted_method_reads_cu_high():
+    """L3 done-when: the students' method on the model's own noise-free 180 s spectra. With LD's
+    ρ weighting the model reproduces LD's Cu-high / Zn-low bias; plain A/A_pure normalisation
+    gives Cu LOW (matrix absorption beats the secondary fluorescence). Nothing here is tuned."""
+    from braggsim import fluorescence
+
+    S = {n: fluorescence.mca_spectrum(n, 35, 1, 180) for n in ("Cu", "Zn", "Pb", "CuZn39Pb3")}
+    T = {n: fluorescence.detected_line_counts(n, 35, 1, 180) for n in S}
+
+    def fit(n, centers, win, **kw):
+        return analysis.gauss_fit_lines(S[n][2], S[n][0], centers, win, **kw)
+
+    sig_pb = float(detector.pin_fwhm_keV(10.55)) / (2 * np.sqrt(2 * np.log(2)))
+
+    def pb(n):  # lone weak line on the Zn Kβ tail: fixed detector width, clear of Zn Kβ
+        return fit(n, [10.55], (10.1, 11.0), sigma_keV=sig_pb).area[0]
+
+    # blend with Zn Kβ (9.57 keV) as a 4th line
+    brass = fit("CuZn39Pb3", [8.04, 8.64, 8.91, 9.57], (7.5, 10.0))
+    a_alloy = {"Cu": brass.area[0], "Zn": brass.area[1], "Pb": pb("CuZn39Pb3")}
+    a_pure = {
+        "Cu": fit("Cu", [8.04], (7.4, 8.5)).area[0],
+        "Zn": fit("Zn", [8.63], (8.0, 9.2)).area[0],
+        "Pb": pb("Pb"),
+    }
+    rho = {"Cu": 8.96, "Zn": 7.10, "Pb": 11.34}
+    w = {k: v[0] for k, v in analysis.composition(a_alloy, a_pure, rho).items()}
+    plain = {k: v[0] for k, v in analysis.composition(a_alloy, a_pure).items()}
+    assert w["Cu"] > 58 and w["Zn"] < 39 and abs(w["Pb"] - 3) < 1.5
+    assert plain["Cu"] < 58
+    # fitted areas against the true expected line counts
+    pb_true = T["CuZn39Pb3"]["Pb Lα1"] + T["CuZn39Pb3"]["Pb Lα2"]
+    assert brass.area[0] == approx(T["CuZn39Pb3"]["Cu Kα"], rel=0.01)
+    assert brass.area[1] == approx(T["CuZn39Pb3"]["Zn Kα"], rel=0.01)
+    assert a_alloy["Pb"] == approx(pb_true, rel=0.05)

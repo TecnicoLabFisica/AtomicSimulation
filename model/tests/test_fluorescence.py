@@ -7,6 +7,7 @@ import pytest
 import xraylib
 from scipy import integrate, special
 
+from braggsim import detector
 from braggsim import fluorescence as fl
 from braggsim.constants import HC_KEV_PM, MO_KA_KEV
 
@@ -249,3 +250,24 @@ def test_xrf_flux_scale_is_the_gm_reading_over_its_efficiency_weighted_spectrum(
     # ε_GM is a few per mille at Mo energies, so the flux is a few hundred times the ε = 1 value
     ratio = fl._scale(p) / (p.direct_per_s / fl.scan._photons_out(35.0, p))
     assert 100 < ratio < 1000
+
+
+def test_mca_spectrum_cu():
+    counts, live, e = fl.mca_spectrum("Cu", 35, 1, 180)
+    assert 0.95 < live / 180 < 0.99  # 3.2 % dead-time loss
+    kpc = detector.kev_per_channel()
+    assert int(np.argmax(counts[: int(9 / kpc)])) == round(8.04 / kpc)
+    assert np.all(fl.mca_spectrum("Cu", 35, 0, 180)[0] == 0)
+    c2, _, _ = fl.mca_spectrum("Cu", 35, 1, 90)
+    assert c2.sum() / counts.sum() == pytest.approx(0.5, rel=1e-12)  # same rate, so exactly t/2
+
+
+def test_detected_line_counts_match_the_spectrum():
+    d = fl.detected_line_counts("Cu", 35, 1, 180)
+    counts, live, e = fl.mca_spectrum("Cu", 35, 1, 180)
+    assert d["Cu Kα"] == pytest.approx(
+        next(ln.rate_per_s for ln in fl.line_rates("Cu", 35, 1) if ln.label == "Cu Kα")
+        * float(detector.pin_efficiency(8.04105061567418))
+        * live
+    )
+    assert counts[(e > 7.5) & (e < 8.6)].sum() > 0.95 * d["Cu Kα"]

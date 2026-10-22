@@ -296,6 +296,35 @@ secondary** (Cu Kα, Kβ excite the Fe core, integrated numerically). Check, 35 
 
 **XRF scale — lab check wanted:** one measured Cu-sheet spectrum (total counts, 35 kV, 1 mA, 180 s, s1 = s2 = 6 cm) would replace the GM-efficiency estimate (the model predicts ≈ 136 Cu Kα photons/s).
 
+**LD 559 938 Si-PIN and MCA** (`detector.pin_*`, `mca_counts`, `fluorescence.mca_spectrum`, added 2026-10-22, L3.3). Nothing fitted.
+
+| Name | Value | Kind / source | Note |
+|---|---|---|---|
+| `PIN_WINDOW_UM`, density | 40 µm graphite-equivalent, 2.26 g/cm³ | LD instruction sheet 559 938; graphite density literature | xraylib `CS_Total` of C |
+| `PIN_SI_UM`, density | 150 µm Si, 2.33 g/cm³ | LD instruction sheet 559 938; literature | xraylib `CS_Photo` of Si. ε(8.04 keV) = 0.853, ε(17.48) = 0.193 |
+| `PIN_SIGMA_EL_KEV`, `PIN_FANO`, `PIN_EPS_KEV` | 0.160 keV, 0.15, 3.8 eV | LD instruction sheet 559 938 | FWHM = 0.403 keV at 6.40, 0.409 at 8.04, 0.444 at 17.48 keV |
+| `PIN_DEAD_TIME_S` | 250 µs | LD instruction sheet 559 938 ("≈ 250 µs per pulse") | non-paralyzable; recorded fraction 1/(1 + R τ) with R the true detected rate (lines + continuum after efficiency) |
+| Preset time is real time | assumption | the guide does not say; live time = t/(1 + R τ) is returned | at 35 kV / 1 mA the loss is 3.2 % (Cu), 3.6 % (Zn), 1.6 % (Pb), 3.1 % (CuZn39Pb3), 3.0 % (coin) |
+| `MCA_FULL_SCALE_KEV_AT_REF_GAIN` | 40 keV at gain −2.5, 512 channels, linear, offset 0 (0.078 keV/channel; Cu Kα at channel 103) | **assumption**: keV per channel at the guide's gain is not published; chosen so the Mo Kα scatter (~17 keV, channel ~224) is on screen | scales ∝ 1/\|gain\|, so 256, 512, 1024 channels work while the width stays ≤ σ_el; non-linearity < 1 % ignored |
+| No escape peaks | modelling choice | Si Kα escape (1.74 keV) is not modelled | would add a small peak 1.74 keV below each line |
+| Gaussian-only response | modelling choice | no low-energy tail, no incomplete charge collection | each Gaussian is sampled at the channel centre × channel width (no erf, port-friendly) |
+
+**Brass composition by the students' first-order method** (`analysis.gauss_fit_lines`, `analysis.composition`; model output, not fitted). Noise-free expected spectra, 35 kV, 1 mA, 180 s, pure standards fitted the same way. Key fit: Cu Kα, Zn Kα, Cu Kβ and Zn Kβ (9.57 keV) as four equal-width Gaussians in 7.5–10.0 keV (fitted/true areas: Cu Kα +0.14 %, Zn Kα +0.08 %); Pb Lα alone in 10.1–11.0 keV with the width fixed to the detector's (`pin_fwhm_keV`), fitted/true Lα1+Lα2 = 0.973. LD's 3-Gaussian method (7.6–9.2 keV, Zn Kβ not fitted) gives Cu Kα −0.3 %, Zn Kα −1.8 %.
+
+| Method | Cu % | Zn % | Pb % |
+|---|---|---|---|
+| plain, w ∝ A/A_pure (fitted areas) | 56.3 | 41.1 | 2.7 |
+| plain, true areas | 56.3 | 41.0 | 2.7 |
+| ρ-weighted (LD's method), fitted areas | 61.0 | 35.3 | 3.7 |
+| ρ-weighted, true areas | 61.0 | 35.2 | 3.8 |
+| ρ-weighted, LD's 3-Gaussian fit | 61.3 | 35.0 | 3.7 |
+| LD published (CASSY Lab help P7.5.1.2) | 61.6 | 35.6 | 2.9 |
+| nominal CuZn39Pb3 | 58 | 39 | 3 |
+
+True A/A_pure: 0.543 Cu, 0.396 Zn, 0.026 Pb. The plain method reads Cu **low**: matrix absorption (Zn, above all Pb, absorb Cu Kα) beats the +4 % secondary fluorescence. The model reproduces LD's Cu-high / Zn-low only because it uses LD's ρ_i weighting, which is right for thin equal foils but not for infinitely thick samples (density cancels there). Pb 3.7 against LD's 2.9 is an honest difference: LD's Pb agreement is not reproduced to better than about one point (the done-when's ±1.5 holds). Nothing was tuned.
+
+**MCA conventions and limits:** channel i is centred on i·kpc (a real ADC bins [i, i+1)·kpc, a half-channel shift; harmless because students calibrate). Channels must be no wider than `PIN_SIGMA_EL_KEV` (`kev_per_channel` raises otherwise; 256 channels need |gain| ≥ 2.44), because the Gaussian is sampled at channel centres (area error ~1e-8 at the limit). The Compton line is smeared by the detector only: no Doppler or geometric broadening (a few hundred eV in reality).
+
 ## Numerical and analysis choices (not fitted)
 
 | Name | Value | Why |

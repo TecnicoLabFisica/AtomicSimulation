@@ -649,3 +649,137 @@ def scaled_transmission(
     dT_db = (a_true - b_true) / ((b_true - b) ** 2 * scale)
     var_T = var_a / den**2 + (T / (b_true - b)) ** 2 * var_o + dT_db**2 * var_b
     return T, np.sqrt(var_T)
+
+
+def two_point_calibration(ch1, E1_keV, ch2, E2_keV):
+    """MCA energy calibration from two known lines: E = kev_per_channel · ch + offset_keV.
+    The guide uses Cu Kα (8.04 keV) and Pb Lα (10.56 keV). Returns (kev_per_channel, offset_keV)."""
+    if ch1 == ch2:
+        raise ValueError("the two channels must differ")
+    slope = (E2_keV - E1_keV) / (ch2 - ch1)
+    return float(slope), float(E1_keV - slope * ch1)
+
+
+@dataclasses.dataclass(frozen=True)
+class LineFit:
+    area: np.ndarray  # counts under each Gaussian
+    area_err: np.ndarray  # 1σ
+    area_cov: np.ndarray  # covariance of the areas (counts²), n × n; lines of a blend correlate
+    center_keV: np.ndarray
+    sigma_keV: float  # common Gaussian σ (the fixed value if one was given)
+    sigma_err_keV: float  # 0 when σ was fixed
+    chi2_dof: float
+    channel_keV: float = 1.0  # channel width the areas refer to
+    background: tuple = (0.0, 0.0, 0.0)  # (b0, b1, E_ref_keV): b0 + b1 (E − E_ref), counts/channel
+
+    def evaluate(self, E_keV):
+        """Fitted Gaussians (no background) at ``E_keV``: array (n_lines, len(E_keV)) in
+        counts per channel. Sum over axis 0 for the total line model."""
+        x = np.asarray(E_keV, dtype=float)[None, :]
+        a, c = self.area[:, None], self.center_keV[:, None]
+        return a * self.channel_keV * np.exp(-0.5 * ((x - c) / self.sigma_keV) ** 2) / (
+            self.sigma_keV * np.sqrt(2 * np.pi)
+        )  # fmt: skip
+
+
+def gauss_fit_lines(E_keV, counts, centers_keV, window_keV, center_tol_keV=0.1, sigma_keV=None):
+    """Fit N Gaussians of **common width** plus a linear background to the channels within
+    ``window_keV = (lo, hi)`` (LD's method: three equal-width Gaussians at 8.04, 8.64, 8.91 keV
+    for Cu Kα, Zn Kα, Cu Kβ). Centres are free within ±``center_tol_keV`` of ``centers_keV``.
+    The width is free unless ``sigma_keV`` is given (e.g. ``detector.pin_fwhm_keV(E)/2.355``):
+    fix it for a lone weak line on a sloping shoulder, where a free width and a linear background
+    are degenerate (Pb Lα next to Zn Kβ). The model is the Gaussian sampled at each channel
+    centre × channel width.
+
+    Weights: a first pass with Neyman σ² = max(counts, 1), then three Pearson passes with
+    σ² = max(model, 0.5), which avoids the low-count bias of Neyman weights.
+
+    The window's upper edge must stay ≤ 9.2 keV unless Zn Kβ (9.57 keV) is fitted as a line
+    too; otherwise its shoulder is absorbed by the last Gaussian (Cu Kβ) and the background.
+    Returns a ``LineFit`` (areas in counts with standard errors and covariance)."""
+    e_all, y_all = np.asarray(E_keV, dtype=float), np.asarray(counts, dtype=float)
+    m = (e_all >= window_keV[0]) & (e_all <= window_keV[1])
+    e, y = e_all[m], y_all[m]
+    c0 = np.asarray(centers_keV, dtype=float)
+    n = len(c0)
+    if e.size < 3 * n + 3:
+        raise ValueError("too few channels in the window")
+    w = float(np.median(np.diff(e)))
+    o = 0 if sigma_keV is not None else 1  # parameter offset: [σ,] b0, b1, (area, centre)...
+
+    def model(x, *p):
+        sig = sigma_keV if o == 0 else p[0]
+        out = p[o] + p[o + 1] * (x - e[0])
+        for i in range(n):
+            a, c = p[o + 2 + 2 * i], p[o + 3 + 2 * i]
+            out = out + a * w * np.exp(-0.5 * ((x - c) / sig) ** 2) / (sig * np.sqrt(2 * np.pi))
+        return out
+
+    sig0 = 0.17 if sigma_keV is None else float(sigma_keV)
+    p0 = ([0.17] if o else []) + [float(y.min()), 0.0]
+    lo = ([0.05] if o else []) + [-np.inf, -np.inf]
+    hi = ([0.5] if o else []) + [np.inf, np.inf]
+    for c in c0:
+        near = np.abs(e - c) < 0.1
+        h = float(y[near].max() - y.min()) if near.any() else 0.0
+        p0 += [max(h, 1.0) * sig0 * np.sqrt(2 * np.pi) / w, c]  # area from the peak height
+        lo += [0.0, c - center_tol_keV]
+        hi += [np.inf, c + center_tol_keV]
+    sigma = np.sqrt(np.maximum(y, 1.0))
+    for _ in range(4):  # Neyman, then 3 Pearson passes
+        popt, pcov = curve_fit(model, e, y, p0=p0, sigma=sigma, absolute_sigma=True,
+                               bounds=(lo, hi), maxfev=20000)  # fmt: skip
+        p0 = list(np.clip(popt, lo, hi))
+        sigma = np.sqrt(np.maximum(model(e, *popt), 0.5))
+    ia = np.arange(o + 2, len(popt), 2)
+    cov = pcov[np.ix_(ia, ia)]
+    chi2 = float(np.sum(((y - model(e, *popt)) / sigma) ** 2) / max(e.size - len(popt), 1))
+    return LineFit(
+        popt[ia], np.sqrt(np.diag(cov)), cov, popt[ia + 1],
+        float(sigma_keV) if o == 0 else float(popt[0]),
+        0.0 if o == 0 else float(np.sqrt(pcov[0, 0])),
+        chi2, w, (float(popt[o]), float(popt[o + 1]), float(e[0])),
+    )  # fmt: skip
+
+
+def composition(
+    areas_alloy, areas_pure, densities_g_cm3=None, areas_alloy_err=None, *,
+    alloy_cov=None, areas_pure_err=None,
+):  # fmt: skip
+    """First-order composition from line areas against pure-element standards (LD's method).
+
+    w_i ∝ ρ_i · A_i/A_i^pure, normalised to 100 % (A/A_pure ≈ n_i/n_i,pure = w_i ρ_alloy/ρ_i, so
+    the ρ_alloy common factor drops out). With ``densities_g_cm3=None``: w_i ∝ A_i/A_i^pure.
+    Dicts keyed by element. Returns {element: (percent, percent_err)} as plain floats.
+
+    Errors propagate (J Σ Jᵀ) the alloy area covariance — ``alloy_cov``, an n × n array in the key
+    order of ``areas_alloy`` (lines of one blend fit are correlated, ``LineFit.area_cov``), or else
+    the diagonal ``areas_alloy_err`` (default 0) — and the independent standards' errors
+    ``areas_pure_err`` (default 0).
+
+    The ρ weighting is right for thin foils of equal size. For a thick sample density cancels
+    (A/A_pure ≈ w_i μ*_pure/μ*_alloy), so the weighting is itself a bias of the method; it is what
+    makes the model reproduce LD's Cu-high 61.6/35.6 for brass. Without it the matrix absorption
+    (Zn, and above all Pb, absorb Cu Kα) beats the +4 % secondary fluorescence and Cu reads low.
+    """
+    keys = list(areas_alloy)
+    n = len(keys)
+    rho = np.array([1.0 if densities_g_cm3 is None else densities_g_cm3[k] for k in keys])
+    a = np.array([areas_alloy[k] for k in keys], dtype=float)
+    p = np.array([areas_pure[k] for k in keys], dtype=float)
+    if alloy_cov is not None:
+        cov_a = np.asarray(alloy_cov, dtype=float)
+    else:
+        err = areas_alloy_err or {}
+        cov_a = np.diag([float(err.get(k, 0.0)) ** 2 for k in keys])
+    errp = areas_pure_err or {}
+    var_p = np.array([float(errp.get(k, 0.0)) ** 2 for k in keys])
+    x = rho * a / p
+    tot = x.sum()
+    dw_dx = 100 * (np.eye(n) - x[:, None] / tot) / tot  # dw_k/dx_j
+    j_a, j_p = dw_dx * (rho / p), dw_dx * (-x / p)
+    cov_w = j_a @ cov_a @ j_a.T + (j_p * var_p) @ j_p.T
+    return {
+        k: (float(100 * x[i] / tot), float(np.sqrt(max(cov_w[i, i], 0.0))))
+        for i, k in enumerate(keys)
+    }
