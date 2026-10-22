@@ -246,7 +246,12 @@ def test_scatter_rayleigh_to_compton_ratio_rises_with_atomic_number():
 
 def test_xrf_flux_scale_is_the_gm_reading_over_its_efficiency_weighted_spectrum():
     p = fl.scan.DEFAULT
-    assert fl._scale(p) == pytest.approx(p.direct_per_s / fl._gm_weighted_photons(p), rel=1e-15)
+    # anchored at the 21 kV reading itself: tube_factor's ε = 1 extrapolation to 35 kV must not
+    # meet the ε-weighted sum (ε̄_GM is 0.0057 at 21 kV but 0.0032 at 35 kV)
+    reading_21kv = p.direct_per_s * fl.scan.tube_factor(21.0, 1.0, p)
+    assert fl._scale(p) == pytest.approx(reading_21kv / fl._gm_weighted_photons(p), rel=1e-15)
+    eps_bar_21kv = reading_21kv / fl._scale(p) / fl.scan._photons_out(21.0, p)
+    assert eps_bar_21kv == pytest.approx(0.0057, rel=0.01)
     # ε_GM is a few per mille at Mo energies, so the flux is a few hundred times the ε = 1 value
     ratio = fl._scale(p) / (p.direct_per_s / fl.scan._photons_out(35.0, p))
     assert 100 < ratio < 1000

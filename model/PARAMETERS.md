@@ -256,7 +256,7 @@ Cross sections come from xraylib (`CS_FluorLine_Kissel_Cascade`, `CS_Total`, `DC
 | `S2_CM` | 6 cm | EPN Práctica 6 (s1 = s2 = 6 cm) | sample → detector window |
 | `DETECTOR_RADIUS_MM` | 0.4 mm | LD 559 938 sheet (0.8 mm dia. active area) | Ω = π r²/s2² = 1.396e-4 sr, Ω/4π = 1.11e-5. Assumes the Si chip sits exactly at s2 = 6 cm; recessed by d mm, Ω × (60/(60+d))² (−15 % for 5 mm) |
 | `AIR_IN_CM` | 12 cm | assumption (the 12 cm anode → crystal part of `scan.AIR_PATH_CM`, 18 cm) | air 1.205 mg/cm³, out path = `S2_CM` |
-| Photon flux on the sample | `direct_per_s` / `fluorescence._gm_weighted_photons(35 kV)` per source unit | assumption, 2026-10-22 | The GM counter reads `direct_per_s` at 35 kV, 1 mA, 18 cm air, which is the tube spectrum weighted by `detector.gm_efficiency`; the same spectrum with 12 cm air hits the sample. Flux factor ×310 over the old ε = 1 anchor (ε̄ = 0.0032, spectrum-weighted). It is **no longer a lower bound by ε but carries the GM gas-pressure uncertainty (ε ∝ p, ×5 either way)**, and the ≥ 950/s anchor of `direct_per_s` is itself a lower bound. Also: (a) the GM at 0° might accept only part of the beam while the sample intercepts all of it (pushes the flux up; a Cu-sheet measurement decides); (b) see the Ω note on the detector row |
+| Photon flux on the sample | `direct_per_s` · `tube_factor(21 kV, 1 mA)` / `fluorescence._gm_weighted_photons` (at `GM_ANCHOR_U_KV` = 21 kV) per source unit | assumption, 2026-10-22 (anchor voltage fixed the same day) | The GM reading behind `direct_per_s` was taken at 21 kV (EPN Práctica 1); at 1 mA, 18 cm air it is the 21 kV tube spectrum weighted by `detector.gm_efficiency` (ε̄ = 0.0057). The same source units with 12 cm air hit the sample. Anchoring at 35 kV would mix `tube_factor`'s ε = 1 extrapolation with the ε-weighted sum (ε̄ = 0.0032 there) and gave ×1.76 too much flux. Flux factor ×176 over the old ε = 1 anchor. It is **no longer a lower bound by ε but carries the GM gas-pressure uncertainty (ε ∝ p, ×5 either way)**, and the ≥ 950/s anchor of `direct_per_s` is itself a lower bound. Also: (a) the GM at 0° might accept only part of the beam while the sample intercepts all of it (pushes the flux up; a Cu-sheet measurement decides); (b) see the Ω note on the detector row |
 | Tube spectrum | Kramers + Mo lines through the Pyrex absorber and 12 cm air | as `scan` | the unfiltered collimator; a Zr filter is not modelled |
 | Beam polarisation | unpolarised | assumption | Rayleigh/Compton use the unpolarised `DCS_*` at 90° (a real tube beam is slightly polarised) |
 | CuZn39Pb3 | 58 Cu / 39 Zn / 3 Pb wt % | literature, LD 554 848 (CASSY Lab help P7.5.1.1/2) | infinitely thick (0.5 mm sheet, an assumption; worst case Rayleigh at 35 keV in Zn leaves ≈ 6e-4, negligible) |
@@ -280,7 +280,7 @@ secondary** (Cu Kα, Kβ excite the Fe core, integrated numerically). Check, 35 
 - Fe → Cu excitation across the coin interface: Fe lines are below the Cu K edge, so it is zero.
 - Housing fluorescence (Au L, Fe, Cu…): optional term, not in this module.
 - Sample surface roughness, powder or oxide layers, finite sheet thickness (taken infinite), beam footprint larger than the detector's view.
-- Absolute scale: see the flux row and the GM rows below. At 35 kV / 1 mA a pure Cu sheet gives 136 Cu Kα photons/s at the window (pure Zn: 161 Zn Kα; pure Pb: 49 Pb Lα1; Pb Lα1 in CuZn39Pb3: 1.3/s, ≈ 240 in 180 s); uncertain by ×5 either way through the GM gas pressure.
+- Absolute scale: see the flux row and the GM rows below. At 35 kV / 1 mA a pure Cu sheet gives 77 Cu Kα photons/s at the window (pure Zn: 91 Zn Kα; pure Pb: 28 Pb Lα1; Pb Lα1 in CuZn39Pb3: 0.75/s, ≈ 135 in 180 s); uncertain by ×5 either way through the GM gas pressure.
 
 **LD 559 01 GM counter efficiency** (`detector.gm_efficiency`, added 2026-10-22; sets the XRF flux scale, never used by the Bragg outputs, whose fitted `scale` already absorbs ε). ε = T_window · (1 − exp(−μ_photo,gas m_gas)); ε(8.04 keV) = 0.0298, ε(17.48) = 0.0040, ε(20) = 0.0026.
 
@@ -294,7 +294,7 @@ secondary** (Cu Kα, Kβ excite the Fe core, integrated numerically). Check, 35 
 | `GM_GAS_TEMPERATURE_K` | 293.15 K, ideal gas | assumption | |
 | Photoabsorption only | xraylib `CS_Photo` | modelling choice | Compton electrons rarely trigger the counter |
 
-**XRF scale — lab check wanted:** one measured Cu-sheet spectrum (total counts, 35 kV, 1 mA, 180 s, s1 = s2 = 6 cm) would replace the GM-efficiency estimate (the model predicts ≈ 136 Cu Kα photons/s).
+**XRF scale — lab check wanted:** one measured Cu-sheet spectrum (total counts, 35 kV, 1 mA, 180 s, s1 = s2 = 6 cm) would replace the GM-efficiency estimate (the model predicts ≈ 77 Cu Kα photons/s).
 
 **LD 559 938 Si-PIN and MCA** (`detector.pin_*`, `mca_counts`, `fluorescence.mca_spectrum`, added 2026-10-22, L3.3). Nothing fitted.
 
