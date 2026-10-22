@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-22
 current_phase: L3
-next_task: L3.1
+next_task: L3.5
 last_session: 2026-10-22
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L3.1` (XRF of brass, the last phase). F1–F3 pushed 2026-10-22 (382ef03..3cd4f88). Open: Q10 (lab). Q11 closed (not built).
+> **Next:** `L3.5` (export the XRF kernels as a lazy table, fixtures, TS port). L3.1–L3.4 (Python) done 2026-10-22, local commits, unpushed. Open: Q10 (lab); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -64,7 +64,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
 | L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
 | L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
-| L3 | Práctica 6: X-ray fluorescence | ⬜ todo | 5–6 | G1 |
+| L3 | Práctica 6: X-ray fluorescence | 🟨 in progress (S1–S2 done) | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
@@ -415,18 +415,32 @@ scatter kernels) on the source energy grid. Export it as a lazy table. TS multip
 S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 
 #### S1 — Python: sample physics
-- [ ] **L3.1** `fluorescence.py`: kernels for the pure Cu, Zn and Pb samples, CuZn39Pb3, CuZn36 and the 2003 centavo
+- [x] **L3.1** `fluorescence.py`: kernels for the pure Cu, Zn and Pb samples, CuZn39Pb3, CuZn36 and the 2003 centavo
       (compositions in `PARAMETERS.md` with sources). The coin needs a two-layer sample: the plating attenuates the
       excitation and the core's lines, and it adds its own lines. **Include secondary fluorescence** in the bulk alloys:
       lines above the Cu K edge (8.98 keV: Zn Kβ, Pb L) excite Cu, and Pb L lines above 9.66 keV excite Zn. LD's own
       brass example shows the result: Cu is overestimated (61.6 % found vs 58 %), see [[#Calibration anchors]].
-- [ ] **L3.2** Tests: line ratios vs xraylib, zero below the edge, linear in I.
+- [x] **L3.2** Tests: line ratios vs xraylib, zero below the edge, linear in I.
+
+> [!note] As built (2026-10-22), L3.1–L3.2 (`d754fbb`)
+> - Kernels live on `MU_RHO_GRID_PM` split at each sample's K/L edges (nodes λ(1 ± 1e-5)) plus the 4 Mo components; **L3.5 must export each sample's `lam_pm`** with its kernels. Rate = scale · I · [trapezoid(Φ̃K) + Σ Mo]. Kernels use xraylib `CS_Total` directly, not the μ/ρ table.
+> - Physics: Sherman primary with xraylib `CS_FluorLine_Kissel_Cascade`; Shiraiwa–Fujino secondary in the bulk alloys (Cu Kα +4.2 %, Zn Kα +1.5 % in CuZn39Pb3) and across the coin's Cu/Fe interface (Fe Kα +33 %); 90° Rayleigh/Compton (Compton = +2.426 pm). 13 Pb L lines (≥ 1 % of Lα1). `kernels` accepts one bulk layer or a single-element plating on a bulk core.
+> - **Absolute scale (user, 2026-10-22):** flux on the sample = `direct_per_s` / ∫(tube spectrum × ε_GM), with `detector.gm_efficiency` for the 559 01 (mica 13.5 µm, 36 mm of Ne + 0.5 % Ar + 0.1 % Br₂ at an assumed 500 hPa, ×5 uncertain). ε ≈ 0.4 % at Mo Kα, so the flux is ×310 the ε = 1 bound. At 35 kV / 1 mA: ≈ 160 photons/s into the 559 938 (pure Cu: Cu Kα 136/s; brass Pb Lα1 1.3/s ≈ 240 counts in 180 s). **Lab check wanted:** one Cu-sheet spectrum (35 kV, 1 mA, 180 s, s1 = s2 = 6 cm).
+> - Physics review: edges were not bracketed (Cu Kβ +36 % at 9.2 kV), fixed. Reviewer's first-order estimate: plain normalisation gives Cu ≈ 56 % (low), but LD's ρ-weighted normalisation gives ≈ 61.0 / 35.2 / 3.8 (LD 61.6 / 35.6 / 2.9): the bias is the method's, so the Done-when stands (L3.4 checks it).
 
 #### S2 — Python: detector and MCA
-- [ ] **L3.3** `detector.py`: 559 938 efficiency (window + 150 µm Si) and FWHM(E) from its instruction sheet, dead time (250 µs, live-time correction),
+- [x] **L3.3** `detector.py`: 559 938 efficiency (window + 150 µm Si) and FWHM(E) from its instruction sheet, dead time (250 µs, live-time correction),
       channel mapping from the gain (512 channels), expected counts per channel. Escape peaks are optional: skip them unless visible.
-- [ ] **L3.4** `analysis.gauss_fit_lines` and `analysis.composition(...)` with the pure-element standards
+- [x] **L3.4** `analysis.gauss_fit_lines` and `analysis.composition(...)` with the pure-element standards
       ($w_i \approx A_i^\text{alloy}/A_i^\text{pure}$, first order). The notebook `07_xrf_brass.ipynb` shows the matrix-effect bias of this method.
+
+> [!note] As built (2026-10-22), L3.3–L3.4 (`22fcfb0`)
+> - 559 938: efficiency (40 µm C window, 150 µm Si; 0.85 at 8.04 keV, 0.19 at 17.48), FWHM 0.403 keV at 6.40 (sheet 0.40), dead time 250 µs non-paralyzable, preset time = real time (assumption), live-time loss ≈ 3 % at 35 kV / 1 mA.
+> - MCA: full scale 40 keV at gain −2.5 (assumption; Cu Kα ≈ ch 103), channel i centred on i·kpc. Gaussians sampled at channel centres (no erf, TS-portable); a channel wider than σ_el (0.16 keV) is refused, so 256 channels need |gain| ≥ 2.44.
+> - `gauss_fit_lines`: common width (or fixed `sigma_keV`), centres ±0.1 keV, linear background, Neyman then 3 Pearson passes, area covariance. Blend window must end ≤ 9.2 keV unless Zn Kβ (9.57) is fitted; the key uses 4 Gaussians over 7.5–10.0 keV. Pb Lα in 10.1–11.0 keV with fixed σ (the 9.9 keV window sat on Zn Kβ and read Pb 16 % low).
+> - **Done-when met, no tuning:** LD's ρ-weighted method on the model's brass gives **61.0 / 35.3 / 3.7** (LD 61.6 / 35.6 / 2.9, nominal 58 / 39 / 3). The Cu-high bias comes from the ρ weighting; plain A/A_pure reads Cu *low* (56.3 / 41.1 / 2.7) because Zn and Pb absorb Cu Kα. Pb 3.7 vs 2.9 is an honest gap.
+> - Physics review ×2 (L3.1–2 and L3.3–4); all findings applied. Notebook `07_xrf_brass.ipynb`.
+> - **For L3.5/L3.8:** with fixed centres and σ the fit is linear least squares (portable to TS without Levenberg–Marquardt).
 
 #### S3 — Export and port
 - [ ] **L3.5** `artifacts/tables/xrf_kernels.json` (lazy) and fixtures for 3 samples × 2 voltages. TS port and Vitest.
@@ -798,6 +812,13 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 ## Session log
 
 Newest first. One entry per session. This is what the next session reads to know what happened.
+
+### 2026-10-22 · L3 · tasks L3.1–L3.4 (Python half)
+- Done: pushed F1–F3 (382ef03..3cd4f88, user). Q11 closed unbuilt (user). Plan formula fixed (Sherman 1/sinψ1). L3.1–L3.2 `fluorescence.py` (d754fbb), L3.3–L3.4 detector/MCA/fits/composition + notebook 07 (22fcfb0). Local, unpushed.
+- Verify: pytest 343 · ruff clean · notebook executes · artifacts and web untouched (Vitest/build unchanged from the push).
+- Uncommitted: no.
+- Surprises / decisions: ε_GM = 1 made XRF ~300× too faint (Pb in brass invisible in 180 s); user chose a physical 559 01 efficiency (gas pressure assumed, ×5) plus a lab Cu-sheet check. Reviews caught unbracketed edges (+36 % near threshold), a Pb fit artefact and a wrong stated cause of LD's Cu-high bias (it is the ρ weighting).
+- Next: L3.5. Export per-sample `lam_pm` + kernels + the GM-weighted flux constant to `artifacts/tables/xrf_kernels.json` (lazy; check gz size), fixtures for 3 samples × 2 voltages, port `line_rates`/`mca_counts` to TS.
 
 ### 2026-10-22 · F3 · tasks F3.1, F3.2 (F3 closed)
 - Done: four Forge tasks (see the F3 as-built note). Commits 0bc7fb9, 0d83462 (local, unpushed).
