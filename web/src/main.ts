@@ -251,6 +251,26 @@ function applyMode() {
   labels()
 }
 
+// A shared Forge link (?forge=<code>): the param is consumed on load so a reload doesn't re-apply it over later edits.
+if (new URLSearchParams(location.search).has('forge')) {
+  void (async () => {
+    const share = await import('./views/forge-share')
+    const link = share.readForgeParam(location.search)
+    history.replaceState(history.state, '', share.withoutForgeParam(location.href))
+    if (link && 'input' in link) {
+      if (getMode() === 'lab') {
+        setMode('explore')
+        applyMode()
+      }
+      await openForge(true)
+      ;(forge as ReturnType<typeof mountForge> | null)?.open(link.input) // openForge assigned it; TS narrowed it to null
+    } else {
+      const { ft } = await import('./views/forge-i18n')
+      showToast(ft().badLinkToast)
+    }
+  })()
+}
+
 app.addEventListener('click', (e) => {
   if (e.target === stage) return setFocus('room') // the scrim round an open card
   const b = (e.target as HTMLElement).closest<HTMLElement>('button')

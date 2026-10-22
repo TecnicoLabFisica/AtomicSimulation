@@ -464,3 +464,4 @@ button, select { font: inherit; color: inherit; }
   .led.blink { outline: 2px solid var(--danger); }
   * { transition-duration: 0s !important; }
 }
+.forge-link { width: 100%; min-height: var(--touch); padding: 0 var(--space-3); border: none; border-radius: var(--radius-s); background: var(--fill); color: inherit; font: inherit; }

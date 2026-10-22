@@ -1,6 +1,7 @@
 // Materials Forge: design a crystal (lattice, cell, atoms, cut plane, reflectivity model) and read, live, its d-spacing,
 // density, the allowed/forbidden orders and any warnings. No physics here: forgeInWorker builds the crystal, the view
 // shows it. User-supplied strings (the name, a share link's design) are only ever written with textContent / .value.
+import { loadDesign, saveDesign, shareUrl } from './forge-share'
 import type { Apparatus } from '../apparatus/apparatus'
 import { crystalLabel, t } from '../i18n'
 import { lockedCrystal } from '../pedagogy/task'
@@ -170,7 +171,9 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
         <section class="forge-out" aria-labelledby="forge-out-h"><h3 id="forge-out-h">${s.readout}</h3>
           <div data-result></div>
           <div class="forge-use"><button type="button" class="forge-add primary" data-use title="${s.useOnBenchHint}" disabled>${s.useOnBench}</button>
-            <p class="hint" role="status" data-use-msg></p></div>
+            <button type="button" class="forge-add" data-share disabled>${s.copyLink}</button>
+            <input type="text" class="forge-link" data-link readonly hidden aria-label="${s.linkManual}">
+            <p class="hint" role="status" aria-live="polite" data-use-msg></p></div>
           <div class="forge-plot" data-forge-plot></div></section></div></div>`
     plot = mountForgePlot($('[data-forge-plot]'))
     $('[data-forge-close]').textContent = '×'
@@ -224,11 +227,14 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
     if (my !== seq || 'stale' in r) return
     delete root.dataset.pending
     okInput = 'entry' in r ? input : null
+    $<HTMLButtonElement>('[data-share]').disabled = !okInput
+    if (okInput) saveDesign(okInput)
     show(r)
   }
   function schedule() {
     okInput = null
     $<HTMLButtonElement>('[data-use]').disabled = true
+    $<HTMLButtonElement>('[data-share]').disabled = true
     plot.dim()
     clearTimeout(debounce)
     debounce = setTimeout(run, DEBOUNCE_MS)
@@ -276,6 +282,7 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
   root.addEventListener('click', (e) => {
     const b = (e.target as HTMLElement).closest<HTMLElement>('button')
     if (b?.dataset.use !== undefined) void useOnBench()
+    else if (b?.dataset.share !== undefined) void copyLink()
     else if (b?.dataset.add !== undefined && d.atoms.length < MAX_ATOMS) {
       d.atoms.push([d.atoms.at(-1)?.[0] ?? 11, 0, 0, 0, DEFAULT_B_A2, 1])
       rebuild(`[data-atom="${d.atoms.length - 1}:0"]`)
@@ -287,6 +294,21 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
   root.addEventListener('submit', (e) => e.preventDefault())
 
   const say = (text: string) => void ($('[data-use-msg]').textContent = text)
+  async function copyLink() {
+    if (!okInput) return
+    const url = shareUrl(okInput, location)
+    const field = $<HTMLInputElement>('[data-link]')
+    try {
+      await navigator.clipboard.writeText(url)
+      field.hidden = true
+      say(ft().linkCopied)
+    } catch {
+      field.value = url // no clipboard (insecure context, permission): offer it to copy by hand
+      field.hidden = false
+      field.select()
+      say(ft().linkManual)
+    }
+  }
   async function useOnBench() {
     if (!lastEntry || !okInput) return
     const s = ft()
@@ -313,6 +335,8 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
     onUsed?.(s.mounted(crystalLabel(key)))
   }
 
+  const saved = loadDesign()
+  if (saved) d = designFromInput(saved)
   build()
   return {
     build,

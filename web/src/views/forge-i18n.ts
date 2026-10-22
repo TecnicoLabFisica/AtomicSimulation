@@ -61,6 +61,10 @@ const es = {
     load: 'No se pudieron cargar las tablas de cristales. Comprueba la conexión.',
   } as Record<string, string>,
   mounted: (name: string) => `${name} montado en el banco.`,
+  copyLink: 'Copiar enlace',
+  linkCopied: 'Enlace copiado',
+  linkManual: 'Copia este enlace a mano',
+  badLinkToast: 'El enlace de la Forja no es válido',
   errorTitle: 'No se puede construir este cristal',
   errors: {
     bad_cell: 'La celda no es válida: usa longitudes positivas y ángulos que formen una celda real.',
@@ -145,6 +149,10 @@ const en: typeof es = {
     load: 'The crystal tables could not be loaded. Check your connection.',
   },
   mounted: (name: string) => `${name} mounted on the bench.`,
+  copyLink: 'Copy link',
+  linkCopied: 'Link copied',
+  linkManual: 'Copy this link by hand',
+  badLinkToast: 'This Forge link is not valid',
   errorTitle: 'This crystal cannot be built',
   errors: {
     bad_cell: 'The cell is not valid: use positive lengths and angles that make a real cell.',
