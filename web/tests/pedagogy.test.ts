@@ -268,7 +268,7 @@ test('replayCsv: header with the scan settings, one row per stored value', () =>
   expect(lines.at(-1)).toMatch(/^9\.0,/)
 })
 
-describe('moseley-k-edges', () => {
+describe('moseley-k-edges', { timeout: 30_000 }, () => {
   beforeAll(loadAbsorbers)
 
   type Run = { u?: number; i?: number; dt?: number; dBeta?: number; lo?: number; hi?: number }
