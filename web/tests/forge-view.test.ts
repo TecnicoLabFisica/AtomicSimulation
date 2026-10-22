@@ -99,8 +99,8 @@ describe('orders table', () => {
     const d = designFromPreset(PRESETS[2])
     const r = handleForge(toInput({ ...d, cut: [1, 0, 0] }))
     expect('error' in r && r.error.code).toBe('cut_absent')
-    expect(errorText('cut_absent', 'error' in r ? r.error.hint : null)).toContain('(4 0 0)')
-    expect(errorText('cut_absent', [4, 0, 0], FORGE_I18N.en)).toContain('try (4 0 0)')
+    expect(errorText('cut_absent', 'error' in r ? r.error.hint : null, undefined, [1, 0, 0])).toContain('(4 0 0)')
+    expect(errorText('cut_absent', [4, 0, 0], FORGE_I18N.en, [1, 0, 0])).toContain('(1 0 0) has F = 0')
   })
 })
 

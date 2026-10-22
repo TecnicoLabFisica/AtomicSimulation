@@ -156,7 +156,7 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
         <label for="f-b${i}">${s.debye}</label>${num(`b="${i}"`, d.B[i], `id="f-b${i}" min="0"`)}</div>`).join('')
     const cols = [s.atomCols.z, s.atomCols.x, s.atomCols.y, s.atomCols.z2, s.atomCols.b, s.atomCols.occ]
     const short = [s.atomCols.x, s.atomCols.y, s.atomCols.z2, s.atomCols.b, s.atomCols.occShort]
-    const atoms = !L.manualAtoms ? '' : `<fieldset class="forge-atoms"><legend>${s.atoms}</legend><p class="hint">${s.atomsHint}</p>
+    const atoms = !L.manualAtoms ? '' : `<fieldset class="forge-atoms"><legend>${s.atoms}</legend><p class="hint">${s.atomsHint}</p><p class="hint">${s.neutralNote}</p>
       ${d.atoms.map((r, i) => `<div class="forge-atom"><div class="forge-atom-head">${elSelect(`data-atom="${i}:0"`, r[0], `${cols[0]} ${i + 1}`)}
         <button type="button" class="tool" data-remove="${i}" aria-label="${s.removeAtom(i + 1)}" ${d.atoms.length < 2 ? 'disabled' : ''}>−</button></div>
         <div class="forge-atom-xyz">${[1, 2, 3, 4, 5].map((c) => `<label><span>${short[c - 1]}</span>${num(`atom="${i}:${c}"`, r[c], `aria-label="${cols[c]} ${i + 1}"`)}</label>`).join('')}</div></div>`).join('')}
@@ -172,7 +172,7 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
       <div class="forge-field"><label for="f-lattice">${s.lattice}</label>
         <select id="f-lattice" data-lattice>${(Object.keys(LATTICES) as LatticeId[]).map((l) => `<option value="${l}"${l === d.lattice ? ' selected' : ''}>${s.lattices[l]}</option>`).join('')}</select></div>
       <fieldset><legend>${s.cell}</legend>${cellRows.join('')}</fieldset>
-      ${slots ? `<fieldset><legend>${s.elements}</legend>${slots}</fieldset>` : ''}${atoms}
+      ${slots ? `<fieldset><legend>${s.elements}</legend>${slots}<p class="hint">${s.bHint}</p><p class="hint">${s.neutralNote}</p></fieldset>` : ''}${atoms}
       <fieldset><legend>${s.cut}</legend><p class="hint">${s.cutHint}</p><div class="forge-cut">${['h', 'k', 'l'].map((k, i) =>
         `<label>${k}${num(`cut="${i}"`, d.cut[i], `step="1" inputmode="numeric" aria-label="${s.cutIndex(k)}"`).replace('step="any"', '')}</label>`).join('')}</div></fieldset>
       <fieldset><legend>${s.model}</legend>${models}
@@ -185,10 +185,11 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
     const s = ft()
     root.innerHTML = `<div class="forge-panel">
       <header class="forge-head"><h2 id="forge-title">${s.title}</h2><button type="button" class="tool close" data-forge-close></button></header>
+      <p class="hint forge-intro">${s.intro}</p>
       <div class="forge-summary" role="status" aria-live="polite" data-summary></div>
       <div class="forge-body"><div class="forge-plot" data-forge-plot></div>
         <form class="forge-controls" data-controls novalidate></form>
-        <section class="forge-out" aria-labelledby="forge-out-h"><h3 id="forge-out-h">${s.readout}</h3><div data-result></div></section></div>
+        <section class="forge-out" aria-labelledby="forge-out-h"><h3 id="forge-out-h">${s.readout}</h3><div data-result></div><p class="hint forge-plot-note">${s.plotNote}</p></section></div>
       <footer class="forge-foot">
         <p class="hint" role="status" aria-live="polite" data-use-msg></p>
         <input type="text" class="forge-link" data-link readonly hidden aria-label="${s.linkManual}">
@@ -211,7 +212,7 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
     if ('error' in r) {
       plot.dim()
       sum.dataset.state = 'error'
-      sum.textContent = errorText(r.error.code, r.error.hint, s)
+      sum.textContent = errorText(r.error.code, r.error.hint, s, d.cut)
       res.replaceChildren()
       return
     }
@@ -220,7 +221,7 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
     if (r.plot) plot.update(r.plot, c)
     else plot.dim()
     $<HTMLButtonElement>('[data-use]').disabled = false
-    sum.textContent = s.summary(c.d_pm.toFixed(2), c.density_g_cm3.toPrecision(4))
+    sum.textContent = s.summary(c.cut, c.d_pm.toFixed(2), c.density_g_cm3.toPrecision(3))
     const rows = orderRows(c)
     const shown = rows.slice(0, VISIBLE_ORDERS)
     const fText = (o: OrderRow) => (o.fRel >= 0.001 ? o.fRel.toPrecision(3) : s.belowRange)
@@ -230,7 +231,7 @@ export function mountForge(root: HTMLElement, apparatus: Apparatus, onUsed?: (me
       <thead><tr><th>${s.cols.n}</th><th>${s.cols.hkl}</th><th>${s.cols.f}</th><th>${s.cols.theta}</th></tr></thead><tbody>
       ${shown.map((o) => `<tr data-allowed="${o.allowed}"><td>${o.n}</td><td>(${o.hkl.join(' ')})</td>
         <td>${o.allowed ? fText(o) : `<i>${s.forbidden}</i>`}</td><td>${o.allowed ? thText(o) : '–'}</td></tr>`).join('')}
-      </tbody></table>${rows.length > shown.length ? `<p class="hint">${s.more(rows.length - shown.length)}</p>` : ''}`
+      </tbody></table>${rows.length > shown.length ? `<p class="hint">${s.more(rows.length - shown.length)}</p>` : ''}<p class="hint">${s.ordersHint}</p>`
   }
 
   async function run() {

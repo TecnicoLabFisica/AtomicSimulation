@@ -6,7 +6,8 @@ import { NACL_THERMAL_B_A2 } from './constants'
 /** UI/trust-boundary cap on basis rows. */
 export const MAX_ATOMS = 64
 /** UI default Debye-Waller B (Å²) when the caller gives none: a typical room-temperature value (fixtures use 0.3-1.4). Not physics. */
-export const DEFAULT_B_A2 = 0.5
+// order-of-magnitude UI default for a new atom (covalent ≈ 0.5, ionic salts 1–2 Å²); not physics
+export const DEFAULT_B_A2 = 1.0
 
 export type LatticeId = 'cubic_p' | 'cubic_i' | 'cubic_f' | 'rock_salt' | 'cscl' | 'diamond' | 'zincblende' | 'hexagonal' | 'general'
 export type Cell = ForgeInput['cell']
@@ -103,12 +104,13 @@ export type Preset = {
   cut: readonly number[]; model: ForgeInput['reflectivity_model']; eta_deg: number | null
 }
 /** "Start from" designs. a, B, cut and model follow model/PARAMETERS.md (LiF B: assumption there; Si B: Heacock et al. 2021).
- * KCl's B is the UI default DEFAULT_B_A2 (assumption, no source read); its a = 629.3 pm and η = 0.2° are a rough rock-salt-like choice. */
+ * KCl: a = 629.3 pm (NBS/Swanson 6.2931 Å at 25 °C); B_K 1.6, B_Cl 1.8 Å² is a Debye-model estimate (Θ_D ≈ 235 K, assumption,
+ * 2026-10-22, see model/PARAMETERS.md); η = 0.2° is a rough rock-salt-like choice. */
 export const PRESETS: readonly Preset[] = [
   { id: 'NaCl', lattice: 'rock_salt', a_pm: 564.02, elements: [11, 17], B_A2: [NACL_THERMAL_B_A2, NACL_THERMAL_B_A2], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.2 },
   { id: 'LiF', lattice: 'rock_salt', a_pm: 402.7, elements: [3, 9], B_A2: [1.0, 0.65], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.05 },
   { id: 'Si', lattice: 'diamond', a_pm: 543.102, elements: [14], B_A2: [0.476], cut: [1, 1, 1], model: 'darwin', eta_deg: null },
-  { id: 'KCl', lattice: 'rock_salt', a_pm: 629.3, elements: [19, 17], B_A2: [DEFAULT_B_A2, DEFAULT_B_A2], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.2 },
+  { id: 'KCl', lattice: 'rock_salt', a_pm: 629.3, elements: [19, 17], B_A2: [1.6, 1.8], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.2 },
 ]
 
 // ---- share link ---------------------------------------------------------------------------------------------------

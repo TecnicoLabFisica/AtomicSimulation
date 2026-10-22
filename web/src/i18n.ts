@@ -94,7 +94,7 @@ const es = {
   taskCrystal: (n: string) => `Esta tarea fija el cristal: ${n}.`,
   // Heights are fitted to Fig. 4 for NaCl only; the other presets come from the model (perfect crystal, or an assumed mosaic for LiF).
   heightsNote: {
-    forged: 'Cristal hipotético de la Forja: los ángulos siguen la ley de Bragg; las alturas son una estimación del modelo de reflectividad que elegiste, no una medida.',
+    forged: 'Cristal hipotético de la Forja: los ángulos siguen la ley de Bragg; las alturas son una estimación del modelo de reflectividad que elegiste, no una medida (solo NaCl está ajustado a datos).',
     perfect: 'Ángulos: ley de Bragg. Alturas: calculadas por el modelo (solo NaCl está ajustado a datos); este cristal, casi perfecto, refleja mucho menos que NaCl.',
     mosaic: 'Ángulos: ley de Bragg. Alturas: calculadas por el modelo con un mosaico supuesto (solo NaCl está ajustado a datos); LiF refleja algo más que NaCl.',
   },
@@ -239,7 +239,7 @@ const en: Dict = {
   crystals: { NaCl: 'NaCl', LiF: 'LiF', Si: 'Si', calcite: 'Calcite', muscovite: 'Mica (muscovite)' } as Record<string, string>,
   taskCrystal: (n: string) => `This task sets the crystal: ${n}.`,
   heightsNote: {
-    forged: 'Hypothetical Forge crystal: angles follow Bragg’s law; heights are an estimate from the reflectivity model you chose, not a measurement.',
+    forged: 'Hypothetical Forge crystal: angles follow Bragg’s law; heights are an estimate from the reflectivity model you chose, not a measurement (only NaCl is fitted to data).',
     perfect: 'Angles: Bragg’s law. Heights: computed by the model (only NaCl is fitted to data); this near-perfect crystal reflects much less than NaCl.',
     mosaic: 'Angles: Bragg’s law. Heights: computed by the model with an assumed mosaic (only NaCl is fitted to data); LiF reflects slightly more than NaCl.',
   },

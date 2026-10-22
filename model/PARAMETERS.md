@@ -90,6 +90,21 @@ that lumps thermal motion, extinction and the instrument. Applying it to another
 wrong, and adding it on top of their own B would count thermal motion twice. Their literature B stays
 inside F only.
 
+### Forge presets (web UI starting points)
+
+Defined in `web/src/physics/forge-lattices.ts` (`PRESETS`); the Python model does not use them. Added 2026-10-22.
+
+| Preset | a (pm) | B (Å²) | η | Source and status |
+|---|---|---|---|---|
+| NaCl | 564.02 | 1.3, both atoms | 0.2° | B is the NaCl reference B_th above; η is the NaCl reference assumption |
+| LiF | 402.7 | Li 1.0, F 0.65 | 0.05° | The C1 LiF preset values above (B assumption) |
+| Si | 543.102 | 0.476 | none (Darwin) | The C1 Si preset values above (Heacock et al. 2021) |
+| KCl | 629.3 | K 1.6, Cl 1.8 | 0.2° | a: Swanson/NBS 6.2931 Å at 25 °C. B: **assumption**, Debye estimate with Θ_D ≈ 235 K at 298 K, B = 11 492·T/(A·Θ_D²)·(1 + x²/36), the same method as NaCl's 1.3 Å² (2026-10-22). η: assumption |
+
+Forged crystals are scaled to NaCl through NaCl's first order (`cell_scale`), so a forged NaCl differs from the fitted anchor
+at higher orders (the anchor uses the fitted effective B 0.63 Å²). A new atom in the Forge starts at B = 1.0 Å²
+(`DEFAULT_B_A2`, an order-of-magnitude UI default, not physics).
+
 **Cross-crystal scale (computed, not fitted; assumes NaCl-like mosaicity).** A thick mosaic
 crystal reflects an integrated fraction ∝ λ³|F|²/(V² μ) at a given λ (Warren, ch. 4). λ³ is common at
 equal λ and cancels in the ratio. NaCl's missing λ³/μ_NaCl(λ) shape was absorbed by the Fig. 4 fit (Known
