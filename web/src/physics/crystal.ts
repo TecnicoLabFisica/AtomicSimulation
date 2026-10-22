@@ -56,11 +56,13 @@ export type Crystal = Readonly<{
   f_sq_rel: readonly number[] // |F_n|²/|F_1|², n = 1 … max_order
   allowed_orders: readonly number[] // orders 1 … max_order that are not systematically absent (lookup, from Python)
   mu_per_cm: readonly number[] // linear attenuation on MU_RHO_GRID_PM; empty for the built-in NACL
-  mu_edges_pm: readonly number[] // K, L1–L3 absorption edges of its elements inside the grid (lookup, from Python)
+  mu_edges_pm: readonly number[] // absorption edges of its elements inside the grid (lookup, from Python): K, L1–L3; forged crystals also M
   fitted_debye_waller: boolean // true only for the NaCl anchor
   reflectivity_model: string // 'ideal_mosaic' | 'darwin' | 'mosaic_extinction'
   mosaic_fwhm_deg: number | null // only for 'mosaic_extinction'
-  extinction: readonly (readonly number[])[] // y rows (index n − 1) on the first nodes of MU_RHO_GRID_PM; NaCl: order 1 only
+  extinction: readonly (readonly number[])[] // y·κ rows (extinction × anomalous dispersion; index n − 1) on the first nodes of MU_RHO_GRID_PM; NaCl: order 1 only
+  mu_nodes_pm?: readonly number[] // forged crystals only: λ nodes of μ, a repeated λ is an absorption-edge step
+  mu_nodes_per_cm?: readonly number[] // μ on those nodes; read log–log (presets use mu_per_cm on the μ/ρ grid)
   source: string
 }>
 
@@ -95,6 +97,23 @@ export const allowedOrders = (crystal: Crystal): number[] => [...crystal.allowed
 /** port of braggsim.crystal.d_pm: spacing in pm of the first reflection of the cut series. */
 export const dPm = (crystal: Crystal): number => crystal.d_pm
 
+/** port of braggsim.crystal.interp_nodes: piecewise-linear ys(xs) at x, end values held, never an extrapolation. xs
+ * ascending; a repeated abscissa is a step (x equal to it reads the value after it, x below it the one before). */
+export function interpNodes(x: number, xs: ArrayLike<number>, ys: ArrayLike<number>): number {
+  let lo = 0
+  let hi = xs.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (xs[mid] <= x) lo = mid + 1
+    else hi = mid
+  }
+  const j = Math.min(Math.max(lo - 1, 0), xs.length - 2)
+  const dx = xs[j + 1] - xs[j]
+  const t = dx > 0 ? (Math.min(Math.max(x, xs[0]), xs[xs.length - 1]) - xs[j]) / dx : 0
+  return ys[j] + t * (ys[j + 1] - ys[j])
+}
+
+const logNodesCache = new WeakMap<Crystal, readonly [Float64Array, Float64Array]>()
 const logMuCache = new WeakMap<Crystal, Float64Array>()
 function logMuPerCm(crystal: Crystal): Float64Array {
   let t = logMuCache.get(crystal)
@@ -105,8 +124,13 @@ function logMuPerCm(crystal: Crystal): Float64Array {
   return t
 }
 
-/** port of braggsim.crystal.linear_attenuation_per_cm: μ(λ) in 1/cm, log–log, end values held, edges sharp. */
+/** port of braggsim.crystal.linear_attenuation_per_cm: μ(λ) in 1/cm, log–log, end values held, edges sharp (forged: log–log on its own nodes). */
 export function linearAttenuationPerCm(crystal: Crystal, lambdaPm: number): number {
+  if (crystal.mu_nodes_pm?.length && crystal.mu_nodes_per_cm) { // forged: exact nodes with the edges as steps, never an extrapolation
+    let t = logNodesCache.get(crystal)
+    if (!t) logNodesCache.set(crystal, (t = [Float64Array.from(crystal.mu_nodes_pm, Math.log), Float64Array.from(crystal.mu_nodes_per_cm, Math.log)]))
+    return Math.exp(interpNodes(Math.log(lambdaPm), t[0], t[1]))
+  }
   return Math.exp(interpLogMu(lambdaPm, logMuPerCm(crystal), crystal.mu_edges_pm))
 }
 
@@ -128,8 +152,8 @@ function logExtinction(crystal: Crystal): Float64Array[] {
   return t
 }
 
-/** port of braggsim.crystal.extinction_factor: y ∈ (0, 1] of order n at λ, log–log interpolation of the exported
- * (rounded) table on the first nodes of MU_RHO_GRID_PM, end values held. NaCl has order 1 only (the reference y);
+/** port of braggsim.crystal.extinction_factor: reflectivity factor y·κ (extinction × anomalous dispersion) of order n at λ, log–log interpolation of the exported
+ * (rounded) table on the first nodes of MU_RHO_GRID_PM, end values held. NaCl has order 1 only (the reference);
  * needs loadCrystals(). */
 export function extinctionFactor(crystal: Crystal, n: number, lambdaPm: number): number {
   const rows = logExtinction(crystal)
@@ -138,7 +162,7 @@ export function extinctionFactor(crystal: Crystal, n: number, lambdaPm: number):
   return Math.exp(interp(Math.log(lambdaPm), LOG_MU_RHO_GRID.subarray(0, row.length), row))
 }
 
-/** port of braggsim.crystal.extinction_ratio: y_X,n(λ) / y_NaCl,1(λ), 1 for NaCl and any fitted-B anchor. Needs loadCrystals(). */
+/** port of braggsim.crystal.extinction_ratio: (yκ)_X,n(λ) / (yκ)_NaCl,1(λ), 1 for NaCl and any fitted-B anchor. Needs loadCrystals(). */
 export function extinctionRatio(crystal: Crystal, n: number, lambdaPm: number): number {
   if (isNacl(crystal) || crystal.fitted_debye_waller) return 1
   const nacl = CRYSTALS.NaCl

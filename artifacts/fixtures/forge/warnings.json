@@ -1,0 +1,220 @@
+{
+ "cases": [
+  {
+   "description": "two atoms 31 pm apart across the cell boundary of a γ = 30° cell",
+   "input": {
+    "basis": [
+     [
+      14,
+      0.02,
+      0.02,
+      0.1,
+      0.5,
+      1.0
+     ],
+     [
+      8,
+      0.98,
+      0.98,
+      0.1,
+      0.5,
+      1.0
+     ]
+    ],
+    "cell": {
+     "a_pm": 400.0,
+     "alpha_deg": 90.0,
+     "b_pm": 400.0,
+     "beta_deg": 90.0,
+     "c_pm": 500.0,
+     "gamma_deg": 30.0
+    },
+    "cut": [
+     0,
+     0,
+     1
+    ],
+    "mosaic_fwhm_deg": null,
+    "name": "skewed",
+    "reflectivity_model": "ideal_mosaic",
+    "source": "Forge test"
+   },
+   "warnings": [
+    "atoms_too_close"
+   ]
+  },
+  {
+   "description": "(10 0 0) of a 300 pm cube: 2 d sin 85° is shorter than Mo Kβ",
+   "input": {
+    "basis": [
+     [
+      14,
+      0,
+      0,
+      0,
+      0.5,
+      1.0
+     ]
+    ],
+    "cell": {
+     "a_pm": 300.0,
+     "alpha_deg": 90.0,
+     "b_pm": 300.0,
+     "beta_deg": 90.0,
+     "c_pm": 300.0,
+     "gamma_deg": 90.0
+    },
+    "cut": [
+     10,
+     0,
+     0
+    ],
+    "mosaic_fwhm_deg": null,
+    "name": "fine",
+    "reflectivity_model": "ideal_mosaic",
+    "source": "Forge test"
+   },
+   "warnings": [
+    "no_line_reflects"
+   ]
+  },
+  {
+   "description": "a 1500 pm cube: many orders, still buildable",
+   "input": {
+    "basis": [
+     [
+      14,
+      0,
+      0,
+      0,
+      0.5,
+      1.0
+     ]
+    ],
+    "cell": {
+     "a_pm": 1500.0,
+     "alpha_deg": 90.0,
+     "b_pm": 1500.0,
+     "beta_deg": 90.0,
+     "c_pm": 1500.0,
+     "gamma_deg": 90.0
+    },
+    "cut": [
+     0,
+     0,
+     1
+    ],
+    "mosaic_fwhm_deg": null,
+    "name": "many",
+    "reflectivity_model": "ideal_mosaic",
+    "source": "Forge test"
+   },
+   "warnings": [
+    "many_orders"
+   ]
+  },
+  {
+   "description": "a 2400 pm cube: many orders",
+   "error_code": "too_many_orders",
+   "input": {
+    "basis": [
+     [
+      14,
+      0,
+      0,
+      0,
+      0.5,
+      1.0
+     ]
+    ],
+    "cell": {
+     "a_pm": 2400.0,
+     "alpha_deg": 90.0,
+     "b_pm": 2400.0,
+     "beta_deg": 90.0,
+     "c_pm": 2400.0,
+     "gamma_deg": 90.0
+    },
+    "cut": [
+     0,
+     0,
+     1
+    ],
+    "mosaic_fwhm_deg": null,
+    "name": "big",
+    "reflectivity_model": "ideal_mosaic",
+    "source": "Forge test"
+   }
+  },
+  {
+   "description": "a 5000 pm cube: refused, too many orders",
+   "error_code": "too_many_orders",
+   "input": {
+    "basis": [
+     [
+      14,
+      0,
+      0,
+      0,
+      0.5,
+      1.0
+     ]
+    ],
+    "cell": {
+     "a_pm": 5000.0,
+     "alpha_deg": 90.0,
+     "b_pm": 5000.0,
+     "beta_deg": 90.0,
+     "c_pm": 5000.0,
+     "gamma_deg": 90.0
+    },
+    "cut": [
+     0,
+     0,
+     1
+    ],
+    "mosaic_fwhm_deg": null,
+    "name": "huge",
+    "reflectivity_model": "ideal_mosaic",
+    "source": "Forge test"
+   }
+  },
+  {
+   "description": "a plain 450 pm cube: nothing to say",
+   "input": {
+    "basis": [
+     [
+      14,
+      0,
+      0,
+      0,
+      0.5,
+      1.0
+     ]
+    ],
+    "cell": {
+     "a_pm": 450.0,
+     "alpha_deg": 90.0,
+     "b_pm": 450.0,
+     "beta_deg": 90.0,
+     "c_pm": 450.0,
+     "gamma_deg": 90.0
+    },
+    "cut": [
+     0,
+     0,
+     1
+    ],
+    "mosaic_fwhm_deg": null,
+    "name": "plain",
+    "reflectivity_model": "ideal_mosaic",
+    "source": "Forge test"
+   },
+   "warnings": []
+  }
+ ],
+ "description": "Warning codes of designs worth reconsidering; the oversized cell refusal",
+ "function": "forge.warnings",
+ "model_version": "0.4.0",
+ "name": "warnings"
+}

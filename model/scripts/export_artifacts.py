@@ -12,6 +12,7 @@ Files the script no longer produces are deleted.
 """
 
 import dataclasses
+import functools
 import json
 from pathlib import Path
 
@@ -19,8 +20,9 @@ import numpy as np
 import xraylib
 
 import braggsim
-from braggsim import analysis, scan
+from braggsim import analysis, forge, scan
 from braggsim.constants import (
+    HC_KEV_PM,
     MO_K_EDGE_KEV,
     MO_KA_COMPONENTS,
     MO_KA_PM,
@@ -28,9 +30,13 @@ from braggsim.constants import (
     MO_KB_PM,
 )
 from braggsim.crystal import (
+    FCC,
     NACL,
     PRESETS,
+    Crystal,
+    ForgeInputError,
     allowed_orders,
+    build_basis,
     cell_scale,
     d_pm,
     density_g_cm3,
@@ -62,9 +68,10 @@ def _floats(a):
     return [float(x) for x in np.asarray(a, dtype=float).ravel()]
 
 
-def _dump(obj):
+def _dump(obj, compact=False):
     obj = {"model_version": braggsim.__version__, **obj}
-    return json.dumps(obj, sort_keys=True, indent=1, ensure_ascii=False, allow_nan=False) + "\n"
+    kw = {"separators": (",", ":")} if compact else {"indent": 1}  # compact: forge_elements.json
+    return json.dumps(obj, sort_keys=True, ensure_ascii=False, allow_nan=False, **kw) + "\n"
 
 
 def _rate_case(
@@ -188,8 +195,9 @@ def _crystal_tables():
     false, B = params.debye_waller_pm2 when it is true and 0 otherwise
     (scan.ModelParams.order_strengths). The μ_X(λ) tables are the
     very ones Python interpolates log–log (crystal.mu_per_cm_table), so mu_factor agrees exactly;
-    the same holds for ``extinction`` (crystal.extinction_table, already rounded to 4 significant
-    digits). ``allowed_orders`` is lookup data (crystal.allowed_orders), not recomputed in TS.
+    the same holds for ``extinction`` (crystal.extinction_table, the reflectivity factor y·κ:
+    extinction × anomalous dispersion, already rounded to 4 significant digits).
+    ``allowed_orders`` is lookup data (crystal.allowed_orders), not recomputed in TS.
     """
     out = {}
     for name, c in PRESETS.items():
@@ -278,6 +286,257 @@ def _crystal_fixtures_wide():
         ),
     )  # fmt: skip
     return out
+
+
+FORGE_SEED = 20261021  # fixed seed of the random forged crystals (byte-identical exports)
+FORGE_SYSTEMS = {  # name: (cell system, reflectivity model, forced elements, cut candidates)
+    "cubic_mosaic": ("cubic", "mosaic_extinction", (), ((1, 0, 0), (1, 1, 0), (1, 1, 1))),
+    "monoclinic_darwin": ("monoclinic", "darwin", (), ((0, 0, 1), (1, 0, 0), (0, 1, 0))),
+    "triclinic_mosaic": ("triclinic", "mosaic_extinction", (), ((0, 0, 1), (0, 1, 0))),
+    "tetragonal_zr_k_edge_darwin": ("tetragonal", "darwin", (40, 8), ((0, 0, 1), (1, 1, 0))),
+    "orthorhombic_lead_ideal": ("orthorhombic", "ideal_mosaic", (82, 16), ((0, 0, 1), (1, 0, 0))),
+}
+
+
+def _random_forge_input(rng, system, model, forced, cuts):
+    """One random cell, basis (2–5 atoms, Z from ``forced`` plus 3 … 40) and cut, as a ``Crystal``
+    for the Forge fixtures. Drawn from ``rng`` only; the caller retries until it is valid."""
+    a, b, c = (round(float(x), 1) for x in rng.uniform(350, 650, 3))
+    ang = {"cubic": (90, 90, 90), "tetragonal": (90, 90, 90), "orthorhombic": (90, 90, 90),
+           "monoclinic": (90, round(float(rng.uniform(95, 110)), 1), 90)}  # fmt: skip
+    if system == "triclinic":
+        ang["triclinic"] = tuple(round(float(x), 1) for x in rng.uniform(80, 100, 3))
+    if system in ("cubic", "tetragonal"):
+        b = a
+    if system == "cubic":
+        c = a
+    zs = [*forced, *(int(z) for z in rng.integers(3, 41, int(rng.integers(1, 4))))]
+    basis = tuple(
+        (int(z), *(round(float(x), 4) for x in rng.random(3)),
+         round(float(rng.uniform(0.3, 1.5)), 2), 1.0)
+        for z in zs
+    )  # fmt: skip
+    eta = round(float(rng.uniform(0.05, 0.5)), 2) if model == "mosaic_extinction" else None
+    cut = cuts[int(rng.integers(len(cuts)))]
+    return Crystal(
+        f"forge_{system}", a, b, c, *ang[system], basis, cut, "random Forge fixture",
+        reflectivity_model=model, mosaic_fwhm_deg=eta,
+    )  # fmt: skip
+
+
+def _forge_input(c):
+    """The Forge input dict (what the browser receives) of a ``Crystal``."""
+    return {
+        "name": c.name,
+        "cell": {"a_pm": c.a_pm, "b_pm": c.b_pm, "c_pm": c.c_pm, "alpha_deg": c.alpha_deg,
+                 "beta_deg": c.beta_deg, "gamma_deg": c.gamma_deg},
+        "basis": [list(a) for a in c.basis],
+        "cut": list(c.cut),
+        "reflectivity_model": c.reflectivity_model,
+        "mosaic_fwhm_deg": c.mosaic_fwhm_deg,
+        "source": c.source,
+    }  # fmt: skip
+
+
+def _forge_case(description, c):
+    """Forge fixture: the input crystal, its table-built entry, and one 35 kV, 1 mA coupled scan of
+    the orders 1–3 window computed from the forged crystal (``scan.expected_rate``)."""
+    d = d_pm(c)
+    reach = 2 * d * np.sin(np.radians(scan.BETA_MAX_DEG))
+    n_hi = max(n for n in (1, 2, 3) if n * MO_KA_PM <= reach)
+    lo = max(round(float(theta_from_lambda(MO_KB_PM, 1, d)) - 1, 1), 2.0)
+    hi = min(round(float(theta_from_lambda(MO_KA_PM, n_hi, d)) + 1.5, 1), 85.0)
+    case = _rate_case(
+        f"{c.name} (forged), 35 kV, 1 mA, coupled {lo:g}° → {hi:g}°, Δβ = 0.05°",
+        scan.coupled_betas(lo, hi, 0.05), 35.0, 1.0, crystal=forge.forged(c),
+    )  # fmt: skip
+    return {
+        "function": "forge.entry",
+        "description": description,
+        "input": _forge_input(c),
+        "entry": forge.entry(c),
+        "warnings": list(forge.warnings(c)),
+        "scan": case,
+    }  # fmt: skip
+
+
+@functools.cache
+def _forge_fixtures():
+    """Forged LiF, Si and calcite (the presets' cell, basis, cut, model: the port must agree with
+    the tables' entry) and five seeded random crystals, among them a monoclinic, a triclinic, two
+    mosaic ones and a Zr-containing one (K edge 68.9 pm between Mo Kβ and Kα)."""
+    out = {}
+    for name in ("LiF", "Si", "calcite"):
+        c = dataclasses.replace(PRESETS[name], source="Forge copy of the preset")
+        out[name.lower()] = _forge_case(f"Forge copy of the {name} preset", c)
+    rng = np.random.default_rng(FORGE_SEED)
+    for key, spec in FORGE_SYSTEMS.items():
+        for _ in range(500):
+            try:
+                c = _random_forge_input(rng, *spec)
+            except ValueError:  # cut reflection systematically absent
+                continue
+            n_max = scan.max_order(c)
+            if n_max <= 25 and "no_line_reflects" not in forge.warnings(c):
+                break
+        else:
+            raise RuntimeError(f"no valid random crystal for {key}")
+        out[key] = _forge_case(f"Random {key.replace('_', ' ')} crystal (seed {FORGE_SEED})", c)
+    # disordered Cu3Au (Cu 0.75 + Au 0.25 on each fcc site): mixed occupancy, a cut with a negative
+    # index, Cu K and Au L edges (B and η are assumptions)
+    alloy = Crystal(
+        "Cu3Au_disordered", 374.8, 374.8, 374.8, 90.0, 90.0, 90.0,
+        build_basis([(((29, 0.75), (79, 0.25)), (0, 0, 0), 0.6)], centrings=FCC),
+        (1, -1, 1), "Forge test: disordered Cu3Au, a = 374.8 pm",
+        reflectivity_model="mosaic_extinction", mosaic_fwhm_deg=0.2,
+    )  # fmt: skip
+    out["mixed_site_alloy"] = _forge_case("Disordered Cu3Au, cut (1, -1, 1)", alloy)
+    out["warnings"] = _forge_warnings_fixture()
+    out["invalid"] = _forge_invalid_fixture()
+    out["atoms"] = _forge_atoms_fixture()
+    return out
+
+
+def _cubic(name, a, cut=(0, 0, 1), atoms=((14, 0, 0, 0, 0.5, 1.0),)):
+    return Crystal(name, a, a, a, 90.0, 90.0, 90.0, atoms, cut, "Forge test")
+
+
+def _forge_warnings_fixture():
+    """Warning codes (no scan) of hand-made designs, and the oversized cell as a refusal."""
+    skew = Crystal(
+        "skewed", 400.0, 400.0, 500.0, 90.0, 90.0, 30.0,
+        ((14, 0.02, 0.02, 0.1, 0.5, 1.0), (8, 0.98, 0.98, 0.1, 0.5, 1.0)), (0, 0, 1),
+        "Forge test",
+    )  # fmt: skip
+    rows = [
+        ("two atoms 31 pm apart across the cell boundary of a γ = 30° cell", skew),
+        (
+            "(10 0 0) of a 300 pm cube: 2 d sin 85° is shorter than Mo Kβ",
+            _cubic("fine", 300.0, (10, 0, 0)),
+        ),
+        ("a 1500 pm cube: many orders, still buildable", _cubic("many", 1500.0)),
+        ("a 2400 pm cube: many orders", _cubic("big", 2400.0)),
+        ("a 5000 pm cube: refused, too many orders", _cubic("huge", 5000.0)),
+        ("a plain 450 pm cube: nothing to say", _cubic("plain", 450.0)),
+    ]
+    cases = []
+    for description, c in rows:
+        case = {"description": description, "input": _forge_input(c)}
+        if scan.max_order(c) > forge.MAX_ORDERS:
+            try:
+                forge.forged(c)
+            except ForgeInputError as e:
+                case["error_code"] = e.code
+            else:
+                raise RuntimeError("expected a refusal")
+        else:
+            case["warnings"] = list(forge.warnings(c))
+        cases.append(case)
+    assert [c.get("warnings") for c in cases][:2] == [["atoms_too_close"], ["no_line_reflects"]]
+    return {
+        "function": "forge.warnings",
+        "description": "Warning codes of designs worth reconsidering; the oversized cell refusal",
+        "cases": cases,
+    }
+
+
+def _forge_invalid_fixture():
+    """Every refusal at the trust boundary: input -> stable code (and the hint of cut_absent)."""
+    si = _forge_input(_cubic("v", 450.0, atoms=((14, 0, 0, 0, 0.5, 1.0),)))
+    fcc = {  # Si (fcc lattice): (100) is systematically absent, (200) is present
+        **_forge_input(_cubic("fcc", 543.0)),
+        "basis": [list(a) for a in build_basis([(((14, 1.0),), (0, 0, 0), 0.5)], centrings=FCC)],
+        "cut": [1, 0, 0],
+    }
+
+    def atom(**kw):
+        z, b, occ = kw.get("z", 14), kw.get("b", 0.5), kw.get("occ", 1.0)
+        return {**si, "basis": [[z, 0, 0, 0, b, occ]]}
+
+    mosaic = {**si, "reflectivity_model": "mosaic_extinction"}
+    rows = [
+        ("Z = 0", atom(z=0), "bad_z"),
+        ("Z = 93", atom(z=93), "bad_z"),
+        ("Z = 14.5", atom(z=14.5), "bad_z"),
+        ("occupancy 0", atom(occ=0.0), "bad_occupancy"),
+        ("occupancy 1.5", atom(occ=1.5), "bad_occupancy"),
+        ("B < 0", atom(b=-0.1), "bad_b"),
+        ("B above the 30 Å² cap", atom(b=30.5), "b_too_large"),
+        (
+            "impossible cell (all angles 150°)",
+            {
+                **si,
+                "cell": {**si["cell"], "alpha_deg": 150.0, "beta_deg": 150.0, "gamma_deg": 150.0},
+            },
+            "bad_cell",
+        ),
+        ("zero cell length", {**si, "cell": {**si["cell"], "a_pm": 0.0}}, "bad_cell"),
+        ("no atoms", {**si, "basis": []}, "bad_cell"),
+        ("atom with five numbers", {**si, "basis": [[14, 0, 0, 0, 0.5]]}, "bad_atom"),
+        (
+            "site holds occupancy 1.3",
+            {**si, "basis": [[14, 0, 0, 0, 0.5, 0.7], [8, 0, 0, 0, 0.5, 0.6]]},
+            "site_overfilled",
+        ),
+        ("non-integer cut", {**si, "cut": [0.5, 0, 0]}, "bad_cut"),
+        ("zero cut", {**si, "cut": [0, 0, 0]}, "bad_cut"),
+        ("cut of two numbers", {**si, "cut": [1, 0]}, "bad_cut"),
+        ("absent (100) of a face-centred cell", fcc, "cut_absent"),
+        ("unknown reflectivity model", {**si, "reflectivity_model": "dynamical"}, "bad_model"),
+        ("mosaic_extinction without a mosaic", mosaic, "bad_mosaic"),
+        ("mosaic_extinction with η = 0", {**mosaic, "mosaic_fwhm_deg": 0.0}, "bad_mosaic"),
+        ("a mosaic spread for a darwin crystal", {**si, "mosaic_fwhm_deg": 0.2}, "bad_mosaic"),
+    ]
+    cases = []
+    for description, inp, code in rows:
+        try:
+            forge.from_input(inp)
+        except ForgeInputError as e:
+            assert e.code == code, (description, e.code)
+            cases.append({"description": description, "input": inp, "code": code,
+                          "hint": list(e.hint) if e.hint else None})  # fmt: skip
+        else:
+            raise RuntimeError(f"{description}: not refused")
+    return {
+        "function": "forge.invalid",
+        "description": "Designs outside the trust boundary: stable error codes for the UI",
+        "cases": cases,
+    }
+
+
+def _forge_atoms_fixture():
+    """The atomic data a forged crystal reads, per Z = 1 … 92: f0 at a few s (beyond 3 Å⁻¹ the last
+    value is held), f′ and f″ at the grid ends and the Mo lines, σ at every edge (±1e-9 relative
+    in λ) and beyond the ends of the grid. Test data only (never shipped)."""
+    s_inv_a = [0.0, 0.004, 0.05, 0.37, 1.0, 2.0, 2.995, 3.0, 3.4]
+    lam_fp = [float(MU_RHO_GRID_PM[0]), MO_KB_PM, MO_KA_PM, float(MU_RHO_GRID_PM[-1])]
+    t = forge.TABLES
+    elements = []
+    for z in range(1, forge.Z_MAX + 1):
+        edges = forge.element_tables()["elements"][z - 1]["edges_pm"]
+        lo, hi = float(MU_RHO_GRID_PM[0]), float(MU_RHO_GRID_PM[-1])
+        lam_sig = [lo / 2, lo, MO_KA_PM, hi, hi * 2]
+        for e in edges:
+            lam_sig += [
+                e * (1 - 1e-9),
+                e * (1 + 1e-9),
+            ]  # not e itself: ties go either way by an ulp of log
+        lam_sig = [float(x) for x in lam_sig]
+        elements.append({
+            "z": z,
+            "f0": [t.f0(z, s) for s in s_inv_a],
+            "f_prime": [float(t.f_prime(z, HC_KEV_PM / x)) for x in lam_fp],
+            "f_second": [t.f_second(z, HC_KEV_PM / x) for x in lam_fp],
+            "sigma_lambda_pm": lam_sig,
+            "sigma_cm2": [float(t.sigma_cm2(z, x)) for x in lam_sig],
+        })  # fmt: skip
+    return {
+        "function": "forge.atoms",
+        "description": "TableAtoms values per element: f0(s), f'/f'' (E = hc/λ), σ(λ)",
+        "s_inv_A": s_inv_a,
+        "lambda_pm": lam_fp,
+        "elements": elements,
+    }
 
 
 def _prominence_case():
@@ -512,11 +771,13 @@ def build():
                 "(braggsim.filters.interp_log_mu); mu_per_cm = linear attenuation in 1/cm "
                 "on lambda_pm of mu_rho.json (log–log interpolation, ends held); mu_factor = "
                 "mu_per_cm[NaCl] / mu_per_cm[X] per λ. Non-NaCl crystals are also multiplied by "
-                "extinction_ratio = y_X,n(λ)/y_NaCl,1(λ) at the same λ (crystal.extinction_ratio) "
+                "extinction_ratio = (yκ)_X,n(λ)/(yκ)_NaCl,1(λ) at the same λ "
+                "(crystal.extinction_ratio; y = extinction, "
+                "κ = |F(f0+f′+if″)|²/|F(f0)|² anomalous dispersion) "
                 "and k uses exp(2 B_th/(2 d_NaCl)²) with B_th = 13 000 pm² (1.3 Å², NaCl thermal) "
-                "instead of B_fit. extinction[n−1] = y of order n on the first len(row) nodes of "
+                "instead of B_fit. extinction[n−1] = y·κ of order n on the first len(row) nodes of "
                 "lambda_pm of mu_rho.json (λ ≤ 2d sin85°/n plus one node; NaCl has order 1 only, "
-                "the reference y); interpolate log y vs log λ, end values held. "
+                "the reference); interpolate log(yκ) vs log λ, end values held. "
                 "allowed_orders = orders 1 … max_order that are not systematically absent "
                 "(crystal.order_is_absent: at-rest |F|² ≥ 1e-12 (Σ occ Z)²)",
                 "source": f"xraylib {xraylib.__version__} CS_Total, FF_Rayl, AtomicWeight",
@@ -535,6 +796,25 @@ def build():
     # Own folder: the TS fixture test globs fixtures/*.json only (C2.1: move up then).
     for name, case in _crystal_fixtures().items():
         files[f"fixtures/crystals/{name}.json"] = _dump({"name": name, **case})
+    # Forge (user-designed crystals): the per-element tables and the entries built from them.
+    files["tables/forge_elements.json"] = _dump(
+        {
+            "description": "Per-element tables for the Materials Forge (braggsim.forge). "
+            "elements[Z−1]: f0 = Rayleigh form factor on s = i · f0_step_A (Å⁻¹, linear "
+            "interpolation, last value held beyond f0_s_max_A); idx = nodes of lambda_pm of "
+            "mu_rho.json kept for the element, with sigma_cm2 (atomic cross-section, cm², "
+            "log–log in λ), f_prime (linear in λ) and f_second (xraylib Fii, negative, log–log in "
+            "|f″|) on them, end values held; "
+            "edges_pm = absorption steps of sigma (K, L, M) with edge_sigma_cm2 = [σ on the "
+            "short-λ side, σ on the long-λ side], a step for the interpolation of sigma",
+            "source": f"xraylib {xraylib.__version__} FF_Rayl, CS_Total, Fi, Fii, AtomicWeight",
+            "constants": forge.CONSTANTS,
+            **forge.element_tables(),
+        },
+        compact=True,
+    )
+    for name, case in _forge_fixtures().items():
+        files[f"fixtures/forge/{name}.json"] = _dump({"name": name, **case})
     return files
 
 

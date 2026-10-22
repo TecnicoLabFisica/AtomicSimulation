@@ -30,8 +30,8 @@
   },
   {
    "expected": {
-    "sigma": 9.193498975897569,
-    "strongest_rate_per_s": 131.01349520236096
+    "sigma": 9.18531525157539,
+    "strongest_rate_per_s": 130.8043300196941
    },
    "inputs": {
     "I_mA": 1.0,
@@ -58,8 +58,8 @@
   },
   {
    "expected": {
-    "sigma": 2.044606422630274,
-    "strongest_rate_per_s": 6.8229782775603
+    "sigma": 2.042713648941673,
+    "strongest_rate_per_s": 6.812255366315951
    },
    "inputs": {
     "I_mA": 0.05,
@@ -86,8 +86,8 @@
   },
   {
    "expected": {
-    "sigma": 12.51946798439275,
-    "strongest_rate_per_s": 21.080404458676725
+    "sigma": 12.529716656995841,
+    "strongest_rate_per_s": 21.111987587514246
    },
    "inputs": {
     "I_mA": 0.5,
@@ -119,8 +119,8 @@
   },
   {
    "expected": {
-    "sigma": 6.201162276031322,
-    "strongest_rate_per_s": 80.70453179243721
+    "sigma": 6.154467359774711,
+    "strongest_rate_per_s": 79.86863866536562
    },
    "inputs": {
     "I_mA": 1.0,
@@ -232,7 +232,7 @@
   {
    "expected": {
     "sigma": 0.0,
-    "strongest_rate_per_s": 323.8757556658667
+    "strongest_rate_per_s": 321.62118989503915
    },
    "inputs": {
     "I_mA": 1.0,

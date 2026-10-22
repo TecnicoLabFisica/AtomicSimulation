@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-21
-current_phase: F1
-next_task: F1.1
+current_phase: F2
+next_task: F2.1
 last_session: 2026-10-21
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,8 +54,8 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `F1.1`, the Forge engine (`form_factors.json`, Z = 1…92). Q1, the stray sweep, closed on 2026-10-21.
-> Settled 2026-10-21 (user: "physics rules"): Darwin/extinction reflectivity is in Q1, the revised L2 Done when is confirmed. Still open: Q10 (the wheel's open slot) and pushing the local commits.
+> **Next:** `F2.1`, the Forge view (`forge.ts` lazy chunk). F1, the Forge engine, closed on 2026-10-21 (uncommitted until the user asks).
+> Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets). Still open: Q10 (the wheel's open slot).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -68,7 +68,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
-| F1 | Forge engine (any element) | ⬜ todo | 2 | C1 |
+| F1 | Forge engine (any element) | ✅ done | 1 | C1 |
 | F2 | Forge UI | ⬜ todo | 2–3 | F1, C2 |
 | F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
 
@@ -613,25 +613,46 @@ at 35 kV 1 mA shows the notice and, amplified, (111) and (333) without (222).
 The engine already exists after C1. What's missing is **data for any element** in the browser.
 
 #### S1 — Python
-- [ ] **F1.1** Export `form_factors.json`: f₀(q) for Z = 1…92 on a fixed q grid (0 to ~6 Å⁻¹). Python reads the same table
+- [x] **F1.1** Export `form_factors.json`: f₀(q) for Z = 1…92 on a fixed q grid (0 to ~6 Å⁻¹). Python reads the same table
       for forged crystals (the parity rule from Phase 5). Python may still use xraylib for presets until we verify that
       the table reproduces them to 1e-9.
-- [ ] **F1.2** Export element μ/ρ for the reflectivity ratio. Budget **≤ 300 kB gzip for all Forge tables**, lazy-loaded.
+- [x] **F1.2** Export element μ/ρ for the reflectivity ratio. Budget **≤ 300 kB gzip for all Forge tables**, lazy-loaded.
       Consider an edge-aware coarse grid; the reflectivity ratio is less sensitive than the filter transmission.
-- [ ] **F1.3** Derived quantities: density from the cell contents, μ of the crystal from the mixture rule, warnings
+- [x] **F1.3** Derived quantities: density from the cell contents, μ of the crystal from the mixture rule, warnings
       (atoms closer than ~100 pm, nλ > 2d for every line, a cut plane with F ≈ 0 in every order).
-- [ ] **F1.4** Tests: forging NaCl, LiF and Si from scratch equals the presets. Random forged crystals give fixtures for the port.
+- [x] **F1.4** Tests: forging NaCl, LiF and Si from scratch equals the presets. Random forged crystals give fixtures for the port.
 
 #### S2 — Port
-- [ ] **F1.5** TS port and Vitest (presets plus ~5 random forged crystals, including a non-cubic one).
+- [x] **F1.5** TS port and Vitest (presets plus ~5 random forged crystals, including a non-cubic one).
 
-**Files:** `model/src/braggsim/crystal.py` (forge helpers), `artifacts/tables/form_factors.json`, `web/src/physics/crystal.ts`
+> [!note] As built (2026-10-21)
+> - **User decision:** forged crystals reflect physically, like the presets: "darwin" (perfect) or "mosaic_extinction" (spread η), or "ideal_mosaic".
+> - **One idea:** the Forge builds a `crystals.json`-shaped entry, so `scan.expected_rate` / `expectedRate` run unchanged. `Crystal.atoms` picks the atomic data:
+>   `crystal.XRAYLIB` (presets, byte-identical) or `forge.TABLES` (`artifacts/tables/forge_elements.json`, Z = 1…92, 147 kB gzip, lazy chunk 150.7 kB; it also holds the Forge
+>   `constants`). f₀ every 0.01 Å⁻¹ to 3.0 (linear); σ, f′, f″ on per-element λ nodes with two-sided σ at every K/L/M edge. Errors vs xraylib in `PARAMETERS.md`.
+> - **Physics found on the way (physics review), applied to every crystal:** (1) Darwin y can exceed 1 (anomalous absorption, Re χ_hχ_h̄ < 0; limit 1.21): no clip,
+>   guard `Y_MAX = 1.25`; mosaic: y = y_sec if y_D > 1. (2) The kinematic weight lacked f′, f″: the exported rows are now y·κ, κ = |F(f₀+f′+if″)|²/|F(f₀)|²
+>   (key still `extinction`). Non-NaCl presets moved < 1 % (order-1 Kα weight vs NaCl: LiF 1.31, Si 0.0356, calcite 0.0370, muscovite 0.0168); NaCl fixtures, Fig. 4 and the
+>   teacher key unchanged. (3) A forged crystal carries its own μ nodes (`mu_nodes_pm`), edges as steps, no thinning (the old thinning gave μ errors up to 120 %).
+> - **Trust boundary:** `ForgeInputError` with `.code` (bad_cell, bad_atom, bad_z, bad_occupancy, bad_b, b_too_large (B ≤ 30 Å²), site_overfilled, bad_cut, cut_absent + hint,
+>   bad_model, bad_mosaic, too_many_orders (> 120)); `forge.warnings` codes atoms_too_close (< 70 pm), no_line_reflects, many_orders (> 60).
+> - **Port:** `web/src/physics/forge.ts` (`forgeEntry`, `forgeWarnings`; imported by nothing yet), `loadForgeElements` in `tables.ts`, `interpNodes` and the forged-μ branch in
+>   `crystal.ts`, `maxOrderForD` in `scan.ts`. 13 forge fixtures (8 crystals + Cu₃Au alloy, warnings, invalid, per-element atoms) match at ≤ 1.7e-14. Quadrature `FORGE_N_POINTS = 201`
+>   (y ≤ 2e-3 of 2001). Muscovite (56 orders) builds in 183 ms in Node; ~118 orders ≈ 0.4 s.
+> - **Known limits:** xraylib's own Fi/Fii are smoothed ±2 % around edges; the 88° clamp re-test is unreachable on the current grid; the minimum-image warning can miss pairs in
+>   non-reduced, very skewed cells.
 
-**Verify:** [[#Verify|standard]] + `pytest model -k forge`; `gzip -c artifacts/tables/form_factors.json | wc -c` keeps the Forge tables ≤ 300 kB together
+**Files:** `model/src/braggsim/{forge,crystal}.py`, `artifacts/tables/forge_elements.json`, `artifacts/fixtures/forge/`, `web/src/physics/{forge,crystal,tables,scan}.ts`
+
+**Verify:** [[#Verify|standard]] + `pytest model -k forge`; `gzip -c artifacts/tables/forge_elements.json | wc -c` keeps the Forge tables ≤ 300 kB together
 
 ### F2 — Forge UI
 
 #### S1
+> [!tip] From F1 (2026-10-21)
+> Run `forgeEntry` in a Web Worker (it is pure) with a progress cue; debounce edits. Map `ForgeInputError.code` and the warning codes to i18n strings (ES/EN).
+> The forged entry needs `loadForgeElements()` and `loadCrystals()` (NaCl reference). Name forged crystals so `isNacl` never matches them. Consider a MAX_ATOMS limit.
+
 - [ ] **F2.1** `web/src/views/forge.ts` (lazy chunk): lattice picker, parameter sliders with numeric fields, basis table
       (element picker plus x, y, z), (hkl) picker, live d and orders table (allowed/forbidden, relative |F|²).
 - [ ] **F2.2** Live "would-be spectrum" (uPlot, linear/log), overlaid on NaCl, plus a "Use on the bench" button that mounts the
@@ -763,6 +784,15 @@ Newest first. One entry per session. This is what the next session reads to know
 > - Surprises / decisions: <anything that changed the plan; also edit the phase section>
 > - Next: <task ID and first concrete step>
 > ```
+
+### 2026-10-21 · F1 · tasks F1.1–F1.5 (F1 closed)
+- Done: Forge engine in Python (`forge.py`, `Crystal.atoms`) and its TS port (`forge.ts`); `forge_elements.json`; 13 forge fixtures. User decision: forged crystals use Darwin or mosaic η.
+- Reviews: physics ×2 (Python, port). Catches: Darwin y > 1 is real (was clipped); κ (f′, f″) missing from every crystal's weight; edge thinning broke μ; NaN at large B;
+  non-integer cuts; untested paths (alloy, warnings, invalid, per-element tables). All fixed; the Darwin loop inlined (muscovite 1.28 s → 0.18 s).
+- Verify: pytest 306 · ruff clean · export byte-stable · NaCl fixtures and teacher key unchanged; non-NaCl preset fixtures and `crystals.json` changed by the κ fix (< 1 %) ·
+  Vitest 217 · build main 98.15 kB gzip, `forge_elements` lazy 150.7 kB, `crystals` lazy 127.8 kB.
+- Uncommitted: yes, all of F1 (commit when the user asks; `[F1] feat: …`).
+- Next: F2.1, the Forge view; load `bragg-ui` + `frontend-design`; see the F2 tip from F1.
 
 ### 2026-10-21 · Q1 · tasks Q1.1–Q1.9 (Q1 closed)
 - Done: stray sweep after the overnight run, under the user's rule "physics rules" (2026-10-21). Q1.7 student-flow bugs (`b81d74e`); plan (`e5d770a`);

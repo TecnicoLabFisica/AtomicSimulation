@@ -38,7 +38,7 @@ export async function loadAbsorbers(): Promise<void> {
 export const CRYSTALS: Record<string, Crystal> = {}
 export const crystalsLoaded = (): boolean => 'NaCl' in CRYSTALS
 
-const deepFreeze = <T extends object>(o: T): T => {
+export const deepFreeze = <T extends object>(o: T): T => {
   for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v)
   return Object.freeze(o)
 }
@@ -62,3 +62,40 @@ export const loadCrystals = retryableOnce(async () => {
 export const STRUCTURE_FACTOR_SQ_REL: readonly number[] = structureFactor.f_sq_rel
 export const DEFAULT_PARAMS_JSON = modelParams.params
 export const MODEL_VERSION = modelParams.model_version
+
+/** One row of forge_elements.json (port of the dict braggsim.forge.element_tables builds for one Z). */
+export type ForgeElement = {
+  symbol: string
+  atomic_weight: number // g/mol
+  f0: readonly number[] // Rayleigh form factor, uniform in s = sin θ/λ (Å⁻¹) with step f0_step_A
+  idx: readonly number[] // nodes of MU_RHO_GRID_PM kept for this element
+  sigma_cm2: readonly number[] // atomic cross-section on those nodes
+  f_prime: readonly number[]
+  f_second: readonly number[] // xraylib sign: negative
+  edges_pm: readonly number[]
+  edge_sigma_cm2: readonly (readonly [number, number])[] // σ on the short-λ and long-λ side of each edge
+}
+/** Per-element tables of the Materials Forge (Z = 1 … 92, index Z − 1); empty until loadForgeElements() resolves. */
+/** The limits Python exports with the tables (braggsim.forge.CONSTANTS): one source for both languages. */
+export type ForgeConstants = {
+  min_atom_distance_pm: number
+  many_orders: number
+  max_orders: number
+  n_points: number // extinction quadrature of a forged crystal (presets: 2001)
+  max_b_A2: number
+}
+export const FORGE: { f0_step_A: number; elements: readonly ForgeElement[]; constants: ForgeConstants } = {
+  f0_step_A: 0,
+  elements: [],
+  constants: { min_atom_distance_pm: 0, many_orders: 0, max_orders: 0, n_points: 0, max_b_A2: 0 },
+}
+export const forgeElementsLoaded = (): boolean => FORGE.elements.length > 0
+
+/** Fill FORGE from forge_elements.json (~148 kB gzip, 150.6 kB as built). A separate chunk, fetched only by the Forge; idempotent,
+ * one import however often it is called (a failed fetch can be retried). */
+export const loadForgeElements = retryableOnce(async () => {
+  const { default: t } = await import('../../../artifacts/tables/forge_elements.json')
+  FORGE.f0_step_A = t.f0_step_A
+  FORGE.constants = t.constants
+  FORGE.elements = deepFreeze(structuredClone(t.elements) as unknown as ForgeElement[])
+})

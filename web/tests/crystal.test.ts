@@ -49,21 +49,22 @@ test('crystalByName throws on unknown names, NaCl needs no table', async () => {
   expect(Object.isFrozen(CRYSTALS.LiF.f_sq_rel)).toBe(true)
 })
 
-test('extinctionFactor reads the exported y table: Mo Kα, order 1 (reference values of the Python model)', () => {
-  // Spec values at 71.08 pm (Darwin–Prins for Si, calcite, muscovite; secondary extinction for LiF, NaCl).
+test('extinctionFactor reads the exported y·κ table: Mo Kα, order 1 (reference values of the Python model)', () => {
+  // Python values at 71.08 pm: y (Darwin–Prins for Si, calcite, muscovite; secondary extinction for LiF, NaCl) times
+  // the anomalous-dispersion factor κ.
   const y = (name: string, n = 1) => extinctionFactor(CRYSTALS[name], n, 71.08)
-  expect(y('Si')).toBeCloseTo(0.035, 3)
-  expect(y('calcite')).toBeCloseTo(0.0472, 3)
-  expect(y('muscovite')).toBeCloseTo(0.165, 2)
-  expect(y('LiF')).toBeCloseTo(0.31, 2)
-  expect(y('NaCl')).toBeCloseTo(0.81, 2)
+  expect(y('Si')).toBeCloseTo(0.03557, 4)
+  expect(y('calcite')).toBeCloseTo(0.04816, 4)
+  expect(y('muscovite')).toBeCloseTo(0.16263, 4)
+  expect(y('LiF')).toBeCloseTo(0.31126, 4)
+  expect(y('NaCl')).toBeCloseTo(0.82676, 4)
   expect(y('LiF', 2)).toBeGreaterThan(y('LiF', 1)) // higher orders are weaker, so less extinguished
 })
 
-test('extinctionRatio: 1 for NaCl, y_X,n / y_NaCl,1 otherwise; every tabulated y is in (0, 1]', () => {
+test('extinctionRatio: 1 for NaCl, (yκ)_X,n / (yκ)_NaCl,1 otherwise; every tabulated factor is positive', () => {
   expect(extinctionRatio(NACL, 1, 71.08)).toBe(1)
   expect(extinctionRatio(CRYSTALS.Si, 1, 71.08)).toBeCloseTo(extinctionFactor(CRYSTALS.Si, 1, 71.08) / extinctionFactor(CRYSTALS.NaCl, 1, 71.08), 14)
-  for (const c of Object.values(CRYSTALS)) for (const row of c.extinction) for (const v of row) expect(v > 0 && v <= 1).toBe(true)
+  for (const c of Object.values(CRYSTALS)) for (const row of c.extinction) for (const v of row) expect(v > 0).toBe(true)
 })
 
 test('allowedOrders drops the extinct orders of Si (111): 2, 6, 10 …', () => {

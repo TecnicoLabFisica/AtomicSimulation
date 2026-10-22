@@ -74,6 +74,81 @@ def structure_factor_sq_rel(n_max):
 
 AVOGADRO_PER_MOL = 6.02214076e23  # CODATA 2018, exact
 REFLECTIVITY_MODELS = ("ideal_mosaic", "darwin", "mosaic_extinction")
+EXTINCTION_N_POINTS = 2001  # quadrature points of the Darwin and the mosaic integrals
+# largest accepted Debye–Waller B in Å²: above any real isotropic B, and e^{−B s²} cannot underflow
+MAX_B_A2 = 30.0
+
+
+class ForgeInputError(ValueError):
+    """A ``Crystal`` the user designed is outside the trust boundary. ``code`` is stable (for the
+    UI's i18n): bad_cell, bad_atom, bad_z, bad_occupancy, bad_b, b_too_large, site_overfilled,
+    bad_cut, cut_absent, bad_model, bad_mosaic (and too_many_orders from ``forge.forged``).
+    ``hint``: for cut_absent the smallest multiple of the cut that is present, else None. The
+    message is for developers."""
+
+    def __init__(self, code, message, hint=None):
+        super().__init__(message)
+        self.code = code
+        self.hint = hint
+
+
+def interp_nodes(x, xs, ys):
+    """Piecewise-linear interpolation of ``ys(xs)`` at ``x`` (array ok), end values held; never an
+    extrapolation. ``xs`` ascending; a repeated abscissa is a step: x equal to it reads the value
+    after it, x below it the one before. Plain lookups, so the web port repeats it line by line."""
+    xs = np.asarray(xs)
+    ys = np.asarray(ys)
+    x = np.asarray(x, dtype=float)
+    j = np.clip(np.searchsorted(xs, x, side="right") - 1, 0, len(xs) - 2)
+    dx = xs[j + 1] - xs[j]
+    t = np.where(dx > 0, (np.clip(x, xs[0], xs[-1]) - xs[j]) / np.where(dx > 0, dx, 1.0), 0.0)
+    return ys[j] + t * (ys[j + 1] - ys[j])
+
+
+class XraylibAtoms:
+    """Atomic data straight from xraylib: the source of every preset (Schoonjans et al.,
+    Spectrochim. Acta B 66, 776 (2011)). ``forge.TableAtoms`` is the same interface on the
+    exported per-element tables, which the browser can read; ``Crystal.atoms`` picks one.
+    ``n_points``: quadrature size of the extinction integrals for crystals that use it."""
+
+    n_points = EXTINCTION_N_POINTS
+
+    def mu_nodes(self, crystal):
+        """None: the μ of a preset lives on ``filters.MU_RHO_GRID_PM`` (a forged crystal has its
+        own nodes, see forge.py)."""
+        return None
+
+    def f0(self, z, s_inv_A):
+        """Rayleigh form factor f₀(s) in electrons, s = sin θ/λ in Å⁻¹ (xraylib ``FF_Rayl``)."""
+        return xraylib.FF_Rayl(int(z), s_inv_A)
+
+    def f_prime(self, z, e_kev):
+        """Anomalous dispersion f′ in electrons at ``e_kev`` (xraylib ``Fi``)."""
+        return xraylib.Fi(int(z), e_kev)
+
+    def f_second(self, z, e_kev):
+        """Anomalous absorption term at ``e_kev`` in electrons, xraylib's ``Fii``, which is
+        negative: f₀ + f′ + i·Fii = f₀ + f′ − i|f″| is the scattering amplitude."""
+        return xraylib.Fii(int(z), e_kev)
+
+    def atomic_weight(self, z):
+        """Atomic weight in g/mol (xraylib ``AtomicWeight``)."""
+        return xraylib.AtomicWeight(int(z))
+
+    def cs_total_cm2_g(self, z, lambda_pm):
+        """Total mass cross-section in cm²/g at each wavelength of ``lambda_pm`` (xraylib
+        ``CS_Total``)."""
+        return np.array([xraylib.CS_Total(int(z), HC_KEV_PM / x) for x in lambda_pm])
+
+    def edges_pm(self, zs):
+        """K and L1–L3 edge wavelengths (pm) of the elements ``zs`` inside the μ/ρ grid
+        (``filters.cs_step_edges_pm`` on the summed ``CS_Total``)."""
+        from braggsim.filters import cs_step_edges_pm
+
+        return cs_step_edges_pm(zs, lambda e_kev: sum(xraylib.CS_Total(z, e_kev) for z in zs))
+
+
+XRAYLIB = XraylibAtoms()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -100,8 +175,11 @@ class Crystal:
     Darwin–Prins integrated reflectivity (Si wafers, calcite cleavage, muscovite).
     "mosaic_extinction":
     a mosaic of spread ``mosaic_fwhm_deg`` with secondary extinction (LiF; also the NaCl
-    reference). The factor y ∈ (0, 1] is ``extinction_factor``; scan.py applies the ratio
-    y_X,n(λ)/y_NaCl,1(λ) to every non-NaCl crystal.
+    reference). y ≤ 1 for a mosaic and for most perfect crystals; a perfect crystal whose
+    f″ dominates a reflection with a nearly cancelled f₀ + f′ part can out-reflect the ideal
+    mosaic (y up to 1.21, anomalous absorption). The reflectivity factor scan.py applies,
+    ``extinction_factor``, is y times the anomalous-dispersion factor κ = |F(f₀+f′+if″)|²/|F(f₀)|²
+    of the reflection; it enters as the ratio (yκ)_X,n(λ)/(yκ)_NaCl,1(λ) for every non-NaCl crystal.
 
     ``mosaic_fwhm_deg``: FWHM of the Gaussian mosaic spread in degrees, required (finite, > 0) for
     "mosaic_extinction" and None otherwise. An assumption (model/PARAMETERS.md).
@@ -124,26 +202,67 @@ class Crystal:
     d_anchor_pm: float | None = None
     reflectivity_model: str = "ideal_mosaic"
     mosaic_fwhm_deg: float | None = None
+    atoms: object = XRAYLIB  # atomic-data source (XRAYLIB, or forge.TableAtoms for forged crystals)
 
     def __post_init__(self):
         cell = (self.a_pm, self.b_pm, self.c_pm, self.alpha_deg, self.beta_deg, self.gamma_deg)
         if not all(math.isfinite(v) and v > 0 for v in cell) or not self.basis:
-            raise ValueError(f"{self.name}: a cell with positive finite lengths/angles and atoms")
-        if len(self.cut) != 3 or not any(self.cut):
-            raise ValueError(f"{self.name}: cut must be a nonzero (h, k, l)")
+            raise ForgeInputError(
+                "bad_cell", f"{self.name}: a cell with positive finite lengths/angles and atoms"
+            )
+        if (
+            len(self.cut) != 3
+            or not all(math.isfinite(v) and float(v).is_integer() for v in self.cut)
+            or not any(self.cut)
+        ):
+            raise ForgeInputError(
+                "bad_cut", f"{self.name}: cut must be a nonzero (h, k, l) of integers"
+            )
         if self.reflectivity_model not in REFLECTIVITY_MODELS:
-            raise ValueError(
-                f"{self.name}: reflectivity_model must be one of {REFLECTIVITY_MODELS}"
+            raise ForgeInputError(
+                "bad_model", f"{self.name}: reflectivity_model must be one of {REFLECTIVITY_MODELS}"
             )
         if self.reflectivity_model == "mosaic_extinction":
             if self.mosaic_fwhm_deg is None or not (
                 math.isfinite(self.mosaic_fwhm_deg) and self.mosaic_fwhm_deg > 0
             ):
-                raise ValueError(
-                    f"{self.name}: mosaic_extinction needs a finite mosaic_fwhm_deg > 0"
+                raise ForgeInputError(
+                    "bad_mosaic",
+                    f"{self.name}: mosaic_extinction needs a finite mosaic_fwhm_deg > 0",
                 )
         elif self.mosaic_fwhm_deg is not None:
-            raise ValueError(f"{self.name}: mosaic_fwhm_deg only applies to mosaic_extinction")
+            raise ForgeInputError(
+                "bad_mosaic", f"{self.name}: mosaic_fwhm_deg only applies to mosaic_extinction"
+            )
+        if float(np.linalg.det(_metric_tensor_pm2(self))) <= 0:
+            raise ForgeInputError(
+                "bad_cell", f"{self.name}: the cell angles do not make a cell (det G ≤ 0)"
+            )
+        site_fill = {}
+        for atom in self.basis:
+            if len(atom) != 6 or not all(math.isfinite(v) for v in atom):
+                raise ForgeInputError(
+                    "bad_atom", f"{self.name}: every atom is (Z, x, y, z, B_A2, occupancy)"
+                )
+            z, *xyz, b, occ = atom
+            if z != int(z) or not 1 <= z <= 92:
+                raise ForgeInputError("bad_z", f"{self.name}: atomic number {z} outside 1 … 92")
+            if not 0 < occ <= 1:
+                raise ForgeInputError(
+                    "bad_occupancy", f"{self.name}: occupancy {occ} outside (0, 1]"
+                )
+            if b < 0:
+                raise ForgeInputError("bad_b", f"{self.name}: Debye–Waller B {b} Å² is negative")
+            if b > MAX_B_A2:
+                raise ForgeInputError(
+                    "b_too_large", f"{self.name}: Debye–Waller B {b} Å² above {MAX_B_A2}"
+                )
+            site = tuple(int(round(v * 1e4)) % 10000 for v in xyz)
+            site_fill[site] = site_fill.get(site, 0.0) + occ
+        if any(fill > 1 + 1e-9 for fill in site_fill.values()):
+            raise ForgeInputError(
+                "site_overfilled", f"{self.name}: a site holds atoms of total occupancy above 1"
+            )
         if self.fitted_debye_waller and (
             self.d_anchor_pm is None or any(atom[4] != 0 for atom in self.basis)
         ):
@@ -153,8 +272,20 @@ class Crystal:
             d_metric, self.d_anchor_pm, rel_tol=1e-9
         ):
             raise ValueError(f"{self.name}: anchor d {self.d_anchor_pm} ≠ metric {d_metric}")
-        if _f_sq(self, self.cut, 1 / (2 * d_metric / 100)) <= 1e-6 * _f_sq_forward_limit(self):
-            raise ValueError(f"{self.name}: the cut reflection {self.cut} is systematically absent")
+        limit = 1e-12 * _f_sq_forward_limit(self)  # at rest, the criterion of ``order_is_absent``
+        if _f_sq(self, self.cut, 1 / (2 * d_metric / 100), thermal=False) < limit:
+            for m in range(2, 9):
+                hkl = tuple(int(m * i) for i in self.cut)
+                if _f_sq(self, hkl, m / (2 * d_metric / 100), thermal=False) >= limit:
+                    break
+            else:
+                hkl = None
+            raise ForgeInputError(
+                "cut_absent",
+                f"{self.name}: the cut reflection {self.cut} is systematically absent"
+                + (f"; use the cut {hkl} (the smallest multiple that is present)" if hkl else ""),
+                hint=hkl,
+            )
 
 
 def _metric_tensor_pm2(c):
@@ -194,8 +325,8 @@ def cell_volume_A3(crystal):
 
 
 def density_g_cm3(crystal):
-    """Density Σ occ·A / (N_A V) in g/cm³ from the basis (xraylib ``AtomicWeight``)."""
-    mass_g_mol = sum(occ * xraylib.AtomicWeight(int(z)) for z, *_, occ in crystal.basis)
+    """Density Σ occ·A / (N_A V) in g/cm³ from the basis (``AtomicWeight``)."""
+    mass_g_mol = sum(occ * crystal.atoms.atomic_weight(z) for z, *_, occ in crystal.basis)
     return mass_g_mol / (AVOGADRO_PER_MOL * cell_volume_A3(crystal) * 1e-24)
 
 
@@ -204,7 +335,7 @@ def _f_sq(crystal, hkl, q_inv_A, thermal=True):
     |Σ occ f(s) e^{−B s²} e^{2πi (h x + k y + l z)}|²; ``thermal=False`` puts the atoms at rest
     (B = 0)."""
     atoms = np.array(crystal.basis, dtype=float)
-    f = {int(z): xraylib.FF_Rayl(int(z), q_inv_A) for z in set(atoms[:, 0])}
+    f = {int(z): crystal.atoms.f0(z, q_inv_A) for z in set(atoms[:, 0])}
     b = atoms[:, 4] if thermal else 0.0
     amp = np.array([f[int(z)] for z in atoms[:, 0]]) * atoms[:, 5] * np.exp(-b * q_inv_A**2)
     phase = 2 * np.pi * atoms[:, 1:4] @ np.asarray(hkl, dtype=float)
@@ -247,16 +378,20 @@ def structure_factor_sq_hkl(crystal, h, k, l):  # noqa: E741
 @functools.cache
 def mu_per_cm_table(crystal):
     """Linear attenuation μ in 1/cm on ``filters.MU_RHO_GRID_PM``: Σ_j occ_j σ_j / V with the
-    atomic cross-sections σ_j = CS_Total(Z) · A / N_A (mixture rule, xraylib)."""
+    atomic cross-sections σ_j = CS_Total(Z) · A / N_A (mixture rule, xraylib). A forged crystal
+    evaluates its own nodes (``Atoms.mu_nodes``) on the grid."""
     from braggsim.filters import MU_RHO_GRID_PM
 
+    nodes = crystal.atoms.mu_nodes(crystal)
+    if nodes is not None:
+        table = np.exp(interp_nodes(np.log(MU_RHO_GRID_PM), *nodes))
+        table.flags.writeable = False
+        return table
     v_cm3 = cell_volume_A3(crystal) * 1e-24
     table = np.zeros_like(MU_RHO_GRID_PM)
     for z, *_, occ in crystal.basis:
-        mass = xraylib.AtomicWeight(int(z)) / AVOGADRO_PER_MOL
-        table += (
-            occ * mass * np.array([xraylib.CS_Total(int(z), HC_KEV_PM / x) for x in MU_RHO_GRID_PM])
-        )
+        mass = crystal.atoms.atomic_weight(z) / AVOGADRO_PER_MOL
+        table += occ * mass * crystal.atoms.cs_total_cm2_g(z, MU_RHO_GRID_PM)
     table /= v_cm3
     table.flags.writeable = False
     return table
@@ -267,10 +402,7 @@ def mu_edges_pm(crystal):
     """K and L1–L3 absorption-edge wavelengths (pm) of the elements of ``crystal`` inside
     ``filters.MU_RHO_GRID_PM`` (steps of xraylib's ``CS_Total``, ``filters.cs_step_edges_pm``):
     NaCl Cl K 439.3 pm, calcite Ca K 307.0 pm, muscovite K K 343.7 pm."""
-    from braggsim.filters import cs_step_edges_pm
-
-    zs = sorted({int(z) for z, *_ in crystal.basis})
-    return cs_step_edges_pm(zs, lambda e_kev: sum(xraylib.CS_Total(z, e_kev) for z in zs))
+    return crystal.atoms.edges_pm(sorted({int(z) for z, *_ in crystal.basis}))
 
 
 @functools.cache
@@ -285,6 +417,10 @@ def linear_attenuation_per_cm(crystal, lambda_pm):
     absorption edges of its elements kept sharp (``filters.interp_log_mu``)."""
     from braggsim.filters import interp_log_mu
 
+    nodes = crystal.atoms.mu_nodes(crystal)
+    if nodes is not None:  # forged: exact nodes with the edges as steps, never an extrapolation
+        out = np.exp(interp_nodes(np.log(np.asarray(lambda_pm, dtype=float)), *nodes))
+        return float(out) if out.ndim == 0 else out
     return np.exp(interp_log_mu(lambda_pm, _log_mu_per_cm_table(crystal), mu_edges_pm(crystal)))
 
 
@@ -296,20 +432,21 @@ def cell_scale(crystal):
     (``mu_factor``) turns it into λ³/μ_X for crystal X; Lorentz-polarization and the Jacobian
     are applied in scan.py at the crystal's own θ and d.
 
-    This is the kinematic, ideal-mosaic ratio. The real reflectivity of a crystal that is not an
-    ideal mosaic is lower by the extinction factor y (``extinction_factor``, a per-order, per-λ
-    factor in (0, 1]); scan.py multiplies by y_X,n(λ)/y_NaCl,1(λ), so that the NaCl-anchored scale
-    carries the same extinction in the numerator and the denominator. At Mo Kα, order 1 the
+    This is the kinematic, ideal-mosaic ratio with f₀ only. The real reflectivity differs by the
+    factor y·κ (``extinction_factor``, a per-order, per-λ factor: extinction y, mostly below 1,
+    times the anomalous-dispersion factor κ of f′, f″); scan.py multiplies by
+    (yκ)_X,n(λ)/(yκ)_NaCl,1(λ), so that the NaCl-anchored scale carries the same factor in the
+    numerator and the denominator. At Mo Kα, order 1 the
     resulting order-1 Kα line weights relative to NaCl (r_1 · Lorentz-polarization · μ ratio ·
-    y ratio) are ≈ 1.32 (LiF), 0.036 (Si), 0.037 (calcite) and 0.017 (muscovite). For Si,
-    ``cell_scale`` itself is 0.597 and the y = 1 line weight (the same product without the y
-    ratio) would be 0.83.
+    yκ ratio) are given in model/PARAMETERS.md. For Si, ``cell_scale`` itself is 0.597.
     Computed, not fitted; check on the bench by comparing the order-1 Kα peak with NaCl at equal
     tube settings.
     """
     if crystal is NACL:
         return 1.0
-    ref = structure_factor_sq(NACL, 1) / cell_volume_A3(NACL) ** 2
+    # the reference NaCl is computed from the same atomic data as the crystal (forged: tables)
+    nacl = NACL if crystal.atoms is NACL.atoms else dataclasses.replace(NACL, atoms=crystal.atoms)
+    ref = structure_factor_sq(nacl, 1) / cell_volume_A3(nacl) ** 2
     return structure_factor_sq(crystal, 1) / cell_volume_A3(crystal) ** 2 / ref
 
 
@@ -360,19 +497,28 @@ NACL_THERMAL_B_A2 = (
     1.3  # B of Na and Cl at room temperature in Å², used only for the NaCl reference y
 )
 NACL_THERMAL_B_PM2 = 13000.0  # the same B in pm² (1 Å² = 10⁴ pm²), for the pm⁻¹ scale of scan.py
-EXTINCTION_N_POINTS = 2001  # quadrature points of the Darwin and the mosaic integrals
 SIGNIFICANT_DIGITS = 4  # of the exported y tables, which Python itself interpolates
 MAX_THETA_B_DEG = 88.0  # the dynamical formulas are not evaluated closer to backscattering
 _TABLE_THETA_DEG = 85.0  # a row extends to the last scan angle (85°) plus one node
 
 
 def _chis(crystal, n, lambda_pm):
-    """(χ_0, χ_h, χ_h̄, θ_B in rad, μ in 1/cm) of order ``n`` at ``lambda_pm`` (dimensionless χ).
+    """(χ_0, χ_h, χ_h̄, θ_B in rad, μ in 1/cm) of order ``n`` at ``lambda_pm``: ``_chis_full``
+    without κ."""
+    return _chis_full(crystal, n, lambda_pm)[:5]
 
-    χ_h = −Γ F_h with Γ = r_e λ² / (π V) and F_h = Σ_j occ_j (f_j0(s) + f′_j − i f″_j) e^{−B_j s²}
+
+def _chis_full(crystal, n, lambda_pm):
+    """(χ_0, χ_h, χ_h̄, θ_B in rad, μ in 1/cm, κ) of order ``n`` at ``lambda_pm`` (dimensionless χ).
+
+    χ_h = −Γ F_h with Γ = r_e λ² / (π V) and F_h = Σ_j occ_j (f_j0(s) + f′_j − i|f″_j|) e^{−B_j s²}
     e^{+2πi h·r_j}; F_h̄ has the opposite phase, with the same atomic factors (not conjugated, so
     the absorbing crystal keeps χ_h ≠ χ_h̄*). f_j0 = xraylib ``FF_Rayl`` at s = n/(2 d) in Å⁻¹,
-    f′, f″ = ``Fi``, ``Fii`` at E = hc/λ. Re χ_0 = −Γ Σ occ (Z + f′); Im χ_0 = μ λ / (2π) with
+    f′, f″ = ``Fi``, ``Fii`` at E = hc/λ (``crystal.atoms``: xraylib, or the forge tables;
+    xraylib's Fii is negative, so the amplitude is f₀ + f′ + i·Fii). κ = |F_h|²/|F_h(f₀ only)|²,
+    the same sum without f′, f″ (same B and phases): the anomalous-dispersion factor of the
+    reflection, the part of |F(λ)|² that the kinematic weight (f₀ only, ``structure_factor_sq``)
+    leaves out. Re χ_0 = −Γ Σ occ (Z + f′); Im χ_0 = μ λ / (2π) with
     the same total μ as ``mu_factor``. NaCl takes B = ``NACL_THERMAL_B_A2`` here (its basis holds
     B = 0 because the Debye–Waller of its own scan is fitted). Authier, *Dynamical Theory of
     X-ray Diffraction* (OUP 2001), ch. 1–5; sign convention as X0h (Stepanov).
@@ -383,20 +529,23 @@ def _chis(crystal, n, lambda_pm):
     gamma = RE_PM * lambda_pm**2 / (math.pi * cell_volume_A3(crystal) * 1e6)
     at = np.array(crystal.basis, dtype=float)
     z = at[:, 0].astype(int)
-    f0 = np.array([xraylib.FF_Rayl(int(zz), s_inv_A) for zz in z])
-    fp = np.array([xraylib.Fi(int(zz), e_kev) for zz in z])
-    fpp = np.array([xraylib.Fii(int(zz), e_kev) for zz in z])
+    f0 = np.array([crystal.atoms.f0(zz, s_inv_A) for zz in z])
+    fp = np.array([crystal.atoms.f_prime(zz, e_kev) for zz in z])
+    fpp = np.array([crystal.atoms.f_second(zz, e_kev) for zz in z])
     b = np.full(len(z), NACL_THERMAL_B_A2) if crystal.fitted_debye_waller else at[:, 4]
-    a_j = at[:, 5] * (f0 + fp - 1j * fpp) * np.exp(-b * s_inv_A**2)
+    damp = at[:, 5] * np.exp(-b * s_inv_A**2)
+    a_j = damp * (f0 + fp + 1j * fpp)
     phase = 2 * np.pi * (at[:, 1:4] @ (n * np.asarray(crystal.cut, dtype=float)))
     f_h = np.sum(a_j * np.exp(1j * phase))
     f_hb = np.sum(a_j * np.exp(-1j * phase))
+    f_h0 = abs(np.sum(damp * f0 * np.exp(1j * phase))) ** 2
+    kappa = abs(f_h) ** 2 / f_h0 if f_h0 > 0 else 1.0
     mu = float(linear_attenuation_per_cm(crystal, lambda_pm))
     chi0 = complex(
         -gamma * float(np.sum(at[:, 5] * (z + fp))), mu * lambda_pm * 1e-10 / (2 * math.pi)
     )
     sin_theta = n * lambda_pm / (2 * d_pm(crystal))
-    return chi0, -gamma * f_h, -gamma * f_hb, math.asin(sin_theta), mu
+    return chi0, -gamma * f_h, -gamma * f_hb, math.asin(sin_theta), mu, float(kappa)
 
 
 def _polarizations(theta_rad):
@@ -404,7 +553,7 @@ def _polarizations(theta_rad):
     return [c for c in (1.0, abs(math.cos(2 * theta_rad))) if c >= 1e-9]
 
 
-def _y_darwin(chi0, chi_h, chi_hb, theta_rad):
+def _y_darwin(chi0, chi_h, chi_hb, theta_rad, n_points=EXTINCTION_N_POINTS):
     """y of a perfect crystal: Darwin–Prins integrated reflectivity over the ideal-mosaic one.
 
     Thick, symmetric Bragg case (b = −1), per polarization p with C = 1 or |cos 2θ|:
@@ -412,14 +561,19 @@ def _y_darwin(chi0, chi_h, chi_hb, theta_rad):
     q = η ± √(η²−1) of the larger modulus (the stable branch), R(t) = |χ_h/χ_h̄| |r|²;
     R^θ = (C|S|/sin 2θ) ∫ R(t) dt, substituting t = w tan φ over φ ∈ (−π/2, π/2) (w = max(1, g),
     g = Im χ_0/(C|S|), so the absorption-broadened peak is resolved), trapezoid on
-    ``EXTINCTION_N_POINTS`` nodes. Ideal mosaic, same χ: π C² |χ_h|² / (4 sin 2θ Im χ_0).
-    y = (R_σ + R_π)/(R_mos,σ + R_mos,π). Darwin, Z. Phys. 1914 / Prins, Z. Phys. 63, 477 (1930);
+    ``n_points`` nodes (2001 for a preset; ``forge.FORGE_N_POINTS``). Ideal mosaic, same χ:
+    π C² |χ_h|² / (4 sin 2θ Im χ_0).
+    y = (R_σ + R_π)/(R_mos,σ + R_mos,π). It is not bounded by 1: to second order
+    y ≈ 1 − (⟨C⁴⟩/⟨C²⟩) Re(χ_h χ_h̄)/(8 (Im χ_0)²), so where f″ dominates a reflection whose
+    f₀ + f′ part nearly cancels, Re(χ_h χ_h̄) < 0 and the perfect crystal out-reflects the ideal
+    mosaic (anomalous absorption); the pure absorption grating (|χ_h| = Im χ_0) gives 1.17-1.21.
+    Darwin, Z. Phys. 1914 / Prins, Z. Phys. 63, 477 (1930);
     Zachariasen, *Theory of X-ray Diffraction in Crystals* (1945); Authier (2001).
     """
     sin2 = math.sin(2 * theta_rad)
     k = abs(chi_h / chi_hb)
     s_root = np.sqrt(chi_h * chi_hb + 0j)
-    phi = np.linspace(-np.pi / 2, np.pi / 2, EXTINCTION_N_POINTS)
+    phi = np.linspace(-np.pi / 2, np.pi / 2, n_points)
     num = den = 0.0
     for c in _polarizations(theta_rad):
         g = chi0.imag / (c * abs(s_root))
@@ -437,7 +591,9 @@ def _y_darwin(chi0, chi_h, chi_hb, theta_rad):
     return num / den
 
 
-def _y_secondary(chi0, chi_h, theta_rad, mu_per_cm, lambda_pm, mosaic_fwhm_deg):
+def _y_secondary(
+    chi0, chi_h, theta_rad, mu_per_cm, lambda_pm, mosaic_fwhm_deg, n_points=EXTINCTION_N_POINTS
+):
     """y of a mosaic crystal with secondary extinction, over the ideal-mosaic value.
 
     Gaussian mosaic W(Δ) of σ_η = FWHM/(2√(2 ln 2)); the reflecting power per unit path
@@ -451,7 +607,7 @@ def _y_secondary(chi0, chi_h, theta_rad, mu_per_cm, lambda_pm, mosaic_fwhm_deg):
     sin2 = math.sin(2 * theta_rad)
     lam_cm = lambda_pm * 1e-10
     sg = math.radians(mosaic_fwhm_deg) / (2 * math.sqrt(2 * math.log(2)))
-    x = np.linspace(-8, 8, EXTINCTION_N_POINTS) * sg
+    x = np.linspace(-8, 8, n_points) * sg
     wgt = np.exp(-0.5 * (x / sg) ** 2) / (sg * math.sqrt(2 * math.pi))
     num = den = 0.0
     for c in _polarizations(theta_rad):
@@ -463,23 +619,38 @@ def _y_secondary(chi0, chi_h, theta_rad, mu_per_cm, lambda_pm, mosaic_fwhm_deg):
     return num / den * 2 * mu_per_cm
 
 
+Y_MAX = 1.25  # guard: just above the pure-absorption-grating limit of y (1.21)
+
+
 def _extinction_raw(crystal, n, lambda_pm):
-    """y of order ``n`` at ``lambda_pm`` from the physics (not the table), clipped to ≤ 1."""
+    """Reflectivity factor y·κ of order ``n`` at ``lambda_pm`` from the physics (not the table).
+
+    y: the integrated reflectivity over the ideal-mosaic one (``reflectivity_model``), κ the
+    anomalous-dispersion factor |F(f₀+f′+if″)|²/|F(f₀)|² of ``_chis_full``. "darwin": y from
+    ``_y_darwin``, not clipped (it can exceed 1, see there); "mosaic_extinction": the blocks
+    reflect kinematically, no coherent gain, so y = secondary extinction if the Darwin y is above 1
+    and max(Darwin, secondary) otherwise; "ideal_mosaic" and a vanishing χ_h χ_h̄ (huge B): y = 1.
+    A y above ``Y_MAX`` is an error.
+    An absent order has no reflection to weigh: 1."""
     lam = lambda_pm
     sin_theta = n * lam / (2 * d_pm(crystal))
     if not 0 < sin_theta <= math.sin(math.radians(MAX_THETA_B_DEG)):
         raise ValueError(f"{crystal.name}: order {n} at {lam} pm has θ_B beyond {MAX_THETA_B_DEG}°")
-    chi0, chi_h, chi_hb, theta, mu = _chis(crystal, n, lam)
+    chi0, chi_h, chi_hb, theta, mu, kappa = _chis_full(crystal, n, lam)
     if order_is_absent(crystal, n):  # |F_h|² ≈ 0: nothing to extinguish
         return 1.0
-    if crystal.reflectivity_model == "ideal_mosaic":
-        return 1.0
-    y = _y_darwin(chi0, chi_h, chi_hb, theta)
-    if crystal.reflectivity_model == "mosaic_extinction":
-        y = max(y, _y_secondary(chi0, chi_h, theta, mu, lam, crystal.mosaic_fwhm_deg))
-    if y > 1 + 1e-6:
-        raise ArithmeticError(f"{crystal.name} n={n} λ={lam}: y = {y} > 1")
-    return min(y, 1.0)
+    y = 1.0
+    # χ_h χ_h̄ == 0 (e^{−B s²} underflowed): nothing to extinguish, the kinematic limit
+    if crystal.reflectivity_model != "ideal_mosaic" and chi_h * chi_hb != 0:
+        n_pts = crystal.atoms.n_points
+        y_darwin = _y_darwin(chi0, chi_h, chi_hb, theta, n_pts)
+        if y_darwin > Y_MAX:
+            raise ArithmeticError(f"{crystal.name} n={n} λ={lam}: y = {y_darwin} > {Y_MAX}")
+        y = y_darwin
+        if crystal.reflectivity_model == "mosaic_extinction":
+            y_sec = _y_secondary(chi0, chi_h, theta, mu, lam, crystal.mosaic_fwhm_deg, n_pts)
+            y = y_sec if y_darwin > 1 else max(y_darwin, y_sec)
+    return y * kappa
 
 
 def _row_nodes(crystal, n):
@@ -496,7 +667,8 @@ def _round_sig(x):
 
 @functools.cache
 def extinction_table(crystal):
-    """The y(n, λ) rows of ``crystal`` on the first nodes of ``filters.MU_RHO_GRID_PM``: orders
+    """The y·κ rows (extinction × anomalous dispersion, ``_extinction_raw``; the JSON key stays
+    ``extinction``) of ``crystal`` on the first nodes of ``filters.MU_RHO_GRID_PM``: orders
     1 … ``max_order(crystal, 35 kV)`` (NaCl: order 1 only, the cross-crystal reference), each row
     up to λ ≤ 2 d sin 85° / n plus one node, rounded to 4 significant digits
     (the assumptions behind y are far coarser; it keeps the lazy table small). A tuple of read-only
@@ -505,17 +677,20 @@ def extinction_table(crystal):
     the last node below 85° and the node past it is a coarse chord, not exact physics: near θ = 85°
     it can be off by a few % (up to 2 % for LiF n = 1–3 at ~84.5°).
     This rounded table, not the raw physics, is what ``extinction_factor`` and the web port read.
+    Rows are y·κ with κ ≈ 1 for light elements; for ideal-mosaic crystals row = κ.
+    A forged crystal (``atoms`` not xraylib, see forge.py) is not rounded: the port recomputes it.
     """
     from braggsim.filters import MU_RHO_GRID_PM
     from braggsim.scan import max_order
 
     rows = []
+    rnd = _round_sig if crystal.atoms is XRAYLIB else float
     n_max = 1 if crystal.fitted_debye_waller else max_order(crystal)
     for n in range(1, n_max + 1):
         lam_88 = 2 * d_pm(crystal) * math.sin(math.radians(MAX_THETA_B_DEG)) / n
         row = np.array(
             [
-                _round_sig(_extinction_raw(crystal, n, min(float(lam), lam_88)))
+                rnd(_extinction_raw(crystal, n, min(float(lam), lam_88)))
                 for lam in MU_RHO_GRID_PM[: _row_nodes(crystal, n)]
             ]
         )
@@ -525,12 +700,13 @@ def extinction_table(crystal):
 
 
 def extinction_factor(crystal, n, lambda_pm):
-    """Extinction factor y ∈ (0, 1] of order ``n`` at ``lambda_pm`` (array ok): the integrated
-    reflectivity of the real crystal over the kinematic ideal-mosaic one (``reflectivity_model``).
-    Log–log interpolation of ``extinction_table``, end values held (like
-    ``linear_attenuation_per_cm``). NaCl has order 1 only (the reference y of the cross-crystal
-    scale, η 0.2°, B 1.3 Å²); it is not applied to NaCl's own scan, where the Fig. 4 fit already
-    contains it.
+    """Reflectivity factor y·κ of order ``n`` at ``lambda_pm`` (array ok): the integrated
+    reflectivity of the real crystal over the kinematic f₀-only ideal-mosaic one: extinction y
+    (``reflectivity_model``, can exceed 1 for a perfect crystal, see ``_y_darwin``) times the
+    anomalous-dispersion factor κ. Log–log interpolation of ``extinction_table``, end values
+    held (like ``linear_attenuation_per_cm``). NaCl has order 1 only (the reference of the
+    cross-crystal scale, η 0.2°, B 1.3 Å²); it is not applied to NaCl's own scan, where the
+    Fig. 4 fit already contains it.
     """
     from braggsim.filters import MU_RHO_GRID_PM
 
@@ -545,7 +721,8 @@ def extinction_factor(crystal, n, lambda_pm):
 
 
 def extinction_ratio(crystal, n, lambda_pm):
-    """y_X,n(λ) / y_NaCl,1(λ): the λ-dependent extinction part of the cross-crystal scale
+    """(yκ)_X,n(λ) / (yκ)_NaCl,1(λ): the λ-dependent extinction and anomalous-dispersion part of
+    the cross-crystal scale
     (1 for NaCl and for any other fitted-B anchor, whose scale already contains it)."""
     if crystal is NACL or crystal.fitted_debye_waller:
         return 1.0

@@ -107,18 +107,22 @@ B_NaCl,th = 1.3 Å² = 13 000 pm², `crystal.NACL_THERMAL_B_PM2`) is there becau
 effective fitted B_fit (which lumps extinction and the instrument; the old factor exp(+2 B_fit s₁²) = 1.040, the
 text before said 0.961 by a sign slip). The first factor is `crystal.cell_scale`, the μ ratio
 `crystal.mu_factor`, the last `crystal.extinction_ratio`; the last two are applied per λ to both the continuum and the
-Kα/Kβ lines. Order-1 Kα line weights relative to NaCl (r₁ · Lorentz-polarization · μ ratio · y ratio, 2026-10-21):
-LiF 1.32, Si 0.036, calcite 0.037, muscovite 0.017 (NaCl = 1); the same weights without the y ratio (y = 1) would
+Kα/Kβ lines. Order-1 Kα line weights relative to NaCl (r₁ · Lorentz-polarization · μ ratio · yκ ratio, F1 2026-10-21):
+LiF 1.31, Si 0.0356, calcite 0.0370, muscovite 0.0168 (NaCl = 1; before κ: 1.32, 0.0357, 0.0370, 0.0173); the same weights without the y ratio (y = 1) would
 give 3.5, 0.83, 0.64 and 0.085. (An earlier version of this section converted B_NaCl,th from Å² to pm² with ×100
 instead of ×10⁴, so the factor was 1.0008 and the weights read 1.22 / 0.033 / 0.034 / 0.016; fixed 2026-10-21, Q1.8.)
 
-### Reflectivity model and extinction factor y (Q1.2/Q1.3, added 2026-10-21)
+### Reflectivity model: extinction y and anomalous dispersion κ (Q1.2/Q1.3, F1; added 2026-10-21)
 
 `Crystal.reflectivity_model` ∈ {`ideal_mosaic`, `darwin`, `mosaic_extinction`}; the presets are `mosaic_extinction`
-(NaCl, LiF) and `darwin` (Si, calcite, muscovite). y(crystal, n, λ) ∈ (0, 1] is the integrated reflectivity of the
+(NaCl, LiF) and `darwin` (Si, calcite, muscovite). y(crystal, n, λ) is the integrated reflectivity of the
 real crystal over the kinematic ideal-mosaic one (∝ |χ_h|²/Im χ_0), computed from the dynamical theory with the
 complex structure factor (xraylib `FF_Rayl`, `Fi`, `Fii`; Γ = r_e λ²/(πV)), the same μ as `mu_factor`, σ and π
-polarisation. `crystal.extinction_table` stores y on the first nodes of `MU_RHO_GRID_PM` (λ ≤ 2d sin 85°/n plus one
+polarisation. The table the scan reads is the **reflectivity factor y·κ**, with κ = |F(f₀+f′+if″)|²/|F(f₀)|² the
+anomalous-dispersion factor of the reflection (same B and phases; `crystal._chis_full`): the kinematic weight
+(`cell_scale`, `f_sq_rel`) uses f₀ only, so y·κ completes it to y·|F(λ)|². For an `ideal_mosaic` crystal the row is κ.
+κ is 1 ± 1–2 % for light elements and up to 0.67–0.86 for Zr/Y/Mo-bearing cells at Mo Kα (K edge at 68.9 pm).
+`crystal.extinction_table` stores y·κ (the JSON key stays `extinction`) on the first nodes of `MU_RHO_GRID_PM` (λ ≤ 2d sin 85°/n plus one
 node, 4 significant digits, `artifacts/tables/crystals.json`); Python and the web port both interpolate that rounded
 table log–log (ends held), so they agree exactly.
 
@@ -126,8 +130,14 @@ table log–log (ends held), so they agree exactly.
   Si, calcite, muscovite. Checked against X0h (queried 2026-10-21): χ₀ and |S| of Si(111) to 1e-3, Darwin plateau
   widths of Si(111/333/444) to 0.5 %, the lossless limit (8/3)C|S|/sin 2θ, xraylib `Crystal_F_H` to 1e-3.
 - **Secondary extinction** (Darwin 1922, Bacon & Lowde 1948, Sears 1997): a Gaussian mosaic of FWHM η, thick crystal,
-  y clipped from below at the Darwin value. LiF and the NaCl reference.
-- Forbidden reflections (|F|² ≈ 0, e.g. Si(222) for spherical atoms) give y = 1. y > 1 + 1e-6 raises.
+  y = max(Darwin, secondary) when the Darwin y ≤ 1; the blocks reflect kinematically and have no coherent gain, so
+  y = secondary alone when the Darwin y > 1. LiF and the NaCl reference.
+- **y is not bounded by 1 for a perfect crystal.** To second order y ≈ 1 − (⟨C⁴⟩/⟨C²⟩) Re(χ_h χ_h̄)/(8 (Im χ₀)²): where
+  f″ dominates a reflection whose f₀ + f′ part nearly cancels, Re(χ_h χ_h̄) < 0 and the Darwin crystal out-reflects
+  the ideal mosaic (anomalous absorption, standing-wave gain). The pure absorption grating (|χ_h| = Im χ₀) gives
+  y = 1.166–1.209 over θ = 2°–85°. The Darwin y is therefore returned unclipped; y > `crystal.Y_MAX` = 1.25 raises
+  (just above that limit).
+- Forbidden reflections (|F|² ≈ 0, e.g. Si(222) for spherical atoms) give 1.
 
 y at Mo Kα (71.08 pm), orders 1–3 (2026-10-21):
 
@@ -152,9 +162,12 @@ Empirical inputs, all **assumptions** (not fitted, dated 2026-10-21):
 
 Known limits of the extinction model: finite crystal thickness (all crystals are taken semi-infinite); primary
 extinction inside mosaic blocks; beam-footprint overfill at small θ (the references have no beam width or crystal
-size, so muscovite (002) at 2.04° would lose intensity to a finite crystal); `cell_scale` uses form factors without
-f′/f″ (−1.9 … +1.3 % against the complex F); Si(222) is 0 with spherical atoms (a real crystal shows it through the
+size, so muscovite (002) at 2.04° would lose intensity to a finite crystal); Si(222) is 0 with spherical atoms (a real crystal shows it through the
 bonding charge and Renninger double reflection). The one node a row holds past 85° is evaluated at no more than θ_B = 88° (the dynamical formulas are not used near backscattering).
+Since F1 (2026-10-21) the order-1 Kα line weights relative to NaCl include κ and the NaCl reference carries κ too
+(before → after: LiF 1.7485 → 1.7266 (−1.25 %), Si 0.02942 → 0.02937 (−0.15 %), calcite 0.03154 → 0.03160 (+0.17 %), muscovite
+0.004399 → 0.004266 (−2.96 %); Kβ −1.06 %, −0.15 %, +0.18 %, −2.52 %; cell_scale·μ ratio·(yκ) ratio, before the
+Lorentz-polarization factor). NaCl's own scan is untouched (Fig. 4).
 The model is a deliberate change from the former ideal-mosaic "upper bound", which put Si's order-1 Kα peak height at 0.68 × NaCl (a peak-height ratio before Q1; the kinematic line weight of the same product is 0.83 in the table above).
 
 The NaCl reference y_NaCl,1(λ) is calibrated only inside the Fig. 4 range (θ ≤ 25°, λ ≲ 240 pm). Beyond it (long λ, large
@@ -165,6 +178,57 @@ continuum is absorbed (air, absorber and the crystal's own μ; checked in the Q1
 Absorption edges are kept sharp (see `filters.MU_RHO_GRID_PM`); the air Ar K edge (386.7 pm) lies beyond the Fig. 4 range (λ ≲ 240 pm), so the calibrated spectrum is unchanged. μ is held constant
 beyond the 600 pm grid end (harmless: the absorber's T(600 pm) = 7e-32). Muscovite's order-1 Kα
 (2.04°) sits under the direct-beam leak (local maximum at 1.74°).
+
+## Forge element tables and forged crystals (`forge.py`, `artifacts/tables/forge_elements.json`)
+
+Added 2026-10-21 (F1). Nothing here is fitted: the tables are xraylib 4.2.1 sampled and rounded, and a forged
+crystal runs through the same model as a preset with its atomic data read from them (`Crystal.atoms`), so the
+browser can build the entry of any user-designed crystal without xraylib.
+
+| Table (Z = 1…92) | Grid and interpolation | Exported precision | Measured error vs xraylib (2026-10-21) |
+|---|---|---|---|
+| f₀ = `FF_Rayl` | uniform, step 0.01 Å⁻¹ to 3.0 (301 values; 3.0 > sin 85°/λ_min(35 kV) = 2.81), linear, last value held | 4 decimals | \|Δf₀\| ≤ 7.0e-4 max(f₀, 1) for s ≥ 0.03 Å⁻¹ (Li, worst); 1.13e-3 below it, where xraylib's own table has a cusp at s → 0 (the first order of any crystal here has s ≥ 0.05) |
+| σ = `CS_Total`·A/N_A (cm²/atom) | per element, a subset of the 1000 `MU_RHO_GRID_PM` nodes (mean 62, max 117, chosen greedily until σ is within 6e-4 on every node), log–log in λ, sharp at the edges | 5 significant digits | 6e-4 on the grid nodes; between nodes 6e-4 at the 99th percentile, 4.6e-3 at worst (Z = 86), away from edges |
+| edges | every step of `CS_Total` in 30–600 pm found from the cross section itself (K, L1–L3 and M1–M5, `forge._step_edges_pm`), two-sided σ at ±1e-7 in energy | σ as above, λ to 1e-6 pm | `mu_edges_pm` of a forged crystal is the plain union of its elements' edges (information; μ comes from `mu_nodes_pm`, see below) |
+| f′ = `Fi` | the same nodes, linear in λ | 2 decimals | ≤ 0.06 e⁻ on the nodes (99th percentile between them); worst 0.27 e⁻ (Z = 84) next to an absorption edge, where Fi bends over 1–2 % in λ |
+| f″ = `Fii` (negative in xraylib, kept) | the same nodes, log–log in \|f″\| | 3 significant digits | ≤ 8 % or 0.06 e⁻ on the nodes (3 % at the 99th percentile); worst 8.6 % (Z = 17) |
+| A (g/mol) | xraylib value | | exact |
+
+Size: 372 kB raw, 147.3 kB gzip (target 150, cap 300). `forge.TableAtoms` is `crystal.XraylibAtoms` served from these
+tables; `forge.interp_nodes` is the one interpolation (a repeated abscissa is a step).
+
+**Forged-crystal assumptions.** B per atom and, for `mosaic_extinction`, η are the user's choices; a forged crystal
+has `fitted_debye_waller = False` and never gets the NaCl-fitted B. Atoms are spherical, independent and at rest
+inside the 0 K f₀ times e^{−B s²} (no bonding charge, no anisotropic displacement); f′ and f″ enter through κ and
+through the dynamical y, and the reflection is the ideal Darwin–Prins perfect crystal or a Gaussian mosaic with
+secondary extinction, exactly as for the presets. `cell_scale` is relative to NaCl computed from the same tables (a
+forged NaCl copy gives exactly 1). The y·κ rows are not rounded (the presets' are to 4 digits). Inputs are validated
+(Z = 1…92, 0 < occupancy ≤ 1, 0 ≤ B ≤ 30 Å² (above any real isotropic B; at 50 Å² e^{−B s²} underflows and
+χ_h χ_h̄ = 0), a finite nonzero integer cut, finite, a valid cell, no site above total occupancy 1, ≤ 120 orders);
+every refusal is a `ForgeInputError` with a stable `code` for the UI. Where χ_h χ_h̄ still vanishes, y = 1 (the
+kinematic limit) instead of 0/0; κ applies as usual. The limits live in `forge.CONSTANTS`, exported with the tables. Table
+errors of f′, f″ are amplified in κ where F₀ nearly cancels: forged vs preset rows agree to 1 % for orders with
+|F|² ≥ 1e-2 |F_1|², 5 % down to 1e-3 and up to 13 % (muscovite n = 23) below; those orders carry that small weight.
+**Known limit of xraylib itself:** its Fi and Fii are smoothed over about ±2 % in energy around absorption edges (Zr just
+below its K edge: Fii −2.38 against 0.54 from the optical theorem; Mo at Mo Kβ 0.668 against 0.565), so κ and y of a cell
+with an element whose edge sits at a Mo line are good to that smoothing; the 8.6 % table error of f″ is minor beside it.
+μ of a forged crystal is not read from the μ/ρ grid with edge thinning: `forge._mu_nodes` stores μ = Σ occ σ/V exactly
+on the union of its elements' nodes with a two-sided step at every K, L, M edge, read log–log between nodes (never
+extrapolated; the preset scheme of `filters.interp_log_mu` runs an edge through its neighbour's interval when two
+elements' edges are close: Cu+Yb up to 120 % at 138.1–138.9 pm). `mu_per_cm` in the entry is the same on the grid.
+
+**Forge-only quadrature.** `forge.FORGE_N_POINTS = 201` instead of `EXTINCTION_N_POINTS = 2001` for the Darwin and
+mosaic integrals of a forged crystal: y differs from the 2001-point value by at most 2e-3 (relative). The error
+grows as g = Im χ₀/|S| → 0, the transparent perfect crystal: 1e-4 at g = 1e-2, 1.05e-3 at 1e-3, 1.8e-3 at 1e-4 (a
+test); secondary extinction ~1e-15; on 160 random orders and wavelengths of the four crystals 2.5e-4. Python builds the muscovite entry (56 orders, 20 333 rows) in
+about 40 s, nearly all of it numpy call overhead; the same kernel in plain JavaScript at 201 points takes 0.6 s for
+20 333 evaluations (a Node micro-benchmark), against ~6 s at 2001 points.
+y above 1 is physics (see above), the same guard `Y_MAX` applies to presets and forged crystals.
+
+**Agreement forged vs preset** (LiF, Si, calcite, muscovite, same cell, basis, cut and model): d and `max_order`
+identical, `allowed_orders` equal, density exact, `f_sq_rel` ≤ 7.5e-4,
+`cell_scale` ≤ 7e-5, μ ≤ 6e-4 away from edges, y·κ rows within the tolerances above (the presets' rows are rounded to 4
+digits).
 
 ## Numerical and analysis choices (not fitted)
 

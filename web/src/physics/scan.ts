@@ -91,8 +91,11 @@ export const DEFAULT = modelParams(DEFAULT_PARAMS_JSON)
 
 /** port of braggsim.scan.max_order: highest order that reaches the counter, n λ_min(U) ≤ 2d sin 85°. */
 export function maxOrder(crystal: Crystal = NACL, UkV: number = U_MAX_KV): number {
-  return Math.max(Math.trunc((2 * dPm(crystal) * Math.sin((BETA_MAX_DEG * Math.PI) / 180)) / lambdaMinPm(UkV)), 1)
+  return maxOrderForD(dPm(crystal), UkV)
 }
+/** maxOrder() of a series with spacing `dPm` (the Forge asks before it has a Crystal). */
+export const maxOrderForD = (d: number, UkV: number = U_MAX_KV): number =>
+  Math.max(Math.trunc((2 * d * Math.sin((BETA_MAX_DEG * Math.PI) / 180)) / lambdaMinPm(UkV)), 1)
 
 /** port of ModelParams.order_strengths: r_n for n = 1 … maxOrder(crystal) (index n − 1), relative to NaCl order 1.
  * k = cell_scale · exp(2 B_NaCl,th / (2 d_NaCl)²) for the non-anchor crystals (B_NaCl,th = 13 000 pm² = 1.3 Å², NaCl's thermal B,

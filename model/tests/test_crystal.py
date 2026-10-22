@@ -16,6 +16,7 @@ from braggsim.crystal import (
     SI,
     Crystal,
     _chis,
+    _chis_full,
     _y_darwin,
     allowed_orders,
     build_basis,
@@ -408,7 +409,8 @@ def test_extinction_si_111_integrated_reflectivity_and_y():
     ],
 )  # fmt: skip
 def test_extinction_factor_at_mo_ka(crystal, n, y):
-    assert float(extinction_factor(crystal, n, MO_KA_PM)) == approx(
+    kappa = _chis_full(crystal, n, MO_KA_PM)[5]  # the table holds y·κ
+    assert float(extinction_factor(crystal, n, MO_KA_PM)) / kappa == approx(
         y, rel=0.012 if y < 0.5 else 0.02
     )
 
@@ -418,11 +420,11 @@ def test_extinction_kinematic_limit_gives_one():
     assert _y_darwin(chi0, chi_h * 1e-4, chi_hb * 1e-4, theta) == approx(0.99999, abs=2e-5)
 
 
-def test_extinction_forbidden_reflection_is_one_and_y_stays_in_unit_interval():
+def test_extinction_forbidden_reflection_is_one_and_rows_are_positive():
     assert float(extinction_factor(SI, 2, MO_KA_PM)) == 1.0  # (222) vanishes for spherical atoms
     for c in PRESETS.values():
         for row in extinction_table(c):
-            assert np.all((row > 0) & (row <= 1.0))
+            assert np.all(row > 0)
     assert len(extinction_table(NACL)) == 1  # the reference y only
 
 
@@ -469,7 +471,7 @@ def test_extinction_order_1_ka_line_weights_relative_to_nacl():
         return w
 
     # Hand values: exp(+2 B_NaCl,th s_1²) = exp(2 · 1.3 · 0.1773²) = 1.0852 (B in Å², s in Å⁻¹).
-    for c, expected in ((LIF, 1.32), (SI, 0.0357), (CALCITE, 0.0370), (MUSCOVITE, 0.0173)):
+    for c, expected in ((LIF, 1.31), (SI, 0.0356), (CALCITE, 0.0370), (MUSCOVITE, 0.0168)):
         assert weight(c) / weight(NACL) == approx(expected, rel=0.02), c.name
 
 
