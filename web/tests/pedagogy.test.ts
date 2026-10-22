@@ -44,7 +44,7 @@ function scan(a: Apparatus) {
 describe('crystal of a task', () => {
   test('every task declares its crystal; only the Moseley task leaves the picker free', () => {
     for (const t of TASKS) expect(t.crystal, t.id).toBeDefined()
-    expect(TASKS.filter((t) => t.crystalLocked === false).map((t) => t.id)).toEqual(['moseley-k-edges'])
+    expect(TASKS.filter((t) => t.crystalLocked === false).map((t) => t.id)).toEqual(['moseley-k-edges', 'forge-kalpha-10deg', 'forge-si-222', 'forge-kcl-111', 'forge-doublet'])
     expect(lif.crystal).toBe('LiF')
   })
 
@@ -92,7 +92,7 @@ describe('crystal of a task', () => {
 
   test('the Bragg tasks put the crystal holder back; the attenuation tasks leave their wheel', async () => {
     expect(TASKS.filter((t) => t.holder === 'crystal').map((t) => t.id).sort()).toEqual(
-      ['kalpha-third-order', 'lambda-three-orders', 'lif-kalpha-angle', 'line-threshold', 'moseley-k-edges'])
+      ['forge-doublet', 'forge-kalpha-10deg', 'forge-kcl-111', 'forge-si-222', 'kalpha-third-order', 'lambda-three-orders', 'lif-kalpha-angle', 'line-threshold', 'moseley-k-edges'])
     expect(attThickness.holder).toBeUndefined()
     expect(attMaterial.holder).toBeUndefined()
     expect(background.holder).toBeUndefined()

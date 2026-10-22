@@ -11,13 +11,17 @@ import { applyInitial, setActiveTask, type GuidedTask } from './task'
 import { task as attenuationMaterial } from './tasks/attenuation-material'
 import { task as attenuationThickness } from './tasks/attenuation-thickness'
 import { task as background } from './tasks/background'
+import { task as forgeDoublet } from './tasks/forge-doublet'
+import { task as forgeKalpha10 } from './tasks/forge-kalpha-10deg'
+import { task as forgeKcl111 } from './tasks/forge-kcl-111'
+import { task as forgeSi222 } from './tasks/forge-si-222'
 import { task as kalphaThirdOrder } from './tasks/kalpha-third-order'
 import { task as lambdaThreeOrders } from './tasks/lambda-three-orders'
 import { task as lifKalphaAngle } from './tasks/lif-kalpha-angle'
 import { task as lineThreshold } from './tasks/line-threshold'
 import { task as moseleyKEdges } from './tasks/moseley-k-edges'
 
-export const TASKS: GuidedTask[] = [kalphaThirdOrder, lifKalphaAngle, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial]
+export const TASKS: GuidedTask[] = [kalphaThirdOrder, lifKalphaAngle, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial, forgeKalpha10, forgeSi222, forgeKcl111, forgeDoublet]
 const MODES: AppMode[] = ['explore', 'lab']
 
 /** Guided-task strings in the current language. */
@@ -142,7 +146,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     const begin = () => {
       if (task !== k) return // the student went back while the crystal table loaded
       loading = false
-      applyInitial(a, k.initial, k.crystal, k.holder, k.crystalLocked !== false || !restart)
+      applyInitial(a, k.initial, k.crystal, k.holder, k.crystalLocked !== false || !restart, k.keepCrystal)
       clearExports(a) // a restart begins fresh; the exposure log stays (the attenuation tasks read it)
       void loadAbsorbers().catch(() => {}) // the foils the task mounts; retried when the tray opens
       go(0)

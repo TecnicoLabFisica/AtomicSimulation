@@ -121,6 +121,54 @@ export const es = {
       teacher:
         'Respuesta: la primera opción; el borde de la Ag cae en θ ≈ 4.94° y el del Zr en ≈ 7.02° (Z mayor → λ_K menor → θ menor). Errores típicos: «más Z o más energía, mayor ángulo»; usar el factor ¾ de la línea Kα (para el borde no va: R saldría un 33 % alta); tomar los picos Kα/Kβ del tubo por bordes. Del ajuste se espera R ≈ 1.06 × 10⁷ m⁻¹ y σ_K ≈ 2.9, R ≈ 3.5 % por debajo de R∞ (±1 % por ruido): ≈ 1.3 % es física (relatividad y un apantallamiento que crece con Z) y ≈ 2.3 % es el sesgo de resolución del contador. Variante con LiF (d = 201.35 pm): los bordes caen en ≈ 6.3° (In), 6.9° (Ag), 8.9° (Mo) y 9.8° (Zr), así que la ventana pasa a ≈ 6.0°–10.2° (se calcula con la d del cristal; todos los barridos de un grupo deben ser sobre el mismo cristal, y no se mezclan NaCl y LiF). La ventana del NaCl traducida a LiF es 5.2°–10.5°. Con LiF, el modelo sin ruido da R ≈ 1.09 × 10⁷ m⁻¹ (≈ 1 % bajo R∞) y σ_K ≈ 3.4–3.6, según la ventana: con mayor dispersión dθ/dλ, la misma resolución angular desplaza menos λ_K. El borde del Zr queda a 0.3° de Kα, así que su valor depende de hasta dónde llegue el barrido. Para discutir: ¿por qué LiF da un R más cercano a R∞? Para discutir: ¿por qué la transmisión sube con λ en el borde, en vez de bajar? Ver docs/teacher-key.md (Moseley).',
     },
+    'forge-kalpha-10deg': {
+      title: 'Diseña un cristal para Kα a 10°',
+      concept: 'Ley de Bragg y espaciado d',
+      predict: 'En la Forja puedes diseñar un cristal. Quieres que la línea Kα del Mo (λ = 71.08 pm) aparezca en primer orden en θ = 10°. ¿Qué espaciado d (en pm) necesita el cristal?',
+      options: [] as string[],
+      act: 'En la Forja diseña un cristal con esa d (por ejemplo, una sal de red tipo NaCl con la arista a adecuada y corte (2 0 0), donde d = a/2) y pulsa «Usar en el banco». Después haz un barrido COUPLED desde 1° por debajo hasta 1° por encima de 10°, con Δβ = 0.1° o menor.',
+      observe: 'El pico de Kα cae en 10°, no en los 7.24° del NaCl: la tabla de órdenes de la Forja ya te daba ese θ antes de medir. El cristal fija el ángulo; el tubo, solo la λ.',
+      explain:
+        'De la ley de Bragg, sen θ = λ / (2d), se despeja d = λ / (2 sen θ) = 71.08 / (2 sen 10°) ≈ 205 pm. Es casi la d del LiF (201 pm): una celda tipo sal de roca con a ≈ 409 pm y corte (2 0 0) sirve. Un cristal «hipotético» sigue las mismas leyes de ángulos; solo sus alturas son una estimación.',
+      teacher:
+        'Respuesta: d = 71.08 / (2 sen 10°) = 204.7 pm (tolerancia de la tarea: 1 %). En sal de roca con corte (2 0 0), d = a/2, así que a ≈ 409.4 pm (LiF: 402.7 pm). Error típico: usar a en lugar de d = a/2 (da 409 pm de d, θ = 5°), o escalar θ en vez de sen θ. La tarea se cumple con un barrido COUPLED guardado, terminado y sin cambios, de un cristal de la Forja con d dentro del 1 %, que cubre θ ± 0.7° con Δβ ≤ 0.23° y con Kα 5 σ sobre el fondo según el modelo; el número del alumno no se comprueba. A 35 kV, 1 mA y Δt = 1 s la línea sale a ≈ 47 σ.',
+    },
+    'forge-si-222': {
+      title: '¿Por qué falta el Si (222)?',
+      concept: 'Reglas de extinción',
+      predict: 'En la cara (111), el silicio tiene el orden 1 (111), el orden 2 (222) y el orden 3 (333). ¿Aparecerá un pico de Kα en θ₂, el ángulo de segundo orden?',
+      options: ['Sí, más débil que el primero', 'No: el segundo orden está prohibido y solo hay continuo', 'Sí, más intenso que el primero'],
+      act: 'En la Forja carga el preset Si (diamante, corte 1 1 1) y pulsa «Usar en el banco». Haz un barrido COUPLED de 5° a 21° (cubre los órdenes 1 a 3 de Kα) con Δβ = 0.2° y Δt = 5 s. El Si es un cristal perfecto y la señal es débil: si el aparato te avisa, usa la ganancia de la pantalla y no bajes de 35 kV ni 1 mA.',
+      observe: 'Hay pico en θ₁ ≈ 6.5° y en θ₃ ≈ 19.9°, pero en θ₂ ≈ 13.1° solo hay continuo. La tabla de órdenes de la Forja marca el 2 como prohibido.',
+      explain:
+        'En la estructura de diamante, la base de átomos desplazada ¼¼¼ hace que las ondas dispersadas en (222) lleguen en oposición de fase y se anulen: F = 0. Los órdenes 1 y 3 de (111) no se cancelan. No es un fallo de la ley de Bragg, que da el ángulo θ₂; es la estructura de la celda la que apaga ese pico. Extensión: cambia a blenda con dos átomos distintos (Ga, As): el (222) reaparece, débil, porque f_Ga ≠ f_As.',
+      teacher:
+        'Respuesta: la segunda opción. Si (111): d = 313.6 pm, θ₁ = 6.51°, θ₂ = 13.1° (ausente), θ₃ = 19.88° (Kα). A 35 kV, 1 mA, Δt = 5 s las prominencias esperadas son ≈ 20 σ (n = 1) y ≈ 7.7 σ (n = 3); con Δt = 1 s n = 3 queda en 3.5 σ. La tarea exige un cristal de la Forja con corte (1 1 1) sin orden 2 (según su tabla de |F|²), un barrido COUPLED que cubre θ₁ − 0.7° a θ₃ + 0.7° con Δβ ≤ 0.23° y las líneas de órdenes 1 y 3 a ≥ 5 σ; el número no se comprueba. Error típico: creer que un pico ausente indica un fallo del montaje o que Bragg no se cumple. En blenda GaAs, (222) existe pero es débil (f_Ga ≠ f_As).',
+    },
+    'forge-kcl-111': {
+      title: 'KCl cortado en (111)',
+      concept: 'Factor de estructura',
+      predict: 'En el KCl cortado por la cara (111), ¿qué pasa con los órdenes 1 y 3 comparados con el orden 2?',
+      options: ['Son más fuertes que el 2', 'Desaparecen del todo', 'Son mucho más débiles que el 2, pero no nulos'],
+      act: 'En la Forja carga el preset KCl, cambia el corte a (1 1 1) y pulsa «Usar en el banco». Haz un barrido COUPLED de 4.8° a 18° con Δβ = 0.2° y Δt = 2 s. Compara con NaCl cortado igual: ¿cuánto pesa el orden 1 allí?',
+      observe: 'El pico más claro está en θ₂ ≈ 11.3° (y Kβ en 10°). Los órdenes impares casi no sobresalen del fondo. La tabla de órdenes de la Forja da su |F|² frente al del orden más fuerte.',
+      explain:
+        'En la sal de roca, las reflexiones (111) de orden impar son proporcionales a (f_K − f_Cl)² y las de orden par a (f_K + f_Cl)²: en los impares, los dos iones se restan. Como K y Cl tienen casi los mismos electrones, la resta es pequeña y esos órdenes son débiles. El NaCl, con Na y Cl muy distintos, los deja visibles. Nota: el K⁺ y el Cl⁻ reales tienen 18 e⁻ cada uno, y por eso en el KCl real los impares casi desaparecen; la Forja usa átomos neutros (19 y 17 e⁻), así que aquí quedan débiles, no nulos.',
+      teacher:
+        'Respuesta: la tercera opción. En la Forja (átomos neutros) |F|²(1)/|F|²(2) ≈ 0.007 en KCl (111), frente a ≈ 0.09 en NaCl (111); la tarea usa el umbral 0.02. θ₁ = 5.61°, θ₂ = 11.28° (≈ 23 σ a Δt = 1 s), θ₃ = 17.06°. Importante: no digas «cero»: lo que desaparece en el KCl real es porque K⁺ y Cl⁻ son isoelectrónicos (18 e⁻), una aproximación que la Forja no hace (átomos neutros, 19 y 17 e⁻). Error típico: confundir «débil» con «prohibido» (el diamante sí los anula por simetría). La tarea exige un cristal de la Forja con corte (1 1 1) cuyo orden 1 sea < 2 % del más fuerte, un barrido COUPLED que cubre θ₁ − 0.7° a θ₃ + 0.7° con Δβ ≤ 0.23° y Kα de orden 2 a ≥ 5 σ.',
+    },
+    'forge-doublet': {
+      title: 'Resuelve el doblete Kα₁/Kα₂',
+      concept: 'Resolución angular',
+      predict: 'Kα es en realidad un doblete: Kα₁ (70.93 pm) y Kα₂ (71.36 pm), separado 0.43 pm. En primer orden están casi en el mismo ángulo. Si solo reduces d, en primer orden, con un cristal real, ¿bastará para verlos separados?',
+      options: ['Sí: con una d lo bastante pequeña se resuelven', 'No: haría falta una d de unos 55 pm, menor que cualquier espaciado atómico', 'No: el doblete no se puede resolver nunca'],
+      act: 'Elige un cristal y un orden n tales que Kα₁ y Kα₂ queden separados más de 0.29° (2.35 veces la resolución σ del aparato), por ejemplo LiF en un orden alto, y haz un barrido COUPLED con Δβ = 0.1° que cubra los dos picos y 0.4° a cada lado. Con Δt = 10 s o más, el orden 4 del LiF se ve bien; el 5 pide Δt de un minuto.',
+      observe: 'Con d grande y orden 1 los dos picos son uno solo; en un orden alto, el pico se abre en dos. La separación angular crece con n y con tan θ.',
+      explain:
+        'La dispersión angular es dθ/dλ = n / (2d cos θ): para el mismo Δλ = 0.43 pm, el doblete se separa más con un orden n alto o una d pequeña. En primer orden harían falta d ≈ 55 pm y θ ≈ 40°, imposible para planos atómicos reales. Con LiF (200), n = 4 da 0.34° y n = 5, 0.65°, frente a σ = 0.12° del aparato; la contrapartida es que los órdenes altos son más débiles.',
+      teacher:
+        'Respuesta: la segunda. Dispersión: Δθ ≈ (Δλ/λ) tan θ en primer orden, es decir, Δθ = 0.29° pide θ ≈ 40°, d ≈ 55 pm. LiF (d = 201.35 pm): Δθ = 0.062° (n = 1), 0.13° (2), 0.22° (3), 0.34° (4, θ ≈ 44.9°, ≈ 20 σ a Δt = 30 s) y 0.65° (5, θ ≈ 61.7°, ≈ 5 σ solo a Δt ≈ 60 s). Umbral: 2.35 σ = 0.29° con σ = 0.123°. La tarea acepta cualquier cristal guardado (de la Forja o preset) con un orden permitido cuya separación supere ese umbral, ambos picos dentro del barrido ± 3 σ, Δβ ≤ 0.1° y esa línea ≥ 5 σ según el modelo; el número no se comprueba. Un cristal forjado con d de ~55 pm también la cumple en primer orden: la Forja avisa de átomos demasiado juntos, es parte de la discusión.',
+    },
   },
 }
 export type PedagogyDict = typeof es
