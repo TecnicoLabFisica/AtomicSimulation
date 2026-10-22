@@ -54,8 +54,8 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L3.1` (XRF of brass, the last phase). F2 and F3 (Forge UI and tasks) closed on 2026-10-22, local commits, unpushed. Open: Q10, Q11 (doublet valley check).
-> Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets). Still open: Q10 (the wheel's open slot).
+> **Next:** `L3.1` (XRF of brass, the last phase). F1–F3 pushed 2026-10-22 (382ef03..3cd4f88). Open: Q10 (lab). Q11 closed (not built).
+> Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
 | Phase | Title | Status | Sessions | Depends on |
@@ -392,7 +392,7 @@ run-1b collimator Zr filter (0.05 mm is the 554 832 foil value). Keep the Pyrex 
 
 **Physics model (fundamental parameters, primary fluorescence):**
 $$
-I_{i,\text{line}} \propto w_i \int S_U(E)\,\frac{\tau_i(E)\,\omega_i\,p_\text{line}\,(1-1/J_i)}{\mu_s(E)/\sin\psi_1 + \mu_s(E_\text{line})/\sin\psi_2}\,dE
+I_{i,\text{line}} \propto w_i \int S_U(E)\,\frac{\tau_i(E)\,\omega_i\,p_\text{line}\,(1-1/J_i)}{\mu_s(E) + \mu_s(E_\text{line})\,\sin\psi_1/\sin\psi_2}\,dE
 $$
 with ψ₁ = ψ₂ = 45° (target at 45°, detector at 90°).
 - Mass fractions w_i. Photo cross-section, yield and line fractions come from xraylib.
@@ -708,11 +708,13 @@ The engine already exists after C1. What's missing is **data for any element** i
 ## Open questions
 
 > [!question] Still open
-> 11. **Doublet valley check (F3, 2026-10-22):** `forge-doublet` passes on geometry (separation ≥ 4σ, Δβ, Δt ≥ 10 s), not on the counts. A model check of the valley's significance below Kα₂ (z of R̄(θ_Kα₂) − min R̄ between the lines) would be new analysis: Python first (`braggsim.analysis`), then a fixture and the port. Worth it?
 > 10. **Absorption wheel positions (P1, run 2a):** the guide lists four positions (30°–60°) for the last three materials. Which one
 >     is empty? Until the lab answers, assume the wheel order polystyrene, Al, Fe, Cu, Zr, Ag at 0°–50° and an open slot at 60°.
 >     Evidence (apparatus review 2026-10-14): at the guide's 1 mA, an open slot anywhere in 30°–60° saturates the GM (true ≈ 2.8e5/s, Rτ ≈ 28),
 >     so the guide presumably never measures the open slot at 1 mA. An open slot at 0° would fit the Al plate, but it contradicts "the first three materials at 0°–20°".
+
+> [!success]- Answered 2026-10-22 (user)
+> 11. **Doublet valley check:** closed, not built. The geometry gate (separation ≥ 4σ, Δβ 0.1°, Δt ≥ 10 s) already rejects the n = 4 shoulder and passes n = 5.
 
 > [!success]- Answered 2026-10-14 (user + web research)
 > 5. **Real data:** none from the EPN apparatus. Use published data from reliable sources → [[#Calibration anchors]].
@@ -776,7 +778,7 @@ The engine already exists after C1. What's missing is **data for any element** i
 
 > [!warning] Scope creep
 > Not in this plan (backlog for [[Bragg-Simulation-Plan#Phase 11 — Extensions]]): other anodes, Duane–Hunt, a custom
-> XRF alloy editor, secondary fluorescence, a full CASSY Lab emulation.
+> XRF alloy editor, a full CASSY Lab emulation.
 
 ---
 
