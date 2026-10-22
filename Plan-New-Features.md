@@ -10,8 +10,8 @@ tags:
 status: planning
 created: 2026-10-14
 updated: 2026-10-22
-current_phase: F3
-next_task: F3.1
+current_phase: L3
+next_task: L3.1
 last_session: 2026-10-22
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `F3.1`, the Forge guided tasks. F2, the Forge UI, closed on 2026-10-22 (F2.3 3D cell deferred to the backlog).
+> **Next:** `L3.1` (XRF of brass, the last phase). F2 and F3 (Forge UI and tasks) closed on 2026-10-22, local commits, unpushed. Open: Q10, Q11 (doublet valley check).
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets). Still open: Q10 (the wheel's open slot).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -70,7 +70,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
 | F1 | Forge engine (any element) | ✅ done | 1 | C1 |
 | F2 | Forge UI | ✅ done | 1 | F1, C2 |
-| F3 | Forge pedagogy | ⬜ todo | 1 | F2 |
+| F3 | Forge pedagogy | ✅ done | 1 | F2 |
 
 Legend: ⬜ todo · 🟨 in progress · ✅ done · ⏸ blocked (say on what in the [[#Session log]]).
 
@@ -681,12 +681,21 @@ The engine already exists after C1. What's missing is **data for any element** i
 
 ### F3 — Forge pedagogy
 
-- [ ] **F3.1** Explore tasks (`write-guided-task`):
+- [x] **F3.1** Explore tasks (`write-guided-task`):
   - "Design a crystal that puts Mo Kα (n = 1) at 10°": they discover d ≈ 204 pm, close to LiF.
   - "Why is Si (200) missing?" (diamond extinction).
   - "Cut KCl along (111): where did the odd orders go?" (f_K ≈ f_Cl).
   - "Make the Kα doublet resolvable in first order" (smaller d spreads θ).
-- [ ] **F3.2** `pedagogy-reviewer`.
+- [x] **F3.2** `pedagogy-reviewer`.
+
+> [!note] As built (2026-10-22)
+> Four Explore tasks (`web/src/pedagogy/tasks/forge-*.ts`, helpers in `forge-common.ts`), checked on the stored COUPLED scan, never on typed answers. `GuidedTask.keepCrystal` stops a task start from mounting NaCl over a forged crystal.
+> - `forge-kalpha-10deg`: forged d within 1 % of 204.7 pm, Kα n = 1 ≥ 5σ.
+> - `forge-si-222` ("Silicio: el segundo orden de (111)"): a (111) cut with order 2 absent (Forge or Setup Si), orders 1 and 3 ≥ 5σ (Δt 5 s). The plan's "Si (200)" became (222): the Forge refuses an absent cut.
+> - `forge-kcl-111`: at **30 kV**, because at 35 kV θ₁ = 5.61° sits on the second-order continuum onset. Order 1 / strongest < 2 % (KCl 0.7 %, NaCl 9 %), n = 2 ≥ 5σ; the answer is "next to nothing" (order 1 is 2.2σ at Δt 2 s, 4.9σ at 10 s). K and Cl have nearly equal f at every angle, as ions or as neutral atoms.
+> - `forge-doublet`: Kα₁/Kα₂ separation ≥ 4σ (σ = 0.123°), Δβ 0.1°, Δt ≥ 10 s, any crystal. LiF n = 5 passes, n = 4 (2.8σ, a shoulder) fails. In first order it takes d ≈ 43 pm (LiF (10 0 0)).
+> - Reviews: physics (2.35σ passed a shoulder; the visibility gate read the valley; KCl on the continuum edge; the isoelectronic claim) and pedagogy (the Si title leaked the answer; the KCl scan contradicted the key). All fixed.
+> - Size: the bilingual task copy took the eager set to 106.0 kB gz (index 73.7 + scan 32.3). Task strings were always eager; lazy-loading the inactive language is a possible saving.
 
 **Done when:** the four tasks can be completed on a phone and the reviewer finds no misconception risk.
 
@@ -699,6 +708,7 @@ The engine already exists after C1. What's missing is **data for any element** i
 ## Open questions
 
 > [!question] Still open
+> 11. **Doublet valley check (F3, 2026-10-22):** `forge-doublet` passes on geometry (separation ≥ 4σ, Δβ, Δt ≥ 10 s), not on the counts. A model check of the valley's significance below Kα₂ (z of R̄(θ_Kα₂) − min R̄ between the lines) would be new analysis: Python first (`braggsim.analysis`), then a fixture and the port. Worth it?
 > 10. **Absorption wheel positions (P1, run 2a):** the guide lists four positions (30°–60°) for the last three materials. Which one
 >     is empty? Until the lab answers, assume the wheel order polystyrene, Al, Fe, Cu, Zr, Ag at 0°–50° and an open slot at 60°.
 >     Evidence (apparatus review 2026-10-14): at the guide's 1 mA, an open slot anywhere in 30°–60° saturates the GM (true ≈ 2.8e5/s, Rτ ≈ 28),
@@ -786,6 +796,12 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 ## Session log
 
 Newest first. One entry per session. This is what the next session reads to know what happened.
+
+### 2026-10-22 · F3 · tasks F3.1, F3.2 (F3 closed)
+- Done: four Forge tasks (see the F3 as-built note). Commits 0bc7fb9, 0d83462 (local, unpushed).
+- Verify: Vitest 307 · pytest 306 · ruff clean · build OK, eager set 106.0 kB gz.
+- Uncommitted: no.
+- Surprises / decisions: the reviews caught three wrong task physics claims before any student saw them (see the as-built note). Q11 opened.
 
 ### 2026-10-22 · F2 · tasks F2.1, F2.2, F2.4, F2.5 (F2 closed; F2.3 deferred)
 - Done: Forge UI (see the F2 as-built note). Commits 27f1559, 98b841e, 2a029a2, 6cfa358, 11c20f3, a408fd0 (local, unpushed).
