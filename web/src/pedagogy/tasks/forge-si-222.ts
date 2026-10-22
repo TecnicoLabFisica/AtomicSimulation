@@ -16,11 +16,11 @@ export const task: GuidedTask = {
   controls: ['DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
   initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED', dt_s: 5, dBeta_deg: 0.2 },
   predict: { kind: 'choice', answer: 1 },
-  // A forged (111) crystal without order 2 (diamond-like), scanned from before θ₁ to after θ₃ of Kα: orders 1 and 3 stand out, so
+  // A (111) crystal (Forge or Setup preset) without order 2 (diamond-like), scanned from before θ₁ to after θ₃ of Kα: orders 1 and 3 stand out, so
   // the gap at θ₂ is a real absence, not a window that missed it.
   success: (a) => {
     const st = storedScan(a, MAX_STEP_DEG)
-    if (!st || !st.forged) return false
+    if (!st) return false
     const { cut, allowed_orders: orders } = st.crystal
     return cut.join() === '1,1,1' && !orders.includes(2) && spans(st, 1, 3) && seen(st, 1) && seen(st, 3)
   },

@@ -1,6 +1,7 @@
 // Forge task 3: cut KCl along (111): where did the odd orders go? Rock salt, (111) family: odd orders ∝ (f_K − f_Cl)², even
-// orders ∝ (f_K + f_Cl)². Real K⁺ and Cl⁻ are isoelectronic (18 e⁻ each), so real KCl's odd orders nearly vanish; the Forge uses
-// neutral atoms (19 against 17 e⁻), so they stay WEAK, not zero. The check reads that from the entry's own |F|² table.
+// orders ∝ (f_K + f_Cl)². K and Cl have nearly equal f at every angle (equal only at θ = 0), so the odd orders are WEAK, not zero.
+// Initial U = 30 kV: at 35 kV the 2nd-order continuum (λ/2 > λmin) starts at 5.60°, right under θ₁ = 5.61°, and buries order 1 under a ramp.
+// The check reads that from the entry's own |F|² table.
 import { MAX_STEP_DEG } from '../../physics/analysis'
 import type { GuidedTask } from '../task'
 import { seen, spans, storedScan } from './forge-common'
@@ -17,8 +18,8 @@ export const task: GuidedTask = {
   keepCrystal: true,
   holder: 'crystal',
   controls: ['DT', 'DBETA', 'LIMITS', 'COUPLED', 'SCAN'],
-  initial: { U_kV: 35, I_mA: 1, mode: 'COUPLED', dt_s: 2, dBeta_deg: 0.2 },
-  predict: { kind: 'choice', answer: 2 },
+  initial: { U_kV: 30, I_mA: 1, mode: 'COUPLED', dt_s: 2, dBeta_deg: 0.2 },
+  predict: { kind: 'choice', answer: 1 },
   success: (a) => {
     const st = storedScan(a, MAX_STEP_DEG)
     if (!st || !st.forged) return false

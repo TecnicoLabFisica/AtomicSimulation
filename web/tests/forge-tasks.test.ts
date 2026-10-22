@@ -88,7 +88,7 @@ describe('forge-si-222', () => {
   test('Δt = 1 s leaves n = 3 under 5 σ: not met', () => expect(si.success(run(si, preset('Si'), 5, 21, 0.2, 1))).toBe(false))
   test('stops before θ₃: not met', () => expect(si.success(run(si, preset('Si'), 5, 15))).toBe(false))
   test('rock salt (111) has order 2: not met', () => expect(si.success(run(si, preset('KCl', { cut: [1, 1, 1] }), 4.9, 21))).toBe(false))
-  test('Si (111) as a preset, not forged: not met', () => expect(si.success(run(si, 'Si', 5, 21))).toBe(false))
+  test('the Setup library Si preset (cut (1 1 1), order 2 absent): met', () => expect(si.success(run(si, 'Si', 5, 21))).toBe(true))
 })
 
 describe('forge-kcl-111', () => {
@@ -100,10 +100,17 @@ describe('forge-kcl-111', () => {
 })
 
 describe('forge-doublet', () => {
-  test('LiF preset n = 5 (θ ≈ 61.7–62.4°), 100 s: met', () => expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.1, 100))).toBe(true))
-  test('LiF n = 4 (Δθ = 0.34°): met', () => expect(doublet.success(run(doublet, 'LiF', 44, 46, 0.1, 30))).toBe(true))
-  test('LiF n = 5 at 10 s: the line is under 5 σ, not met', () => expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.1, 10))).toBe(false))
+  test('LiF n = 5 (θ ≈ 61.7–62.4°) at Δt = 10 s and 15 s: met', () => {
+    expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.1, 10))).toBe(true)
+    expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.1, 15))).toBe(true)
+  })
+  test('LiF n = 4 (2.8 σ, a shoulder) at Δt = 30 s: not met', () => expect(doublet.success(run(doublet, 'LiF', 44, 46, 0.1, 30))).toBe(false))
   test('NaCl n = 1: not met', () => expect(doublet.success(run(doublet, 'NaCl', 6.5, 8.5, 0.1))).toBe(false))
-  test('LiF n = 5 but Δβ = 0.2°: not met', () => expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.2, 100))).toBe(false))
-  test('a window that misses Kα₂ ± 3σ: not met', () => expect(doublet.success(run(doublet, 'LiF', 61, 62.5, 0.1, 100))).toBe(false))
+  test('LiF n = 5 at Δt = 5 s: not met', () => expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.1, 5))).toBe(false))
+  test('LiF n = 5 but Δβ = 0.2°: not met', () => expect(doublet.success(run(doublet, 'LiF', 61, 63, 0.2, 15))).toBe(false))
+  test('a window that misses Kα₂ ± 3σ: not met', () => expect(doublet.success(run(doublet, 'LiF', 61, 62.5, 0.1, 15))).toBe(false))
+  test('forged LiF (8 0 0), d = 50.3 pm, first order = 2.8 σ: not met', () =>
+    expect(doublet.success(run(doublet, preset('LiF', { cut: [8, 0, 0] }), 44, 46, 0.1, 15))).toBe(false))
+  test('forged LiF (10 0 0), d = 40.3 pm, first order = 5.3 σ: met', () =>
+    expect(doublet.success(run(doublet, preset('LiF', { cut: [10, 0, 0] }), 61, 63, 0.1, 15))).toBe(true))
 })
