@@ -245,6 +245,57 @@ identical, `allowed_orders` equal, density exact, `f_sq_rel` ≤ 7.5e-4,
 `cell_scale` ≤ 7e-5, μ ≤ 6e-4 away from edges, y·κ rows within the tolerances above (the presets' rows are rounded to 4
 digits).
 
+## XRF sample model (`fluorescence.py`, EPN Práctica 6)
+
+Added 2026-10-22 (L3.1). Nothing here is fitted: every row is an **assumption** or a **literature** value.
+Cross sections come from xraylib (`CS_FluorLine_Kissel_Cascade`, `CS_Total`, `DCS_Rayl`, `DCS_Compt`).
+
+| Name | Value | Kind / source | Note |
+|---|---|---|---|
+| Geometry ψ1 = ψ2 | 45° | EPN Práctica 6 (target at 45°, detector at 90° to the beam) | `PSI_IN_DEG`, `PSI_OUT_DEG` |
+| `S2_CM` | 6 cm | EPN Práctica 6 (s1 = s2 = 6 cm) | sample → detector window |
+| `DETECTOR_RADIUS_MM` | 0.4 mm | LD 559 938 sheet (0.8 mm dia. active area) | Ω = π r²/s2² = 1.396e-4 sr, Ω/4π = 1.11e-5. Assumes the Si chip sits exactly at s2 = 6 cm; recessed by d mm, Ω × (60/(60+d))² (−15 % for 5 mm) |
+| `AIR_IN_CM` | 12 cm | assumption (the 12 cm anode → crystal part of `scan.AIR_PATH_CM`, 18 cm) | air 1.205 mg/cm³, out path = `S2_CM` |
+| Photon flux on the sample | `direct_per_s` / `fluorescence._gm_weighted_photons(35 kV)` per source unit | assumption, 2026-10-22 | The GM counter reads `direct_per_s` at 35 kV, 1 mA, 18 cm air, which is the tube spectrum weighted by `detector.gm_efficiency`; the same spectrum with 12 cm air hits the sample. Flux factor ×310 over the old ε = 1 anchor (ε̄ = 0.0032, spectrum-weighted). It is **no longer a lower bound by ε but carries the GM gas-pressure uncertainty (ε ∝ p, ×5 either way)**, and the ≥ 950/s anchor of `direct_per_s` is itself a lower bound. Also: (a) the GM at 0° might accept only part of the beam while the sample intercepts all of it (pushes the flux up; a Cu-sheet measurement decides); (b) see the Ω note on the detector row |
+| Tube spectrum | Kramers + Mo lines through the Pyrex absorber and 12 cm air | as `scan` | the unfiltered collimator; a Zr filter is not modelled |
+| Beam polarisation | unpolarised | assumption | Rayleigh/Compton use the unpolarised `DCS_*` at 90° (a real tube beam is slightly polarised) |
+| CuZn39Pb3 | 58 Cu / 39 Zn / 3 Pb wt % | literature, LD 554 848 (CASSY Lab help P7.5.1.1/2) | infinitely thick (0.5 mm sheet, an assumption; worst case Rayleigh at 35 keV in Zn leaves ≈ 6e-4, negligible) |
+| CuZn36 | 64 Cu / 36 Zn wt % | literature, same set | |
+| Pure Cu, Zn, Pb | 100 % | idealisation (sheet purity ≥ 99.9 % assumed) | |
+| Coin plating | 18 µm Cu, ρ = 8.96 g/cm³ (range 10–25 µm) | assumption, from the RCM Cu-plated steel cent analogue (4.5 % Cu by mass); see Plan "Calibration anchors" | `fluorescence.coin(plating_um)`; no mint publishes it |
+| Coin core | pure Fe, infinitely thick | assumption (low-carbon steel, Mn ≲ 0.5 % neglected) | |
+| Pb lines | 13 L lines whose production at 17.5 keV is ≥ 1 % of Lα1 (Lα1, Lα2, Lβ1–6, Lβ15, Lγ1–3, Lℓ) | xraylib | dropped as < 0.4 %: LB7, LB9, LB10, LB17 |
+| Mo scatter | Rayleigh + Compton at 90°, Compton shift 2.426 pm | literature (CODATA) | |
+
+**Included physics:** primary fluorescence (Sherman fundamental parameters, Coster–Kronig and cascade through xraylib's Kissel
+cascade cross sections); secondary fluorescence in the bulk alloys (Shiraiwa & Fujino 1966, closed form; Zn Kβ and Pb L → Cu K,
+Pb L → Zn K); the coin's two layers (plating attenuates incident and outgoing beam, adds its own lines) and the **interface
+secondary** (Cu Kα, Kβ excite the Fe core, integrated numerically). Check, 35 kV: secondary/primary = 4.2 % for Cu Kα and
+1.5 % for Zn Kα in CuZn39Pb3, 33 % for Fe Kα in the coin (18 µm).
+
+**Omitted (Known deviations):**
+- Compton Doppler broadening: the Compton line is a δ in energy (real width ≈ 0.3–0.5 keV at 17 keV, comparable to the detector FWHM).
+- Tertiary excitation in the alloys (≲ 0.05 % of the primary; rough chain Pb L → Zn K → Zn Kβ → Cu K ≈ 0.015 × 0.026), and same-element cross-line excitation (Pb Lγ above the L3 edge, ≲ 1 %).
+- Pb M lines (< 2.5 keV): below the detector window's cut-off.
+- Fe → Cu excitation across the coin interface: Fe lines are below the Cu K edge, so it is zero.
+- Housing fluorescence (Au L, Fe, Cu…): optional term, not in this module.
+- Sample surface roughness, powder or oxide layers, finite sheet thickness (taken infinite), beam footprint larger than the detector's view.
+- Absolute scale: see the flux row and the GM rows below. At 35 kV / 1 mA a pure Cu sheet gives 136 Cu Kα photons/s at the window (pure Zn: 161 Zn Kα; pure Pb: 49 Pb Lα1; Pb Lα1 in CuZn39Pb3: 1.3/s, ≈ 240 in 180 s); uncertain by ×5 either way through the GM gas pressure.
+
+**LD 559 01 GM counter efficiency** (`detector.gm_efficiency`, added 2026-10-22; sets the XRF flux scale, never used by the Bragg outputs, whose fitted `scale` already absorbs ε). ε = T_window · (1 − exp(−μ_photo,gas m_gas)); ε(8.04 keV) = 0.0298, ε(17.48) = 0.0040, ε(20) = 0.0026.
+
+| Name | Value | Kind / source | Note |
+|---|---|---|---|
+| `GM_WINDOW_FORMULA`, `GM_WINDOW_UM` | muscovite mica, 13.5 µm | LD instruction sheet 559 01 (d = 12–15 µm) | the LD shop page says 1.5–2 mg/cm², the sheet's 12–15 µm is 3.4–4.2 mg/cm²: the sheet is used |
+| `GM_WINDOW_DENSITY_G_CM3` | 2.83 g/cm³ | literature (muscovite) | |
+| `GM_ACTIVE_LENGTH_MM` | 36 mm | LD instruction sheet 559 01 | path along the axis (end window, beam on axis) |
+| `GM_GAS` | Ne 99.4 % + Ar 0.5 % + Br₂ 0.1 % by volume | **assumption**: the sheet says neon/argon/halogen, composition unpublished; typical Penning mixture with halogen quench | |
+| `GM_GAS_PRESSURE_HPA` | 500 hPa (plausible 100–1000) | **assumption**: not published | ε ∝ p at these energies, so the XRF flux scale is uncertain by ×5 either way |
+| `GM_GAS_TEMPERATURE_K` | 293.15 K, ideal gas | assumption | |
+| Photoabsorption only | xraylib `CS_Photo` | modelling choice | Compton electrons rarely trigger the counter |
+
+**XRF scale — lab check wanted:** one measured Cu-sheet spectrum (total counts, 35 kV, 1 mA, 180 s, s1 = s2 = 6 cm) would replace the GM-efficiency estimate (the model predicts ≈ 136 Cu Kα photons/s).
+
 ## Numerical and analysis choices (not fitted)
 
 | Name | Value | Why |
@@ -380,6 +431,8 @@ Added 2026-10-14. No measurement behind any of them.
 | `FIG4_BETA_OFFSET_DEG` | 0.090 ± 0.004° | `tests/test_scan.py`, notebook 03 | The digitized Fig. 4 peaks sit a constant +0.09° above the Bragg angles. The leaflet's Table 3 lists the measured angles at the Bragg angles, so the shift comes from how the figure was drawn, or from the digitizer: both panels share the pixel zero `x0 = 97`, and 1.9 px would explain it. It is constant across all six peaks (0.07–0.11°, no trend), and the linear panel alone gives 0.094°. The fit compares the model at β − offset, and `expected_rate` does not include it |
 
 ## Known deviations
+
+- **`tube_factor` counts photons without ε_GM(λ) weighting.** Its U-dependence is the photon rate leaving the tube, not what the GM counts (existing approximation, unchanged; the XRF flux scale does weight by `detector.gm_efficiency`).
 
 - **Line tips are 0.70–0.94 × Fig. 4.** The fit matches the log-panel wings. The tips come
   out 6–30 % low (Kβ in 2nd order is worst, 0.70; 1st- and 3rd-order Kα are best, 0.94). Freeing Kβ/Kα, giving the lines

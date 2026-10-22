@@ -32,3 +32,17 @@ def test_dead_time_correct_inverts_dead_time():
     assert dead_time_correct(dead_time(r, 1e-4), 1e-4) == approx(r, rel=1e-9, abs=1e-12)
     with pytest.raises(ValueError):
         dead_time_correct(1e4, 1e-4)
+
+
+def test_gm_efficiency_physical_trends():
+    from braggsim.constants import HC_KEV_PM
+    from braggsim.detector import gm_efficiency as eps
+
+    lam = lambda e: HC_KEV_PM / e  # noqa: E731
+    for e in (8.04, 17.48, 20.0, 35.0):
+        assert 0 < eps(lam(e)) < 1
+    assert eps(lam(8.04)) > eps(lam(17.48))  # the gas absorbs soft X-rays better
+    # Br K edge 13.474 keV: an upward step
+    assert eps(lam(13.47 * 0.999)) > 0 and eps(lam(13.48)) > 1.1 * eps(lam(13.46))
+    # thin gas: ε ∝ pressure
+    assert eps(lam(17.48), 1000.0) / eps(lam(17.48), 500.0) == pytest.approx(2.0, rel=0.02)
