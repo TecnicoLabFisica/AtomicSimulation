@@ -1,0 +1,156 @@
+// Strings of the Materials Forge view. They live here, in the view's lazy chunk, so the main bundle stays small.
+import { getLang } from '../i18n'
+
+const hkl = (h?: readonly number[] | null) => (h ? `(${h.join(' ')})` : '')
+
+const es = {
+  title: 'Forja de materiales',
+  intro: 'Diseña un cristal y mira al instante su espaciado, su densidad y qué órdenes de reflexión existen.',
+  startFrom: 'Empezar desde…',
+  name: 'Nombre del cristal',
+  lattice: 'Red',
+  lattices: {
+    cubic_p: 'Cúbica simple', cubic_i: 'Cúbica centrada en el cuerpo', cubic_f: 'Cúbica centrada en las caras',
+    rock_salt: 'Sal de roca (NaCl)', cscl: 'Cloruro de cesio (CsCl)', diamond: 'Diamante', zincblende: 'Blenda de zinc',
+    hexagonal: 'Hexagonal', general: 'General (celda libre)',
+  },
+  cell: 'Celda',
+  cellFields: { a_pm: 'a', b_pm: 'b', c_pm: 'c', alpha_deg: 'α', beta_deg: 'β', gamma_deg: 'γ' },
+  pm: 'pm', deg: '°', angstrom2: 'Å²',
+  slider: (f: string) => `${f} (control deslizante)`,
+  elements: 'Elementos',
+  element: (i: number) => `Elemento ${i}`,
+  debye: 'B (Å²)',
+  atoms: 'Átomos de la celda',
+  atomCols: { z: 'Elemento', x: 'x', y: 'y', z2: 'z', b: 'B (Å²)', occ: 'Ocupación' },
+  addAtom: 'Añadir átomo',
+  removeAtom: (i: number) => `Quitar el átomo ${i}`,
+  atomsFull: (n: number) => `Máximo ${n} átomos.`,
+  atomsHint: 'Posiciones fraccionarias de la celda. B y la ocupación son opcionales.',
+  cut: 'Plano de corte (h k l)',
+  cutHint: 'El plano paralelo a la cara del cristal. La serie de órdenes n sigue (nh nk nl).',
+  cutIndex: (k: string) => `Índice ${k}`,
+  model: 'Reflectividad',
+  models: { darwin: 'Cristal perfecto', mosaic_extinction: 'Mosaico', ideal_mosaic: 'Mosaico ideal' },
+  modelNotes: {
+    darwin: 'Cristal casi perfecto: la reflexión es estrecha y se satura (teoría dinámica de Darwin).',
+    mosaic_extinction: 'Cristal de bloques ligeramente desalineados, con extinción; elige su dispersión angular η.',
+    ideal_mosaic: 'Mosaico sin extinción: cada orden es proporcional a |F|². Es el caso límite didáctico.',
+  },
+  eta: 'Anchura del mosaico η (°)',
+  readout: 'Resultado',
+  d: 'Espaciado d', density: 'Densidad',
+  summary: (d: string, rho: string) => `d = ${d} pm · densidad ${rho} g/cm³`,
+  ordersTitle: 'Órdenes de reflexión',
+  cols: { n: 'n', hkl: 'Plano', status: 'Estado', f: '|Fₙ|²/|F₁|²', theta: 'θ (Mo Kα)' },
+  allowed: 'permitido', forbidden: 'prohibido',
+  outOfReach: 'fuera de alcance',
+  more: (n: number) => `+${n} órdenes más`,
+  calculating: 'Calculando…',
+  plotSlot: 'Aquí irá el espectro del cristal.',
+  errorTitle: 'No se puede construir este cristal',
+  errors: {
+    bad_cell: 'La celda no es válida: usa longitudes positivas y ángulos que formen una celda real.',
+    bad_atom: 'Algún átomo tiene datos no válidos. Cada uno necesita elemento, x, y, z, B y ocupación.',
+    bad_z: 'El número atómico debe estar entre 1 y 92.',
+    bad_occupancy: 'La ocupación debe ser mayor que 0 y como máximo 1.',
+    bad_b: 'B no puede ser negativo.',
+    b_too_large: 'B es demasiado grande para un cristal real. Prueba con un valor menor.',
+    site_overfilled: 'Hay átomos superpuestos en una misma posición y su ocupación suma más de 1.',
+    bad_cut: 'El plano de corte necesita tres enteros (h k l), no todos cero.',
+    cut_absent: (h?: readonly number[] | null) =>
+      `Esa reflexión está prohibida en este cristal${h ? `; prueba ${hkl(h)}` : ''}.`,
+    bad_model: 'Elige uno de los modelos de reflectividad.',
+    bad_mosaic: 'El mosaico necesita una anchura η mayor que 0.',
+    too_many_orders: 'La celda es demasiado grande: hay demasiados órdenes. Reduce la celda o elige un plano de corte de mayor índice.',
+    internal: 'Error interno al calcular. Vuelve a intentarlo.',
+    bad_link: 'El enlace no contiene un diseño válido.',
+  } as Record<string, string | ((h?: readonly number[] | null) => string)>,
+  errorUnknown: 'No se pudo calcular este diseño.',
+  warnings: {
+    atoms_too_close: 'Hay átomos a menos de 70 pm unos de otros: es poco físico.',
+    no_line_reflects: 'Ninguna línea Kα ni Kβ del Mo se refleja en este cristal con el goniómetro del equipo.',
+    many_orders: 'Hay muchos órdenes; el cálculo puede tardar un poco.',
+  } as Record<string, string>,
+}
+
+const en: typeof es = {
+  title: 'Materials Forge',
+  intro: 'Design a crystal and see its spacing, its density and which reflection orders exist, live.',
+  startFrom: 'Start from…',
+  name: 'Crystal name',
+  lattice: 'Lattice',
+  lattices: {
+    cubic_p: 'Simple cubic', cubic_i: 'Body-centred cubic', cubic_f: 'Face-centred cubic',
+    rock_salt: 'Rock salt (NaCl)', cscl: 'Caesium chloride (CsCl)', diamond: 'Diamond', zincblende: 'Zinc blende',
+    hexagonal: 'Hexagonal', general: 'General (free cell)',
+  },
+  cell: 'Cell',
+  cellFields: { a_pm: 'a', b_pm: 'b', c_pm: 'c', alpha_deg: 'α', beta_deg: 'β', gamma_deg: 'γ' },
+  pm: 'pm', deg: '°', angstrom2: 'Å²',
+  slider: (f: string) => `${f} (slider)`,
+  elements: 'Elements',
+  element: (i: number) => `Element ${i}`,
+  debye: 'B (Å²)',
+  atoms: 'Atoms in the cell',
+  atomCols: { z: 'Element', x: 'x', y: 'y', z2: 'z', b: 'B (Å²)', occ: 'Occupancy' },
+  addAtom: 'Add atom',
+  removeAtom: (i: number) => `Remove atom ${i}`,
+  atomsFull: (n: number) => `At most ${n} atoms.`,
+  atomsHint: 'Fractional positions in the cell. B and occupancy are optional.',
+  cut: 'Cut plane (h k l)',
+  cutHint: 'The plane parallel to the crystal face. The series of orders n follows (nh nk nl).',
+  cutIndex: (k: string) => `Index ${k}`,
+  model: 'Reflectivity',
+  models: { darwin: 'Perfect crystal', mosaic_extinction: 'Mosaic', ideal_mosaic: 'Ideal mosaic' },
+  modelNotes: {
+    darwin: 'Nearly perfect crystal: the reflection is narrow and saturates (Darwin dynamical theory).',
+    mosaic_extinction: 'Slightly misaligned blocks, with extinction; choose their angular spread η.',
+    ideal_mosaic: 'Mosaic without extinction: each order is proportional to |F|². The teaching limit case.',
+  },
+  eta: 'Mosaic width η (°)',
+  readout: 'Result',
+  d: 'Spacing d', density: 'Density',
+  summary: (d: string, rho: string) => `d = ${d} pm · density ${rho} g/cm³`,
+  ordersTitle: 'Reflection orders',
+  cols: { n: 'n', hkl: 'Plane', status: 'Status', f: '|Fₙ|²/|F₁|²', theta: 'θ (Mo Kα)' },
+  allowed: 'allowed', forbidden: 'forbidden',
+  outOfReach: 'out of reach',
+  more: (n: number) => `+${n} more orders`,
+  calculating: 'Calculating…',
+  plotSlot: 'The crystal’s spectrum will appear here.',
+  errorTitle: 'This crystal cannot be built',
+  errors: {
+    bad_cell: 'The cell is not valid: use positive lengths and angles that make a real cell.',
+    bad_atom: 'Some atom has invalid data. Each needs an element, x, y, z, B and occupancy.',
+    bad_z: 'The atomic number must be between 1 and 92.',
+    bad_occupancy: 'Occupancy must be above 0 and at most 1.',
+    bad_b: 'B cannot be negative.',
+    b_too_large: 'B is too large for a real crystal. Try a smaller value.',
+    site_overfilled: 'Atoms overlap on one site and their occupancy adds up to more than 1.',
+    bad_cut: 'The cut plane needs three integers (h k l), not all zero.',
+    cut_absent: (h?: readonly number[] | null) =>
+      `That reflection is forbidden in this crystal${h ? `; try ${hkl(h)}` : ''}.`,
+    bad_model: 'Choose one of the reflectivity models.',
+    bad_mosaic: 'The mosaic needs a width η above 0.',
+    too_many_orders: 'The cell is too large: there are too many orders. Shrink the cell or pick a higher-index cut.',
+    internal: 'Internal error while calculating. Try again.',
+    bad_link: 'The link does not hold a valid design.',
+  },
+  errorUnknown: 'This design could not be calculated.',
+  warnings: {
+    atoms_too_close: 'Some atoms are closer than 70 pm: that is unphysical.',
+    no_line_reflects: 'No Mo Kα or Kβ line reflects from this crystal within the apparatus goniometer range.',
+    many_orders: 'There are many orders; the calculation may take a moment.',
+  },
+}
+
+export const FORGE_I18N = { es, en }
+export type ForgeDict = typeof es
+export const ft = (): ForgeDict => FORGE_I18N[getLang()]
+
+/** The human text of an error code (hint = the smallest present multiple of the cut, for cut_absent). */
+export function errorText(code: string, hint?: readonly number[] | null, d: ForgeDict = ft()): string {
+  const e = d.errors[code]
+  return typeof e === 'function' ? e(hint) : (e ?? d.errorUnknown)
+}

@@ -1,6 +1,7 @@
 // TS-only helpers for the Forge view (no physics, no Python counterpart): lattice templates that expand to the
 // conventional-cell basis of a ForgeInput, and the share-link codec. forgeEntry does the physical validation.
 import { ForgeInputError, type ForgeInput } from './forge'
+import { NACL_THERMAL_B_A2 } from './constants'
 
 /** UI/trust-boundary cap on basis rows. */
 export const MAX_ATOMS = 64
@@ -60,6 +61,21 @@ export function expandLattice(t: LatticeId, p: LatticeParams): number[][] {
   if (LATTICES[t].manualAtoms) return p.atoms ? p.atoms.map((r) => [...r]) : [[p.elements[0], 0, 0, 0, B(0), 1]]
   return (SITES[t] as number[][][]).flatMap((pts, i) => pts.map((q) => [p.elements[i], ...q, B(i), 1]))
 }
+
+// ---- presets of the Forge view -------------------------------------------------------------------------------------
+
+export type Preset = {
+  id: string; lattice: LatticeId; a_pm: number; elements: readonly number[]; B_A2: readonly number[]
+  cut: readonly number[]; model: ForgeInput['reflectivity_model']; eta_deg: number | null
+}
+/** "Start from" designs. a, B, cut and model follow model/PARAMETERS.md (LiF B: assumption there; Si B: Heacock et al. 2021).
+ * KCl's B is the UI default DEFAULT_B_A2 (assumption, no source read); its a = 629.3 pm and η = 0.2° are a rough rock-salt-like choice. */
+export const PRESETS: readonly Preset[] = [
+  { id: 'NaCl', lattice: 'rock_salt', a_pm: 564.02, elements: [11, 17], B_A2: [NACL_THERMAL_B_A2, NACL_THERMAL_B_A2], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.2 },
+  { id: 'LiF', lattice: 'rock_salt', a_pm: 402.7, elements: [3, 9], B_A2: [1.0, 0.65], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.05 },
+  { id: 'Si', lattice: 'diamond', a_pm: 543.102, elements: [14], B_A2: [0.476], cut: [1, 1, 1], model: 'darwin', eta_deg: null },
+  { id: 'KCl', lattice: 'rock_salt', a_pm: 629.3, elements: [19, 17], B_A2: [DEFAULT_B_A2, DEFAULT_B_A2], cut: [2, 0, 0], model: 'mosaic_extinction', eta_deg: 0.2 },
+]
 
 // ---- share link ---------------------------------------------------------------------------------------------------
 

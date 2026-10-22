@@ -390,6 +390,59 @@ button, select { font: inherit; color: inherit; }
   .stage[data-inspector] .focus-card { left: calc((100cqw - 28rem) / 2); max-width: calc(100cqw - 30rem); }
 }
 
+/* ── Materials Forge: a full-screen sheet on phones, a large centred panel on desktop ── */
+.forge-sheet { position: fixed; inset: 0; z-index: var(--z-sheet); background: var(--bg); overflow: hidden; }
+.forge-sheet[data-open='false'] { display: none; }
+.forge-sheet:focus { outline: none; }
+.forge-panel { position: relative; height: 100%; display: flex; flex-direction: column; background: var(--surface); }
+.forge-head { padding: var(--space-3) var(--space-4); padding-right: calc(var(--touch) + var(--space-4)); min-height: calc(var(--touch) + var(--space-2)); display: flex; align-items: center; }
+.forge-head h2 { font: var(--text-title); color: var(--label); }
+.forge-summary {
+  padding: var(--space-2) var(--space-4); min-height: calc(var(--space-6) + var(--space-2)); font: var(--text-headline);
+  font-variant-numeric: tabular-nums; border-block: var(--stroke-hair) solid var(--separator); background: var(--surface-2);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.forge-sheet[data-pending='true'] .forge-summary { color: var(--label-2); }
+.forge-summary[data-state='error'] { color: var(--danger); font: var(--text-callout); }
+.forge-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; align-content: start; gap: var(--space-5); padding: var(--space-4); }
+.forge-controls, .forge-out { min-width: 0; }
+.forge-out h3 { font: var(--text-headline); margin: 0 0 var(--space-2); }
+.forge-controls fieldset { border: none; margin: 0 0 var(--space-4); padding: 0; min-width: 0; }
+.forge-controls legend { font: var(--text-headline); padding: 0; margin-bottom: var(--space-2); }
+.forge-field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-3); font: var(--text-callout); }
+.forge-field > label { grid-column: 1 / -1; color: var(--label-2); font: var(--text-footnote); }
+.forge-field > input[type='range'] { grid-column: 1 / -1; width: 100%; min-height: var(--touch); accent-color: var(--accent); }
+.forge-field.slot { grid-template-columns: 1fr 1fr; }
+.forge-field.slot > label { grid-column: auto; }
+.forge-controls input[type='text'], .forge-controls input[type='number'], .forge-controls select {
+  min-height: var(--touch); padding: 0 var(--space-3); border: none; border-radius: var(--radius-s); background: var(--fill);
+  font: var(--text-callout); font-variant-numeric: tabular-nums; width: 100%; min-width: 0;
+}
+.forge-field > input[type='text'], .forge-field > select { grid-column: 1 / -1; }
+.forge-field > input[type='number'] { grid-column: 1 / -1; }
+.forge-cut { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); }
+.forge-cut label { display: grid; gap: var(--space-1); font: var(--text-footnote); color: var(--label-2); }
+.forge-model { display: flex; gap: var(--space-3); align-items: flex-start; min-height: var(--touch); padding: var(--space-2) 0; }
+.forge-model input { flex: none; width: var(--space-5); height: var(--space-5); margin: var(--space-1) 0 0; accent-color: var(--accent); }
+.forge-model b { display: block; font-weight: 600; }
+.forge-scroll { overflow-x: auto; max-width: 100%; }
+.forge-scroll table { border-collapse: collapse; width: 100%; font: var(--text-footnote); font-variant-numeric: tabular-nums; }
+.forge-scroll th { text-align: left; color: var(--label-2); font-weight: 500; padding: var(--space-1) var(--space-2); white-space: nowrap; }
+.forge-scroll td { padding: var(--space-1) var(--space-2); border-top: var(--stroke-hair) solid var(--separator); white-space: nowrap; }
+.forge-atoms td input, .forge-atoms td select { min-width: 5.5rem; }
+.forge-orders tr[data-allowed='false'] td { color: var(--label-2); text-decoration: line-through; text-decoration-color: var(--label-3); }
+.forge-orders tr[data-allowed='false'] td:nth-child(3) { text-decoration: none; font-style: italic; }
+.forge-warn { margin: 0 0 var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); background: var(--fill); font: var(--text-footnote); color: var(--label); }
+.forge-add { min-height: var(--touch); margin-top: var(--space-2); padding: 0 var(--space-4); border: none; border-radius: var(--radius-full); background: var(--fill); cursor: pointer; }
+.forge-add:disabled, .forge-atoms .tool:disabled { opacity: 0.5; cursor: not-allowed; }
+.forge-plot { margin-top: var(--space-4); }
+@media (min-width: 1024px) {
+  .forge-sheet { background: color-mix(in srgb, var(--bg) 70%, transparent); display: grid; place-items: center; }
+  .forge-sheet[data-open='false'] { display: none; }
+  .forge-panel { width: min(72rem, calc(100% - 2 * var(--space-5))); height: calc(100% - 2 * var(--space-5)); border-radius: var(--radius-l); box-shadow: var(--shadow-sheet); overflow: hidden; }
+  .forge-body { grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); gap: var(--space-6); padding: var(--space-5); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Keep the signal, drop the flashing: steady colour plus an outline. */
   .lamp.on, .led.blink, .group.alert .key:not([data-key='ZERO']), .done { animation: none; }

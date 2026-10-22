@@ -28,6 +28,7 @@ const es = {
   spectrumExposures: (n: number) =>
     `${n === 1 ? '1 exposición registrada' : `${n} exposiciones registradas`}. Con Δβ = 0 no hay espectro: REPLAY muestra la última y CSV las descarga todas.`,
   spectrumExposuresShort: (n: number) => (n === 1 ? '1 exposición registrada' : `${n} exposiciones registradas`),
+  forge: 'Forja',
   huygens: 'Diferencia de camino',
   huygensNote:
     'Cada plano dispersa una pequeña parte del haz. La onda del plano inferior recorre 2d sen θ más; se suman en fase solo si 2d sen θ = nλ.',
@@ -171,6 +172,7 @@ const en: Dict = {
   spectrumExposures: (n: number) =>
     `${n === 1 ? '1 exposure' : `${n} exposures`} logged. With Δβ = 0 there is no spectrum: REPLAY shows the last one and CSV downloads them all.`,
   spectrumExposuresShort: (n: number) => (n === 1 ? '1 exposure logged' : `${n} exposures logged`),
+  forge: 'Forge',
   huygens: 'Path difference',
   huygensNote:
     'Each plane scatters a small part of the beam. The wave from the lower plane travels 2d sin θ further; they add in phase only if 2d sin θ = nλ.',

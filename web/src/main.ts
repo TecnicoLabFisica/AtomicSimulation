@@ -8,6 +8,7 @@ import { mountLearn, pt } from './pedagogy/card'
 import { mountExplore } from './pedagogy/explore'
 import { getMode, setMode } from './pedagogy/mode'
 import type { Focus, mountBench, Pick } from './views/bench'
+import type { mountForge } from './views/forge'
 import { readPalette } from './views/canvas'
 import { mountGoniometer } from './views/goniometer'
 import { mountHuygens } from './views/huygens'
@@ -33,6 +34,7 @@ app.innerHTML = `
       </label>
       <button class="tool" data-learn aria-controls="learn" aria-pressed="false"></button>
       <button class="tool explore" data-huygens aria-controls="huygens" aria-pressed="false">λ</button>
+      <button class="tool explore" data-forge aria-controls="forge" aria-pressed="false"></button>
       <button class="tool" data-theme></button>
       <button class="tool" data-lang></button>
     </div>
@@ -71,7 +73,8 @@ app.innerHTML = `
       <button class="tool close" data-close aria-label="">×</button>
       <div class="huygens" data-huygens-body></div>
     </aside>
-  </main>`
+  </main>
+  <div class="forge-sheet" id="forge" role="dialog" aria-modal="true" tabindex="-1" data-open="false" inert></div>`
 const q = <T extends HTMLElement = HTMLElement>(sel: string) => app.querySelector<T>(sel)!
 
 // Theme: automatic (system), light or dark; remembered where storage works.
@@ -132,6 +135,7 @@ function labels() {
   q('[data-huygens]').setAttribute('aria-label', s.huygens)
   q('[data-huygens]').title = s.huygens
   q('[data-learn]').textContent = pt().learn
+  q('[data-forge]').textContent = s.forge
   const themeLabel = `${s.theme}: ${s.themes[theme]}`
   q('[data-theme]').setAttribute('aria-label', themeLabel)
   q('[data-theme]').title = themeLabel
@@ -216,8 +220,27 @@ import('./views/bench')
     q('[data-no3d]').hidden = false
   })
 
+// The Materials Forge: a full-screen sheet in its own lazy chunk (the worker and tables load when it builds).
+const forgeSheet = q('#forge')
+let forge: ReturnType<typeof mountForge> | null = null
+async function openForge(open: boolean) {
+  if (open && !forge) {
+    try {
+      forge = (await import('./views/forge')).mountForge(forgeSheet)
+    } catch {
+      return // chunk failed to load: the button just does nothing
+    }
+  }
+  forgeSheet.dataset.open = String(open)
+  forgeSheet.inert = !open
+  q('[data-forge]').setAttribute('aria-pressed', String(open))
+  // ponytail: focus moves in and back, no focus trap (Esc closes it)
+  ;(open ? forgeSheet : q('[data-forge]')).focus()
+}
+
 /** Explore ↔ Lab: lab mode hides every reveal (λ panel, overlays, sliders, λ in the readout). */
 function applyMode() {
+  if (getMode() === 'lab' && forgeSheet.dataset.open === 'true') void openForge(false)
   if (getMode() === 'lab' && huygensSheet.dataset.open === 'true') openSheet(huygensSheet, false, false)
   labels()
 }
@@ -229,6 +252,8 @@ app.addEventListener('click', (e) => {
   if (b.dataset.go) setFocus(b.dataset.go as Focus)
   else if (b.dataset.back !== undefined) setFocus('room')
   else if (b.dataset.door !== undefined) toggleDoor()
+  else if (b.dataset.forge !== undefined) void openForge(forgeSheet.dataset.open !== 'true')
+  else if (b.dataset.forgeClose !== undefined) void openForge(false)
   else if (b.dataset.huygens !== undefined) openSheet(huygensSheet, huygensSheet.dataset.open !== 'true')
   else if (b.dataset.learn !== undefined) openSheet(learnSheet, learnSheet.dataset.open !== 'true')
   else if (b.dataset.close !== undefined) openSheet(b.closest<HTMLElement>('.inspector')!, false)
@@ -249,6 +274,7 @@ app.addEventListener('click', (e) => {
     explore.build()
     setup.build()
     learn.build()
+    forge?.build()
   }
 })
 q<HTMLSelectElement>('[data-scale]').addEventListener('change', (e) => {
@@ -256,6 +282,7 @@ q<HTMLSelectElement>('[data-scale]').addEventListener('change', (e) => {
 })
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return
+  if (forgeSheet.dataset.open === 'true') return void openForge(false)
   const inspector = inspectors.find((o) => o.dataset.open === 'true')
   if (inspector) openSheet(inspector, false)
   else setFocus('room')

@@ -433,7 +433,7 @@ function cellScale(c: Design): number {
 // ---- Public API ----------------------------------------------------------------------------------------------------
 
 /** port of braggsim.forge.entry (+ forged): the crystals.json entry of a user-designed crystal, computed here from
- * forge_elements.json only (await loadForgeElements(); the cross-crystal scale also needs loadCrystals()). Throws
+ * forge_elements.json only (await loadForgeElements(); the cross-crystal scale uses the built-in NACL). Throws
  * ForgeInputError (a RangeError with a stable `code`; Python: ForgeInputError) for an invalid design and for more than 120 orders. The result is deep-frozen and
  * can be passed to expectedRate as it is. */
 export function forgeEntry(input: ForgeInput): Crystal {
