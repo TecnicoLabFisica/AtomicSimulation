@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-22
 current_phase: L3
-next_task: L3.6
+next_task: L3.8
 last_session: 2026-10-22
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L3.6` (MCA view; load `bragg-ui`). L3.1–L3.5 done and pushed 2026-10-22 (3cd4f88..56fc7c6, Pages deploy green). Open: Q10 (lab), Q12 (GM ε(λ) consistency, decide before L3.8 quotes absolute counts); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
+> **Next:** `L3.8` (XRF tasks; use `write-guided-task`; the success checks must test the 45° target step). L3.6–L3.7 done 2026-10-22, local and unpushed. L3.1–L3.5 pushed (3cd4f88..56fc7c6). Open: Q10 (lab), Q12 (GM ε(λ) consistency, decide before L3.8 quotes absolute counts); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -64,7 +64,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
 | L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
 | L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
-| L3 | Práctica 6: X-ray fluorescence | 🟨 in progress (S1–S3 done) | 5–6 | G1 |
+| L3 | Práctica 6: X-ray fluorescence | 🟨 in progress (S1–S4 done) | 5–6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
@@ -452,11 +452,29 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 > - Bug hunt before it: the XRF flux mixed ε = 1 and ε_GM weightings (anchored at 35 kV); now anchored at the 21 kV reading (`scan.DIRECT_ANCHOR_*`), rates ×0.57. Validation: integer channel count, NaN t_s and gain rejected in both languages.
 
 #### S4 — MCA view
-- [ ] **L3.6** New view `web/src/views/mca.ts`: counts vs channel, live accumulation, settings (channels, gain, time),
+- [x] **L3.6** New view `web/src/views/mca.ts`: counts vs channel, live accumulation, settings (channels, gain, time),
       two-point energy calibration that switches the axis to keV, log toggle. Lab mode shows channels until the student calibrates.
       Load `bragg-ui` and use uPlot (already installed).
-- [ ] **L3.7** Apparatus: with `detector = energy`, the 554 800 rate display is idle and the MCA counts. The sensor arm must be set
+- [x] **L3.7** Apparatus: with `detector = energy`, the 554 800 rate display is idle and the MCA counts. The sensor arm must be set
       to 90° *before* mounting (the guide's warning), so refuse the mount otherwise.
+
+> [!note] As built (2026-10-22), L3.6–L3.7 (local, unpushed)
+> - **Apparatus:** `Setup.detector` ('gm' | 'energy') and `Setup.sample`, with holder `'sample'`. The energy mount is refused unless the sensor rests at 90.0° (and not while the motor drives).
+>   - **Refused with alert `detector` while it is mounted (user, 2026-10-22):** SENSOR/COUPLED, ZERO, sensor ADJUST and *every* auto-scan. On the real device every auto-scan drives both arms to zero first. The exposure timer stays allowed.
+>   - **RESET** keeps the sensor at 90° and warns (`detectorReset`): the real one would crash the detector.
+>   - **Rate display** is 0 (no GM plugged in). The GM with a sample on the holder sees background only (ponytail).
+> - **`web/src/apparatus/mca.ts`:** `Mca` device. Settings 512 ch / −2.5 / 180 s; a settings change clears counts and calibration. It runs on the simulated clock (through the self-test too) and stops at the preset real time.
+>   - Expected counts/s come from `mcaSpectrum(…, tS = 1)`, cached on (sample, U, I, n, gain). Poisson is sampled per channel per tick.
+>   - It counts only with the energy detector, a sample on the holder and the tube emitting.
+> - **`web/src/views/mca.ts`** (own lazy chunk, 5.2 kB gz): the monitor card and the 3D monitor show it instead of the GM spectrum while the energy detector is mounted.
+>   - Step histogram with lin/log (empty channels on the floor). Tap, arrow-key or ‹ › nudge cursor with a readout; the plot is a slider for screen readers.
+>   - Two-point calibration (`twoPointCalibration`, new port of `analysis.two_point_calibration` + fixture). Lab shows channels until calibrated; Explore shows true keV.
+> - **Goniometer:** draws the 559 938 box and the sample plate.
+> - **Reviews:** apparatus (3 high: preset-shrink freeze, mount while the motor drives, TARGET auto-scan accepted) and design (tray layout, touch cursor, log gaps, a11y). All applied, browser-checked in headless Firefox at 1440 and 500 px (its minimum width), light and dark. The brass calibration with ch 103 → 8.04 and ch 135 → 10.55 gives 0.0784 keV/ch (true 0.0781).
+> - **For L3.8:** the model fixes ψ1 = ψ2 = 45°, so the target angle does not change the spectrum. The task success check must test the 45° step.
+>   - s1 = s2 = 6 cm is not modelled or shown.
+>   - `mcaSpectrum` is recomputed on every U/I detent while a run counts: throttle it if phones jank.
+>   - No x-zoom on the MCA plot yet (the GM spectrum has drag-zoom).
 
 #### S5 — Tasks
 - [ ] **L3.8** `xrf-calibration` (Cu, Pb → calibrate), `xrf-brass` (identify the lines, fit, composition; the check is on the
@@ -823,6 +841,15 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 ## Session log
 
 Newest first. One entry per session. This is what the next session reads to know what happened.
+
+### 2026-10-22 · L3 · tasks L3.6, L3.7 (S4)
+- Done: MCA view, energy-detector mode, two-point calibration port (Sonnet builder, then a Sonnet fixer after the apparatus and design reviews; small CSS and i18n fixes by Opus). Local, unpushed.
+- Verify: pytest 343, Vitest 324 → 338, build OK (index 65.15 kB gz; i18n/canvas split into their own eager chunks, eager total ≈ +3 kB; mca 5.2 kB lazy). Export byte-identical. Browser walkthrough of the guide's setup order in headless Firefox (scratchpad script).
+- Surprises / decisions:
+  - User decided the monitor switches to the MCA, and sensor motion is refused with an alert.
+  - The real auto-scan always drives both arms to zero, so every auto-scan is refused with the energy detector.
+  - The 45° target step is unchecked by the physics; L3.8 must check it.
+- Next: L3.8 tasks (`xrf-calibration`, `xrf-brass`, `xrf-coin`). Q12 must be decided before they quote absolute counts.
 
 ### 2026-10-22 · L3 · tasks L3.1–L3.4 (Python half)
 - Done: pushed F1–F3 (382ef03..3cd4f88, user). Q11 closed unbuilt (user). Plan formula fixed (Sherman 1/sinψ1). L3.1–L3.2 `fluorescence.py` (d754fbb), L3.3–L3.4 detector/MCA/fits/composition + notebook 07 (22fcfb0). Local, unpushed.
