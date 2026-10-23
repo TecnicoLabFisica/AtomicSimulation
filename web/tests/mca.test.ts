@@ -5,11 +5,12 @@ import { Apparatus, ENERGY_SENSOR, SAFE_S, OK_S, type Key } from '../src/apparat
 import { Mca } from '../src/apparatus/mca'
 import { kevPerChannel, mulberry32 } from '../src/physics/detector'
 import { mcaSpectrum } from '../src/physics/fluorescence'
+import { directRate } from '../src/physics/scan'
 import { mcaCsv } from '../src/pedagogy/csv'
-import { usable } from '../src/pedagogy/tasks/xrf-common'
-import { loadXrfSample } from '../src/physics/tables'
+import { sameBeam, usable } from '../src/pedagogy/tasks/xrf-common'
+import { loadAbsorbers, loadXrfSample } from '../src/physics/tables'
 
-beforeAll(() => loadXrfSample('Cu'))
+beforeAll(() => Promise.all([loadXrfSample('Cu'), loadAbsorbers()]))
 
 describe('Mca', () => {
   test('mean counts per channel = expected · t over seeded runs', () => {
@@ -93,6 +94,17 @@ describe('energy detector on the apparatus', () => {
     a.press('HV')
     a.tick(SETTLE_S)
   }
+
+  test('an XRF sample blocks the direct beam: the GM at 0° sees background, no beam is drawn through it', () => {
+    const a = new Apparatus(mulberry32(5))
+    a.setDoors(false)
+    expect(a.mount({ holder: 'sample', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null, detector: 'gm', sample: 'Cu' })).toBe(true)
+    a.setDoors(true)
+    emit(a)
+    expect(a.hvOn && a.sensor === 0).toBe(true)
+    expect(a.expectedRate()).toBe(directRate(0, 0, []))
+    expect(a.transmittedRate()).toBe(0)
+  })
 
   test('mount refused off 90° with alert detector; accepted at 90°', () => {
     const off = bench(800)
@@ -230,12 +242,12 @@ describe('energy detector on the apparatus', () => {
 })
 
 describe('MCA run log and CSV', () => {
-  const bench = (scan = false) => {
+  const bench = (scan = false, sensorFilter: string | null = null) => {
     const a = new Apparatus(mulberry32(5))
     a.press('SENSOR')
     a.adjust(ENERGY_SENSOR)
     a.setDoors(false)
-    expect(a.mount({ holder: 'sample', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null, detector: 'energy', sample: 'Cu' })).toBe(true)
+    expect(a.mount({ holder: 'sample', crystal: 'NaCl', collimatorFilter: null, sensorFilter, detector: 'energy', sample: 'Cu' })).toBe(true)
     a.setDoors(true)
     a.press('U')
     a.adjust(350 - a.u)
@@ -268,6 +280,23 @@ describe('MCA run log and CSV', () => {
     expect(a.mcaLog[0]).toMatchObject({ sample: 'Cu', u: 350, i: 100, target: 0, nChannels: 512, gain: -2.5, presetS: 10, realS: 10, changed: false })
     a.clearMcaLog()
     expect(a.mcaLog).toHaveLength(0)
+  })
+
+  test('a sensor foil is logged, lowers the counts, separates the runs and appears in the CSV', () => {
+    const total = (a: Apparatus) => a.mca.counts.reduce((s, c) => s + c, 0)
+    const bare = bench()
+    bare.mca.start()
+    bare.tick(20)
+    const foil = bench(false, 'Cu')
+    foil.mca.start()
+    foil.tick(20)
+    expect(foil.mcaLog.at(-1)).toMatchObject({ sensorFilter: 'Cu', collimatorFilter: null })
+    expect(bare.mcaLog.at(-1)).toMatchObject({ sensorFilter: null })
+    expect(total(foil)).toBeGreaterThan(0)
+    expect(total(foil)).toBeLessThan(total(bare))
+    expect(sameBeam(foil.mcaLog[0], bare.mcaLog[0])).toBe(false)
+    expect(mcaCsv(foil)).toContain('sensor filter Cu')
+    expect(mcaCsv(bare)).toContain('sensor filter none')
   })
 
   test('changed after a U or a target change mid-run; the record keeps the start values; RESET keeps the log', () => {

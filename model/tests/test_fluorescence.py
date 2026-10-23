@@ -10,6 +10,7 @@ from scipy import integrate, special
 from braggsim import detector
 from braggsim import fluorescence as fl
 from braggsim.constants import HC_KEV_PM, MO_KA_KEV
+from braggsim.filters import FOILS_MM, areal_density_mg_cm2, transmission
 
 SIN45 = math.sin(math.radians(45))
 
@@ -280,3 +281,91 @@ def test_detected_line_counts_match_the_spectrum():
         * live
     )
     assert counts[(e > 7.5) & (e < 8.6)].sum() > 0.95 * d["Cu Kα"]
+
+
+_FOIL = lambda m: ((m, areal_density_mg_cm2(m, FOILS_MM[m])),)  # noqa: E731
+
+
+def test_sensor_foil_scales_each_line_by_its_transmission_at_the_detected_energy():
+    # Fe K edge 7.11 keV: Cu Kα (8.04) sits above it and is cut far harder than Fe Kα (6.40).
+    foil = _FOIL("Fe")
+    bare = {ln.label: ln for ln in fl.line_rates("centavo2003", 35.0, 1.0)}
+    cut = {ln.label: ln for ln in fl.line_rates("centavo2003", 35.0, 1.0, sensor_filters=foil)}
+    for label, ln in bare.items():
+        if "Compton" in label or "Rayleigh" in label:
+            continue  # two components: checked below
+        want = transmission(HC_KEV_PM / ln.energy_keV, *foil[0])
+        assert cut[label].rate_per_s == pytest.approx(ln.rate_per_s * want, rel=1e-9)
+    t_cu = cut["Cu Kα"].rate_per_s / bare["Cu Kα"].rate_per_s
+    t_fe = cut["Fe Kα"].rate_per_s / bare["Fe Kα"].rate_per_s
+    assert t_fe > 1e30 * t_cu
+    # Mo Kα Rayleigh: each component attenuated at its own λ; Compton at λ + 2.426 pm
+    for kind, shift in (("Rayleigh", 0.0), ("Compton", fl.COMPTON_SHIFT_PM)):
+        got = cut[f"Mo Kα {kind}"].rate_per_s / bare[f"Mo Kα {kind}"].rate_per_s
+        t = [transmission(lam + shift, *foil[0]) for lam, _ in fl.MO_KA_COMPONENTS]
+        assert min(t) <= got <= max(t)
+
+
+def test_sensor_foil_attenuates_the_scattered_continuum_at_the_detected_wavelength():
+    foil = _FOIL("Fe")
+    bare = fl.scattered_continuum("Cu", 35.0, 1.0)
+    cut = fl.scattered_continuum("Cu", 35.0, 1.0, sensor_filters=foil)
+    for kind in ("rayleigh", "compton"):
+        e = bare[kind][0]
+        want = transmission(HC_KEV_PM / e, *foil[0])
+        assert np.all(cut[kind][0] == e)
+        assert cut[kind][1] == pytest.approx(bare[kind][1] * want, rel=1e-9)
+
+
+def test_zirconium_collimator_foil_cuts_mo_kb_more_than_ka_across_the_zr_k_edge():
+    # Zr K edge 17.998 keV lies between Mo Kα (17.48) and Mo Kβ (19.6)
+    bare = {ln.label: ln.rate_per_s for ln in fl.line_rates("Cu", 35.0, 1.0)}
+    cut = {
+        ln.label: ln.rate_per_s
+        for ln in fl.line_rates("Cu", 35.0, 1.0, collimator_filters=_FOIL("Zr"))
+    }
+    t_ka = cut["Mo Kα Rayleigh"] / bare["Mo Kα Rayleigh"]
+    t_kb = cut["Mo Kβ Rayleigh"] / bare["Mo Kβ Rayleigh"]
+    assert t_kb < 0.5 * t_ka < 0.5
+    # the Kα1/Kα2 mix lies between the foil's transmissions at the two components
+    t = [transmission(lam, *_FOIL("Zr")[0]) for lam, _ in fl.MO_KA_COMPONENTS]
+    assert min(t) <= t_ka <= max(t)
+
+
+def test_filtered_rates_stay_linear_in_current_and_counts_follow_the_filtered_spectrum():
+    foils = {"collimator_filters": _FOIL("Zr"), "sensor_filters": _FOIL("Fe")}
+    full = fl.line_rates("CuZn39Pb3", 35.0, 1.0, **foils)
+    half = fl.line_rates("CuZn39Pb3", 35.0, 0.5, **foils)
+    for a, b in zip(full, half, strict=True):
+        assert b.rate_per_s == pytest.approx(0.5 * a.rate_per_s, rel=1e-12)
+    d = fl.detected_line_counts("Cu", 35, 1, 180, **foils)
+    live = fl.mca_spectrum("Cu", 35, 1, 180, **foils)[1]
+    ka = next(ln for ln in fl.line_rates("Cu", 35, 1, **foils) if ln.label == "Cu Kα")
+    assert d["Cu Kα"] == pytest.approx(
+        ka.rate_per_s * float(detector.pin_efficiency(ka.energy_keV)) * live, rel=1e-12
+    )
+
+
+def test_copper_sensor_foil_removes_zn_kb_relative_to_cu_kb_across_the_cu_k_edge():
+    # Cu K edge 8.979 keV lies between Cu Kβ (8.91) and Zn Kβ (10.26): only the latter is stopped
+    foil = _FOIL("Cu")
+    bare = {ln.label: ln for ln in fl.line_rates("CuZn39Pb3", 35.0, 1.0)}
+    cut = {ln.label: ln for ln in fl.line_rates("CuZn39Pb3", 35.0, 1.0, sensor_filters=foil)}
+    ratio = lambda r: r["Zn Kβ"].rate_per_s / r["Cu Kβ"].rate_per_s  # noqa: E731
+    t = lambda ln: transmission(HC_KEV_PM / ln.energy_keV, *foil[0])  # noqa: E731
+    assert ratio(cut) / ratio(bare) == pytest.approx(t(bare["Zn Kβ"]) / t(bare["Cu Kβ"]), rel=1e-9)
+    assert ratio(cut) < 1e-3 * ratio(bare)
+
+
+def test_copper_collimator_foil_cu_ka_cut_is_set_by_the_continuum_not_the_mo_line_alone():
+    # Cu Kα is excited by the Mo Kα,β lines (T ≈ 5 %: 17-20 keV is far above the foil's edge, still
+    # absorbed) AND by the continuum up to 35 keV, which the foil passes better; so Cu Kα falls
+    # less than the Mo Kα line itself, but still falls.
+    foil = _FOIL("Cu")
+    bare = {ln.label: ln.rate_per_s for ln in fl.line_rates("Cu", 35.0, 1.0)}
+    cut = {
+        ln.label: ln.rate_per_s for ln in fl.line_rates("Cu", 35.0, 1.0, collimator_filters=foil)
+    }
+    t_cu_ka = cut["Cu Kα"] / bare["Cu Kα"]
+    t_mo_ka = cut["Mo Kα Rayleigh"] / bare["Mo Kα Rayleigh"]
+    assert t_mo_ka < t_cu_ka < 1

@@ -7,7 +7,7 @@ import { mulberry32, poisson, type Rng } from '../physics/detector'
 import { BETA_MAX_DEG, BETA_MIN_DEG, DEFAULT, directRate, expectedRate, type ModelParams } from '../physics/scan'
 import { crystalByName, type Crystal } from '../physics/crystal'
 import { mcaSpectrum } from '../physics/fluorescence'
-import { FOILS_MG_CM2, WHEELS_MG_CM2, XRF, absorbersLoaded } from '../physics/tables'
+import { FOILS_MG_CM2, WHEELS_MG_CM2, XRF, absorbersLoaded, foilOf } from '../physics/tables'
 import { Mca } from './mca'
 
 export type Key =
@@ -88,6 +88,8 @@ export type ExposureRecord = Readonly<{
 /** One finished MCA run (simulation aid, like ExposureRecord: the analyser only shows the spectrum on show). */
 export type McaRecord = Readonly<{
   sample: string
+  collimatorFilter: string | null // foils mounted when the run started counting
+  sensorFilter: string | null
   u: number // 0.1 kV, when the run started counting
   i: number // 0.01 mA, when the run started counting
   target: number // 0.1°, wrapped, when the run started counting
@@ -163,7 +165,7 @@ export class Apparatus {
   private _exposures: ExposureRecord[] = []
   private _mcaRuns: McaRecord[] = []
   /** The conditions when the current run started counting from real time 0 (set on its first tick). */
-  private mcaRun: { key: string; sample: string; u: number; i: number; target: number; changed: boolean; seen: boolean; loggedS?: number } | null = null
+  private mcaRun: { key: string; sample: string; collimatorFilter: string | null; sensorFilter: string | null; u: number; i: number; target: number; changed: boolean; seen: boolean; loggedS?: number } | null = null
   private exposureStart: { u: number; i: number; changed: boolean } | null = null
   hvOn = false
   alert: Alert | null = null // cleared by the next key
@@ -251,7 +253,7 @@ export class Apparatus {
   }
 
   /** The conditions of the current (or last) MCA run, as snapshotted at its first tick; null before any run. */
-  get mcaRunInfo(): Readonly<Pick<McaRecord, 'sample' | 'u' | 'i' | 'target' | 'changed' | 'seen'>> | null {
+  get mcaRunInfo(): Readonly<Pick<McaRecord, 'sample' | 'collimatorFilter' | 'sensorFilter' | 'u' | 'i' | 'target' | 'changed' | 'seen'>> | null {
     return this.mcaRun
   }
 
@@ -319,7 +321,7 @@ export class Apparatus {
   }
 
   private foils(): [string, number][] {
-    return [this._setup.collimatorFilter, this._setup.sensorFilter].filter((n) => n !== null).map((n) => [n, FOILS_MG_CM2[n]])
+    return [...foilOf(this._setup.collimatorFilter), ...foilOf(this._setup.sensorFilter)]
   }
 
   /** The wheel slot in the beam (null = open slot), or undefined when the wheel frame blocks it. */
@@ -558,21 +560,21 @@ export class Apparatus {
     const { mca } = this
     if (mca.running && dtS > 0) {
       // 0 · Infinity is NaN
-      const { detector, holder, sample } = this._setup
+      const { detector, holder, sample, collimatorFilter, sensorFilter } = this._setup
       let live = 1
       let counts: ArrayLike<number> | null = null
       if (detector === 'energy' && holder === 'sample' && this.emitting) {
         const { nChannels, gain } = mca.settings
-        const key = `${sample} ${this.u} ${this.i} ${nChannels} ${gain}`
+        const key = `${sample} ${collimatorFilter} ${sensorFilter} ${this.u} ${this.i} ${nChannels} ${gain}`
         if (key !== this.mcaKey) {
-          const r = mcaSpectrum(sample!, this.u / 10, this.i / 100, 1, nChannels, gain)
+          const r = mcaSpectrum(sample!, this.u / 10, this.i / 100, 1, nChannels, gain, foilOf(collimatorFilter), foilOf(sensorFilter))
           this.mcaCache = { counts: r.counts, live: r.liveTimeS }
           this.mcaKey = key
         }
         ;({ counts, live } = this.mcaCache!)
       }
-      const run = `${sample} ${holder} ${detector} ${this.u} ${this.i} ${this.target} ${this.emitting}`
-      if (mca.realS === 0 || !this.mcaRun) this.mcaRun = { key: run, sample: sample ?? '', u: this.u, i: this.i, target: wrapTarget(this.target), changed: false, seen: counts !== null }
+      const run = `${sample} ${collimatorFilter} ${sensorFilter} ${holder} ${detector} ${this.u} ${this.i} ${this.target} ${this.emitting}`
+      if (mca.realS === 0 || !this.mcaRun) this.mcaRun = { key: run, sample: sample ?? '', collimatorFilter, sensorFilter, u: this.u, i: this.i, target: wrapTarget(this.target), changed: false, seen: counts !== null }
       else if (run !== this.mcaRun.key) this.mcaRun.changed = true
       mca.tick(dtS, counts, live, this.rng)
     }
@@ -581,7 +583,7 @@ export class Apparatus {
     if (x && !mca.running && mca.realS >= mca.settings.presetS && x.loggedS !== mca.realS) {
       const { nChannels, gain, presetS } = mca.settings
       x.loggedS = mca.realS
-      this._mcaRuns = [...this._mcaRuns, Object.freeze({ sample: x.sample, u: x.u, i: x.i, target: x.target, nChannels, gain, presetS, realS: mca.realS, liveS: mca.liveS, changed: x.changed, seen: x.seen })]
+      this._mcaRuns = [...this._mcaRuns, Object.freeze({ sample: x.sample, collimatorFilter: x.collimatorFilter, sensorFilter: x.sensorFilter, u: x.u, i: x.i, target: x.target, nChannels, gain, presetS, realS: mca.realS, liveS: mca.liveS, changed: x.changed, seen: x.seen })]
     }
   }
 

@@ -18,6 +18,8 @@ export const EDGES_PM: Readonly<Record<string, readonly number[]>> = edgesPm
 /** Foil set 554 832 (name → mg/cm²) and the two plates of the absorption accessory 554 834 (7 slots,
  * `null` = open); empty until loadAbsorbers() resolves. */
 export const FOILS_MG_CM2: Record<string, number> = {}
+/** A foil name (or null = none) as the [name, mg/cm²] list the physics functions take. */
+export const foilOf = (name: string | null): [string, number][] => (name === null ? [] : [[name, FOILS_MG_CM2[name]]])
 export type Slot = readonly [string, number] | null
 export const WHEELS_MG_CM2: Record<'al' | 'material', readonly Slot[]> = { al: [], material: [] }
 

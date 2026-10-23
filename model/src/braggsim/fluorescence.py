@@ -13,8 +13,9 @@ sample's elements) followed by the four Mo line components, and the rate is only
 
     rate_ℓ = A · I · [ ∫ Φ̃(λ) K_ℓ(λ) dλ + Σ_comp Φ̃_comp K_ℓ(λ_comp) ]
 
-with Φ̃(λ) = continuum(λ, U, 1) · T_glass(λ) · T_air,in(λ) (the pieces of ``scan._photons_out``),
-Φ̃_comp the Mo line rates × fraction × the same transmissions, trapezoid rule for the integral.
+with Φ̃(λ) = continuum(λ, U, 1) · T_glass(λ) · T_air,in(λ) · T_collimator foils(λ) (the pieces of
+``scan._photons_out``), Φ̃_comp the Mo line rates × fraction × the same transmissions, trapezoid
+rule for the integral.
 The web port repeats that multiply-and-sum and needs no xraylib.
 
 Physics (all cross sections from xraylib, Schoonjans et al., Spectrochim. Acta B 66, 776 (2011)):
@@ -43,7 +44,8 @@ flux on the sample.
 
 Not modelled: Compton Doppler broadening, tertiary excitation, Pb M lines (< 2.5 keV, below the
 detector window's cut-off), same-element cross-line excitation (Pb Lγ above the L3 edge), the
-core's secondary excitation of the coin's plating (Fe lines are below the Cu K edge), housing.
+core's secondary excitation of the coin's plating (Fe lines are below the Cu K edge), housing,
+fluorescence and scatter of the filter foils themselves.
 """
 
 import dataclasses
@@ -56,7 +58,7 @@ import xraylib
 
 from braggsim import detector, scan, source
 from braggsim.constants import HC_KEV_PM, MO_KA_COMPONENTS, MO_KB_COMPONENTS
-from braggsim.filters import MU_RHO_GRID_PM, cs_step_edges_pm, transmission
+from braggsim.filters import FOILS_MM, MU_RHO_GRID_PM, cs_step_edges_pm, transmission
 
 # Geometry, EPN Práctica 6 (assumptions: model/PARAMETERS.md).
 S2_CM = 6.0  # sample → detector window
@@ -251,11 +253,21 @@ def _bracketed_grid(edges):
     return np.unique(np.concatenate([MU_RHO_GRID_PM, pairs]))
 
 
+@functools.lru_cache(maxsize=1)
+def _foil_edges():
+    """Steps of the 554 832 foils (``filters.FOILS_MM``) inside the μ/ρ grid, and the same steps
+    moved by −``COMPTON_SHIFT_PM`` (the detected λ + shift then lands on the step)."""
+    edges = _edge_nodes(tuple(FOILS_MM))
+    shifted = edges - COMPTON_SHIFT_PM
+    return np.concatenate([edges, shifted[shifted > MU_RHO_GRID_PM[0]]])
+
+
 def _grid(sample):
-    """``MU_RHO_GRID_PM`` bracketed around every K, L1–L3 step of the sample's elements."""
-    return _bracketed_grid(
-        _edge_nodes({s for layer in sample.layers for s, _ in layer.composition})
-    )
+    """``MU_RHO_GRID_PM`` bracketed around every K, L1–L3 step of the sample's elements and of the
+    filter foils (so a foil in the beam or in front of the detector is integrated with its steps
+    resolved, not cut by the trapezoid)."""
+    sample_edges = _edge_nodes({s for layer in sample.layers for s, _ in layer.composition})
+    return _bracketed_grid(np.concatenate([sample_edges, _foil_edges()]))
 
 
 _Y_NODES, _Y_WEIGHTS = np.polynomial.legendre.leggauss(64)
@@ -380,15 +392,29 @@ def _t_in(lam_pm, params):
     )
 
 
-def _flux(kern, U_kV, params):
+def _t_foils(lam_pm, filters):
+    """Π transmission of the ``(material, mg/cm²)`` foils at ``lam_pm`` (1 if none)."""
+    t = 1.0
+    for material, mg_cm2 in filters:
+        t = t * transmission(lam_pm, material, mg_cm2)
+    return t
+
+
+def _flux(kern, U_kV, params, collimator_filters=()):
     """Φ̃ per mA in the tube's source units (``scan._photons_out`` pieces) on the kernel grid, then
-    the four Mo line rates (Kα1, Kα2, Kβ1,3, Kβ2) at the end."""
+    the four Mo line rates (Kα1, Kα2, Kβ1,3, Kβ2) at the end. ``collimator_filters`` (foils in the
+    primary beam) multiply Φ̃ at each incident wavelength."""
     ka, kb = source.line_rates(U_kV, 1.0, params.line_to_cont)
     mo = np.array([r * f for r, comps in ((ka, MO_KA_COMPONENTS), (kb, MO_KB_COMPONENTS))
                    for _, f in comps])  # fmt: skip
-    mo = mo * _t_in(_MO_LAMBDA_PM, params)
+    mo = mo * _t_in(_MO_LAMBDA_PM, params) * _t_foils(_MO_LAMBDA_PM, collimator_filters)
     return np.concatenate(
-        [source.continuum(kern.lam_pm, U_kV, 1.0) * _t_in(kern.lam_pm, params), mo]
+        [
+            source.continuum(kern.lam_pm, U_kV, 1.0)
+            * _t_in(kern.lam_pm, params)
+            * _t_foils(kern.lam_pm, collimator_filters),
+            mo,
+        ]
     )
 
 
@@ -429,19 +455,37 @@ def _integral(kern, phi, k):
     return np.trapezoid(phi[:n] * k[:n], kern.lam_pm) + float(phi[n:] @ k[n:])
 
 
-def line_rates(sample, U_kV, I_mA, params=scan.DEFAULT):
+def line_rates(
+    sample, U_kV, I_mA, params=scan.DEFAULT, *, collimator_filters=(), sensor_filters=()
+):
     """Expected photon rates at the detector window as a list of ``Line(label, energy_keV,
     rate_per_s)``: the fluorescence lines of the sample, then the Mo Kα/Kβ Rayleigh and Compton
     lines (energy = fraction-weighted mean of the components). ``sample``: a name in ``SAMPLES``
     or a ``Sample``. Deterministic, linear in ``I_mA``; lines of an element whose edge lies above
-    the tube voltage are exactly 0."""
+    the tube voltage are exactly 0.
+
+    ``collimator_filters`` / ``sensor_filters``: foils as ``(material, areal_density_mg_cm2)``, like
+    ``scan.expected_rate``. Collimator foils attenuate the incident flux Φ̃(λ) on the sample (beam
+    Beer–Lambert, ``filters.transmission``); sensor foils attenuate each line at the energy that
+    reaches the detector (fluorescence at its own energy, Rayleigh at λ_comp, Compton at
+    λ_comp + 2.426 pm). The kernel grid brackets the K, L1–L3 edges of every foil of
+    ``filters.FOILS_MM`` (and those edges − 2.426 pm), so the trapezoid resolves each foil step."""
     sample = _resolve(sample)
     scan._check_tube(U_kV, I_mA)
     kern = kernels(sample)
     n = len(kern.lam_pm)
-    phi, amp = _flux(kern, U_kV, params), I_mA * _scale(params)
+    phi, amp = _flux(kern, U_kV, params, collimator_filters), I_mA * _scale(params)
     out = [
-        Line(lk.label, lk.energy_keV, float(amp * _integral(kern, phi, lk.k))) for lk in kern.lines
+        Line(
+            lk.label,
+            lk.energy_keV,
+            float(
+                amp
+                * _integral(kern, phi, lk.k)
+                * _t_foils(HC_KEV_PM / lk.energy_keV, sensor_filters)
+            ),
+        )
+        for lk in kern.lines
     ]
     for label, i0 in (("Mo Kα", 0), ("Mo Kβ", 2)):
         fracs = [f for _, f in _MO_COMPONENTS[i0 : i0 + 2]]
@@ -452,7 +496,13 @@ def line_rates(sample, U_kV, I_mA, params=scan.DEFAULT):
             energy = sum(
                 f * HC_KEV_PM / (_MO_LAMBDA_PM[i0 + j] + shift) for j, f in enumerate(fracs)
             )
-            rate = sum(amp * phi[n + i0 + j] * k[n + i0 + j] for j in range(2))
+            rate = sum(
+                amp
+                * phi[n + i0 + j]
+                * k[n + i0 + j]
+                * _t_foils(_MO_LAMBDA_PM[i0 + j] + shift, sensor_filters)
+                for j in range(2)
+            )
             out.append(Line(f"{label} {kind}", float(energy), float(rate)))
     return out
 
@@ -468,43 +518,56 @@ def secondary_fraction(sample, label, U_kV, params=scan.DEFAULT):
     return float(sec / primary) if primary > 0 else 0.0
 
 
-def scattered_continuum(sample, U_kV, I_mA, params=scan.DEFAULT):
+def scattered_continuum(
+    sample, U_kV, I_mA, params=scan.DEFAULT, *, collimator_filters=(), sensor_filters=()
+):
     """Rayleigh and Compton scatter of the tube continuum at the detector window:
     ``{"rayleigh": (energy_keV, rate_per_s_per_keV), "compton": (...)}``, energies ascending
-    (closely spaced node pairs bracket the absorption edges). Compton is shifted by 2.426 pm."""
+    (closely spaced node pairs bracket the absorption edges). Compton is shifted by 2.426 pm.
+    Foils as in ``line_rates``; the sensor foils act at the detected wavelength ``lam_d``."""
     sample = _resolve(sample)
     scan._check_tube(U_kV, I_mA)
     kern = kernels(sample)
     n = len(kern.lam_pm)
-    phi, amp = _flux(kern, U_kV, params), I_mA * _scale(params)
+    phi, amp = _flux(kern, U_kV, params, collimator_filters), I_mA * _scale(params)
     out = {}
     for kind, k, shift in (
         ("rayleigh", kern.rayleigh, 0.0),
         ("compton", kern.compton, COMPTON_SHIFT_PM),
     ):
         lam_d = kern.lam_pm + shift
-        per_pm = amp * phi[:n] * k[:n]
+        per_pm = amp * phi[:n] * k[:n] * _t_foils(lam_d, sensor_filters)
         out[kind] = (HC_KEV_PM / lam_d[::-1], (per_pm * lam_d**2 / HC_KEV_PM)[::-1])
     return out
 
 
-def mca_spectrum(sample, U_kV, I_mA, t_s, n_channels=512, gain=-2.5, params=scan.DEFAULT):
+def mca_spectrum(
+    sample, U_kV, I_mA, t_s, n_channels=512, gain=-2.5, params=scan.DEFAULT, *,
+    collimator_filters=(), sensor_filters=(),
+):  # fmt: skip
     """Expected MCA spectrum of the LD 559 938 for ``sample``: (counts per channel, live_time_s,
     channel_energy_keV) over ``t_s`` of real time. Lines and scatter continuum from ``line_rates``
     and ``scattered_continuum``, then ``detector.mca_counts``. Deterministic; Poisson-sample with
-    ``detector.sample_counts(counts, 1.0, rng)``."""
+    ``detector.sample_counts(counts, 1.0, rng)``. Foils: see ``line_rates``."""
     sample = _resolve(sample)
-    lines = [(ln.energy_keV, ln.rate_per_s) for ln in line_rates(sample, U_kV, I_mA, params)]
-    cont = list(scattered_continuum(sample, U_kV, I_mA, params).values())
+    foils = {"collimator_filters": collimator_filters, "sensor_filters": sensor_filters}
+    lines = [
+        (ln.energy_keV, ln.rate_per_s) for ln in line_rates(sample, U_kV, I_mA, params, **foils)
+    ]
+    cont = list(scattered_continuum(sample, U_kV, I_mA, params, **foils).values())
     return detector.mca_counts(lines, cont, t_s, n_channels, gain)
 
 
-def detected_line_counts(sample, U_kV, I_mA, t_s, n_channels=512, gain=-2.5, params=scan.DEFAULT):
+def detected_line_counts(
+    sample, U_kV, I_mA, t_s, n_channels=512, gain=-2.5, params=scan.DEFAULT, *,
+    collimator_filters=(), sensor_filters=(),
+):  # fmt: skip
     """Expected counts {label: counts} under each fluorescence line in the MCA over ``t_s`` of
     real time: window rate × ``detector.pin_efficiency`` × live time (the truth the line fits are
-    compared with; same live time as ``mca_spectrum``)."""
-    live = mca_spectrum(sample, U_kV, I_mA, t_s, n_channels, gain, params)[1]
+    compared with; same live time as ``mca_spectrum``). Foils: see ``line_rates``."""
+    foils = {"collimator_filters": collimator_filters, "sensor_filters": sensor_filters}
+    live = mca_spectrum(sample, U_kV, I_mA, t_s, n_channels, gain, params, **foils)[1]
     return {
         ln.label: ln.rate_per_s * float(detector.pin_efficiency(ln.energy_keV)) * live
-        for ln in line_rates(_resolve(sample), U_kV, I_mA, params)
+        for ln in line_rates(_resolve(sample), U_kV, I_mA, params, **foils)
     }

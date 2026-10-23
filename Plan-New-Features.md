@@ -9,10 +9,10 @@ tags:
   - plan
 status: planning
 created: 2026-10-14
-updated: 2026-10-22
+updated: 2026-10-23
 current_phase: L3
 next_task: none (L3 done; pick the next phase with the user)
-last_session: 2026-10-22
+last_session: 2026-10-23
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
   - "EPN guide Práctica 1: X-ray attenuation vs absorber material and thickness (refs/atenuacion_RX.pdf)"
@@ -506,7 +506,6 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 >   - The overlay could not be told apart from the data.
 > - **Deferred:**
 >   - The per-slice MCA Poisson pass (≈ 100 per frame at 100×) has a `ponytail:` note: merge slices if phones jank.
->   - The MCA record does not carry the filters.
 >   - Residuals plot.
 >   - Free-centre fit (a common offset scan) if students' calibrations prove too rough.
 
@@ -870,6 +869,15 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 ## Session log
 
 Newest first. One entry per session. This is what the next session reads to know what happened.
+
+### 2026-10-23 · L3 · bug hunt of L3.1–L3.9
+- Done: read the L3 physics, port, apparatus, MCA view and tasks. The physics re-derivations all held (Sherman, Shiraiwa–Fujino, the coin's interface E1 integral, the Compton Jacobian, the fit port), and so did the numbers in the task texts. One real bug: collimator and sensor foils could be mounted with the 559 938, but the XRF spectrum ignored them.
+  - **Fix (user: model them):** collimator foils multiply Φ̃(λ) on the sample; sensor foils multiply each line and the scatter at its detected λ (Compton at λ + 2.426 pm). Python → fixtures (4 new: Fe/Cu sensor, Zr collimator, coin with both) → TS. The `McaRecord`, the cache and run keys, `standsIn`, `sameBeam` and the CSV carry the foils, and the brass task text now says "same filters".
+  - **Physics review:** unbracketed foil edges biased every line by up to −0.38 % with a Mo collimator foil, so the XRF grid now brackets the foil edges and the edges − 2.426 pm. The tables grew 126–297 → 142–331 kB; the no-filter fixtures moved ≤ 1e-7 in the rates and ≤ 7e-4 in the MCA channels. The foils' own fluorescence is not modelled (`PARAMETERS.md`).
+  - A suspected bug (the GM seeing the direct beam through an XRF sample) turned out to be false: the private `wheelSlot()` blocks it. The regression test stays.
+- Verify: pytest 349 → 355, Vitest 362 → 368, ruff clean, export byte-stable, build OK (index 74.57 kB gz).
+- Open: whether the 554 832 foil frame fits in front of the 559 938 (ask the lab staff); a sensor foil with the energy detector is a simulation extrapolation.
+- Next: unchanged (pick the next phase with the user).
 
 ### 2026-10-22 · L3 · tasks L3.8, L3.9 (L3 closed)
 - Done: in-app Gaussian fit (Python → fixtures → TS), MCA run log and CSV, fit panel, and three XRF Lab tasks. Built in 4 Sonnet work packages plus 4 Sonnet fixers after the physics, apparatus, pedagogy and design reviews. Pushed with L3.6–L3.7 (8d38759..bd512e9); CI test + deploy green, live bundle matches the local build.

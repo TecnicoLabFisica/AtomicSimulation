@@ -239,18 +239,38 @@ _XRF_RUNS = (
 )
 
 
+# Same, plus (collimator, sensor) foils as (material, mg/cm²) lists (the 554 800 tray's foils).
+_XRF_FILTER_RUNS = (
+    ("Cu", 35.0, 1.0, _XRF_T_S, 512, -2.5, (), ("Fe",)),
+    ("CuZn39Pb3", 35.0, 1.0, _XRF_T_S, 512, -2.5, ("Zr",), ()),
+    ("centavo2003", 35.0, 1.0, _XRF_T_S, 512, -2.5, ("Zr",), ("Fe",)),
+    ("CuZn39Pb3", 35.0, 1.0, _XRF_T_S, 512, -2.5, (), ("Cu",)),  # Cu K edge between Cu Kβ and Zn Kβ
+)
+
+
 def _xrf_fixtures():
     out = {}
-    for sample, U, i_mA, t_s, n_ch, gain in _XRF_RUNS:
+    runs = (*((*r, (), ()) for r in _XRF_RUNS), *_XRF_FILTER_RUNS)
+    for sample, U, i_mA, t_s, n_ch, gain, coll, sens in runs:
         inputs = {"sample": sample, "U_kV": U, "I_mA": i_mA, "t_s": t_s,
                   "n_channels": n_ch, "gain": gain}  # fmt: skip
-        counts, live, e_ch = fluorescence.mca_spectrum(sample, U, i_mA, t_s, n_ch, gain)
-        lines = fluorescence.line_rates(sample, U, i_mA)
         name = f"{sample}_{U:g}kV_{i_mA:g}mA_{n_ch}ch_{t_s:g}s"
+        foils, note = {}, ""
+        for key, names in (("collimator", coll), ("sensor", sens)):
+            if names:  # the rounded values of tables/mu_rho_absorbers.json, as the web app uses
+                foils[f"{key}_filters"] = [
+                    [m, round(areal_density_mg_cm2(m, FOILS_MM[m]), 6)] for m in names
+                ]
+                inputs[f"{key}_filters"] = foils[f"{key}_filters"]
+                name += f"_{key[:4]}-{'-'.join(names)}"
+                note += f", {key} foil {'+'.join(names)}"
+        counts, live, e_ch = fluorescence.mca_spectrum(sample, U, i_mA, t_s, n_ch, gain, **foils)
+        lines = fluorescence.line_rates(sample, U, i_mA, **foils)
         out[name] = {
             "function": "fluorescence.xrf",
             "description": f"XRF of {sample} at {U:g} kV, {i_mA:g} mA: line rates and expected MCA "
-            f"spectrum ({n_ch} channels, gain {gain:g}, {t_s:g} s)",
+            f"spectrum ({n_ch} channels, gain {gain:g}, {t_s:g} s)"
+            + note,
             "inputs": inputs,
             "expected": {
                 "line_rates": [{"label": ln.label, "energy_keV": ln.energy_keV,
