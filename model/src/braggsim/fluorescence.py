@@ -148,6 +148,28 @@ _PB_L_LINES = tuple(
 )  # fmt: skip
 
 
+def reference_lines_keV():
+    """Energies in keV of the lines a student may pick for a fit, in menu order: Fe/Cu/Zn Kα and Kβ
+    (xraylib's ``LineEnergy`` of ``KA_LINE`` and ``KB_LINE``; KB_LINE is xraylib's Kβ energy, the
+    KM3 energy for Fe/Cu/Zn, not a weighted composite, as the kernel labels) and Pb Lα (Lα1+Lα2)
+    and Lβ (Lβ1+Lβ2), each weighted by xraylib ``RadRate``. "Pb Lβ" (12.616 keV) is the Lβ group in
+    a fit: it also takes Lβ3 (12.79 keV) and Lβ4 (12.31 keV), ≈ +5.6 % vs Lβ1+Lβ2 in pure Pb.
+    Source: xraylib ``LineEnergy``, ``RadRate``."""
+    out = {}
+    for sym in ("Fe", "Cu", "Zn"):
+        z = xraylib.SymbolToAtomicNumber(sym)
+        for label, code in _K_LINES:
+            out[f"{sym} {label}"] = float(xraylib.LineEnergy(z, code))
+    z = xraylib.SymbolToAtomicNumber("Pb")
+    for label, codes in (("Lα", ("LA1", "LA2")), ("Lβ", ("LB1", "LB2"))):
+        lines = [getattr(xraylib, f"{c}_LINE") for c in codes]
+        w = [xraylib.RadRate(z, ln) for ln in lines]
+        out[f"Pb {label}"] = float(
+            sum(wi * xraylib.LineEnergy(z, ln) for wi, ln in zip(w, lines, strict=True)) / sum(w)
+        )
+    return out
+
+
 def _lines_of(symbol):
     return _PB_L_LINES if symbol == "Pb" else _K_LINES
 

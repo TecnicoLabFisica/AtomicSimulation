@@ -85,6 +85,21 @@ export type ExposureRecord = Readonly<{
   changed: boolean // U or I differed from the start values while it counted
 }>
 
+/** One finished MCA run (simulation aid, like ExposureRecord: the analyser only shows the spectrum on show). */
+export type McaRecord = Readonly<{
+  sample: string
+  u: number // 0.1 kV, when the run started counting
+  i: number // 0.01 mA, when the run started counting
+  target: number // 0.1°, wrapped, when the run started counting
+  nChannels: number
+  gain: number
+  presetS: number
+  realS: number
+  liveS: number
+  changed: boolean // sample, holder, detector, U, I, target or the emitting state differed from the start while it counted
+  seen: boolean // at the run's first tick the energy detector saw the sample with the tube emitting; if not, later counts make the run `changed`
+}>
+
 /** The slot of an absorber plate in the beam for a target angle (0.1°, any turn): 0 … 6, or null when the
  * wheel frame blocks the beam or the holder is no plate. */
 export function wheelSlot(holder: Holder, angle: number): number | null {
@@ -146,6 +161,9 @@ export class Apparatus {
   private mcaKey = ''
   private mcaCache: { counts: ArrayLike<number>; live: number } | null = null
   private _exposures: ExposureRecord[] = []
+  private _mcaRuns: McaRecord[] = []
+  /** The conditions when the current run started counting from real time 0 (set on its first tick). */
+  private mcaRun: { key: string; sample: string; u: number; i: number; target: number; changed: boolean; seen: boolean; loggedS?: number } | null = null
   private exposureStart: { u: number; i: number; changed: boolean } | null = null
   hvOn = false
   alert: Alert | null = null // cleared by the next key
@@ -222,6 +240,23 @@ export class Apparatus {
 
   clearExposureLog(): void {
     this._exposures = []
+  }
+
+  /** The MCA runs that reached their preset, oldest first (simulation aid). A stopped run is not logged until it
+   * is resumed and reaches the preset (or its preset is shortened to the time it reached); a preset lengthened after
+   * a run finished continues the same run (logged again at the new preset): one record per real time reached;
+   * RESET keeps the log; only clearMcaLog() empties it. */
+  get mcaLog(): readonly McaRecord[] {
+    return this._mcaRuns
+  }
+
+  /** The conditions of the current (or last) MCA run, as snapshotted at its first tick; null before any run. */
+  get mcaRunInfo(): Readonly<Pick<McaRecord, 'sample' | 'u' | 'i' | 'target' | 'changed' | 'seen'>> | null {
+    return this.mcaRun
+  }
+
+  clearMcaLog(): void {
+    this._mcaRuns = []
   }
 
   /** Expected rate R̄ at the current arm positions, in counts/s. With HV off the counter still sees the
@@ -343,6 +378,8 @@ export class Apparatus {
           sensor: this.sensor,
           _setup: this._setup,
           _exposures: this._exposures,
+          _mcaRuns: this._mcaRuns,
+          mcaRun: this.mcaRun,
           mca: this.mca, // a separate device: the panel's RESET does not touch it
           path: [{ target: 0, sensor: this.energy ? ENERGY_SENSOR : 0 }],
         })
@@ -446,10 +483,11 @@ export class Apparatus {
     }
     // Instant: finish the program now; the rate meter keeps counting in real time.
     let simS = realS * this.timeScale
-    this.driveMca(simS) // Infinity runs the analyser to its preset
-    if (this.timeScale === Infinity) {
-      this.finish()
+    const instant = this.timeScale === Infinity
+    if (instant) {
+      this.finish() // the tube is off afterwards: the analyser runs to its preset in that state
       simS = realS
+      this.driveMca(Infinity)
     }
     // Advance event by event: the next whole second of the counter or the end of a motor leg.
     for (let n = 0; simS > 0 && n < 1_000_000; n++) {
@@ -458,6 +496,8 @@ export class Apparatus {
       const toSecond = 1 - this.clockS
       const dt = Math.min(simS, toSecond, legS)
       simS -= dt
+      // ponytail: one Poisson pass over all channels per slice (≈ 100 per frame at 100×); merge slices with equal state if phones jank
+      if (!instant) this.driveMca(dt) // the analyser sees the state of this slice
       if (dt === toSecond) {
         this.clockS = 0
         this.countSecond() // a program step only ends while no leg runs, so `leg` stays current
@@ -516,21 +556,33 @@ export class Apparatus {
    * per sample, U, I, channels, gain: the kernel sum is too slow per frame), else only its clocks run. */
   private driveMca(dtS: number): void {
     const { mca } = this
-    if (!mca.running || !(dtS > 0)) return // 0 · Infinity is NaN
-    const { detector, holder, sample } = this._setup
-    let live = 1
-    let counts: ArrayLike<number> | null = null
-    if (detector === 'energy' && holder === 'sample' && this.emitting) {
-      const { nChannels, gain } = mca.settings
-      const key = `${sample} ${this.u} ${this.i} ${nChannels} ${gain}`
-      if (key !== this.mcaKey) {
-        const r = mcaSpectrum(sample!, this.u / 10, this.i / 100, 1, nChannels, gain)
-        this.mcaCache = { counts: r.counts, live: r.liveTimeS }
-        this.mcaKey = key
+    if (mca.running && dtS > 0) {
+      // 0 · Infinity is NaN
+      const { detector, holder, sample } = this._setup
+      let live = 1
+      let counts: ArrayLike<number> | null = null
+      if (detector === 'energy' && holder === 'sample' && this.emitting) {
+        const { nChannels, gain } = mca.settings
+        const key = `${sample} ${this.u} ${this.i} ${nChannels} ${gain}`
+        if (key !== this.mcaKey) {
+          const r = mcaSpectrum(sample!, this.u / 10, this.i / 100, 1, nChannels, gain)
+          this.mcaCache = { counts: r.counts, live: r.liveTimeS }
+          this.mcaKey = key
+        }
+        ;({ counts, live } = this.mcaCache!)
       }
-      ;({ counts, live } = this.mcaCache!)
+      const run = `${sample} ${holder} ${detector} ${this.u} ${this.i} ${this.target} ${this.emitting}`
+      if (mca.realS === 0 || !this.mcaRun) this.mcaRun = { key: run, sample: sample ?? '', u: this.u, i: this.i, target: wrapTarget(this.target), changed: false, seen: counts !== null }
+      else if (run !== this.mcaRun.key) this.mcaRun.changed = true
+      mca.tick(dtS, counts, live, this.rng)
     }
-    mca.tick(dtS, counts, live, this.rng)
+    // Also when idle: a preset shortened to the time already reached stops the run (Mca.set) and logs it here.
+    const x = this.mcaRun
+    if (x && !mca.running && mca.realS >= mca.settings.presetS && x.loggedS !== mca.realS) {
+      const { nChannels, gain, presetS } = mca.settings
+      x.loggedS = mca.realS
+      this._mcaRuns = [...this._mcaRuns, Object.freeze({ sample: x.sample, u: x.u, i: x.i, target: x.target, nChannels, gain, presetS, realS: mca.realS, liveS: mca.liveS, changed: x.changed, seen: x.seen })]
+    }
   }
 
   private startSafety(next: 'hv' | 'scan' | 'exposure'): void {

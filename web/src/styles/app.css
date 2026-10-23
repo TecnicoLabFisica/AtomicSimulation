@@ -499,7 +499,7 @@ button, select { font: inherit; color: inherit; }
 }
 
 /* ── MCA (559 938 energy detector) ─────────────────────────────────────── */
-.mca { grid-template-rows: auto minmax(calc(5 * var(--touch)), 1fr) fit-content(45%); }
+.mca { grid-template-rows: auto minmax(calc(4 * var(--touch)), 1fr) fit-content(25%) fit-content(max(50%, calc(2 * var(--touch) + var(--space-2)))); }
 .mca .plot { touch-action: none; cursor: crosshair; }
 .mca .plot:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .mca .view-head .hint { font-variant-numeric: tabular-nums; }
@@ -510,8 +510,9 @@ button, select { font: inherit; color: inherit; }
 .mca-nudge { position: absolute; top: 0; right: 0; z-index: var(--z-overlay); display: flex; gap: var(--space-1); }
 .mca-nudge .tool { background: var(--fill); font: var(--text-callout); }
 .mca .readout { right: calc(2 * var(--touch) + 3 * var(--space-1)); min-height: var(--touch); display: flex; align-items: center; }
-.mca-setup { overflow: hidden auto; margin-top: var(--space-2); }
+.mca-setup { overflow: hidden auto; margin-top: var(--space-2); min-height: var(--touch); }
 .mca-setup summary { min-height: var(--touch); display: flex; align-items: center; cursor: pointer; font: var(--text-footnote); color: var(--label-2); }
+.mca-setup summary, .mca-fit summary { position: sticky; top: 0; z-index: var(--z-overlay); background: var(--surface); }
 .mca-setup summary::-webkit-details-marker { display: none; }
 .mca-setup summary::after { content: '›' / ''; margin-inline-start: auto; transition: rotate var(--dur-fast) var(--ease-out); }
 .mca-setup[open] summary::after { rotate: 90deg; }
@@ -530,3 +531,27 @@ button, select { font: inherit; color: inherit; }
 }
 .mca-row .tool, .mca-point .tool { padding: 0 var(--space-3); background: var(--fill); }
 .mca-cal[hidden] { display: none; }
+.mca-fit { overflow: hidden auto; }
+.mca-fit[open] { min-height: calc(2 * var(--touch) + var(--space-2)); } /* the summary and one row of chips always show */
+.mca-fit summary { min-height: var(--touch); display: flex; align-items: center; cursor: pointer; font: var(--text-footnote); color: var(--label-2); }
+.mca-fit summary::-webkit-details-marker { display: none; }
+.mca-fit summary::after { content: '›' / ''; margin-inline-start: auto; transition: rotate var(--dur-fast) var(--ease-out); }
+.mca-fit[open] summary::after { rotate: 90deg; }
+.mca-fit .mca-row .tool { padding: 0 var(--space-3); background: var(--fill); }
+.mca-fit .mca-row .tool[aria-pressed='true'] { background: var(--fill); box-shadow: inset 0 0 0 2px var(--accent); }
+.mca-fit .mca-row [data-dofit] { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+.mca-fit .mca-row [data-dofit]:disabled { background: var(--fill); color: var(--label-3); }
+.mca-fit .mca-label { font: var(--text-footnote); color: var(--label-2); margin: var(--space-2) 0 0; }
+.mca-fit [hidden] { display: none; }
+.mca-fit .mca-row .tool:disabled { color: var(--label-3); }
+.mca-fit .hint { margin-block: var(--space-1); }
+.mca-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.mca-fit-table { border-collapse: collapse; inline-size: 100%; max-inline-size: 22rem; font: var(--text-callout); font-variant-numeric: tabular-nums; }
+.mca-fit-table th, .mca-fit-table td { text-align: start; font-weight: 400; padding: var(--space-1) var(--space-3) var(--space-1) 0; border-top: var(--stroke-hair) solid var(--separator); }
+.mca-fit-table thead th { font: var(--text-footnote); color: var(--label-2); border-top: none; }
+@media (min-width: 1024px) {
+  .mca { grid-template-columns: minmax(0, 1fr) 20rem; grid-template-rows: auto auto minmax(0, 1fr); column-gap: var(--space-4); }
+  .mca .view-head { grid-column: 1 / -1; }
+  .mca .plot { grid-column: 1; grid-row: 2 / -1; }
+  .mca-setup, .mca-fit { grid-column: 2; }
+}

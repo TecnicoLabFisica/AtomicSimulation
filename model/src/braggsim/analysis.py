@@ -666,7 +666,8 @@ class LineFit:
     area_err: np.ndarray  # 1σ
     area_cov: np.ndarray  # covariance of the areas (counts²), n × n; lines of a blend correlate
     center_keV: np.ndarray
-    sigma_keV: float  # common Gaussian σ (the fixed value if one was given)
+    # Gaussian σ: common (the fixed value if one was given) or one per line
+    sigma_keV: float | np.ndarray  # fmt: skip
     sigma_err_keV: float  # 0 when σ was fixed
     chi2_dof: float
     channel_keV: float = 1.0  # channel width the areas refer to
@@ -677,9 +678,8 @@ class LineFit:
         counts per channel. Sum over axis 0 for the total line model."""
         x = np.asarray(E_keV, dtype=float)[None, :]
         a, c = self.area[:, None], self.center_keV[:, None]
-        return a * self.channel_keV * np.exp(-0.5 * ((x - c) / self.sigma_keV) ** 2) / (
-            self.sigma_keV * np.sqrt(2 * np.pi)
-        )  # fmt: skip
+        s = np.broadcast_to(np.asarray(self.sigma_keV, dtype=float), self.area.shape)[:, None]
+        return a * self.channel_keV * np.exp(-0.5 * ((x - c) / s) ** 2) / (s * np.sqrt(2 * np.pi))
 
 
 def gauss_fit_lines(E_keV, counts, centers_keV, window_keV, center_tol_keV=0.1, sigma_keV=None):
@@ -739,6 +739,64 @@ def gauss_fit_lines(E_keV, counts, centers_keV, window_keV, center_tol_keV=0.1, 
         float(sigma_keV) if o == 0 else float(popt[0]),
         0.0 if o == 0 else float(np.sqrt(pcov[0, 0])),
         chi2, w, (float(popt[o]), float(popt[o + 1]), float(e[0])),
+    )  # fmt: skip
+
+
+def gauss_fit_fixed(E_keV, counts, centers_keV, sigma_keV, window_keV=None):
+    """Fit N Gaussians of **fixed centre and width** plus a linear background to the channels in
+    ``window_keV = (lo, hi)`` by weighted *linear* least squares (no iteration on the shape, so the
+    browser can repeat it on every click). ``sigma_keV``: one σ per line, or a scalar for all
+    (e.g. ``detector.pin_fwhm_keV(E)/(2√(2 ln 2))``). Default window: [min(c − 3σ), max(c + 3σ)].
+    Model per channel: b0 + b1 (E − E_lo) + Σ A_i w g_i(E), g_i the unit-area Gaussian sampled at
+    the channel centre, w the median channel width. Weights as ``gauss_fit_lines``: Neyman
+    σ² = max(counts, 1), then three Pearson passes σ² = max(model, 0.5). The normal equations
+    (AᵀWA) p = AᵀWy are solved explicitly; the covariance is (AᵀWA)⁻¹ (absolute).
+
+    No bounds: a line that is not there fits a negative area, reported as is (an honest result;
+    its error bar says whether it differs from 0). Raises ValueError for no lines, mismatched
+    centres/σ, a non-finite or non-positive σ, non-finite centres, two centres closer than
+    0.5 · min σ, a centre outside the window, or fewer than N + 3 channels in the window.
+
+    The covariance is absolute: it is never scaled by χ²/dof. Fed with *expected* counts, area /
+    area_err is therefore the expected (Asimov) significance, which equals the Fisher covariance
+    under Poisson statistics. On model spectra the fixed σ = pin FWHM is exact by construction
+    (χ²/ν ≈ 0 on noiseless data); on real spectra check χ²/ν. The covariance uses the last pass's
+    weights, the returned χ² the once-more-updated ones (converged, harmless)."""
+    c0 = np.asarray(centers_keV, dtype=float)
+    n = len(c0)
+    sig = np.broadcast_to(np.asarray(sigma_keV, dtype=float), c0.shape)
+    if n == 0:
+        raise ValueError("need at least one line")
+    if np.ndim(sigma_keV) and len(sigma_keV) != n:
+        raise ValueError("one sigma per centre")
+    if not (np.all(np.isfinite(c0)) and np.all(np.isfinite(sig))):
+        raise ValueError("centres and sigma must be finite")
+    if np.any(sig <= 0):
+        raise ValueError("sigma must be positive")
+    if n > 1 and np.diff(np.sort(c0)).min() < 0.5 * sig.min():
+        raise ValueError("centres too close")
+    lo, hi = window_keV if window_keV is not None else ((c0 - 3 * sig).min(), (c0 + 3 * sig).max())
+    if c0.min() < lo or c0.max() > hi:
+        raise ValueError("centre outside the window")
+    e_all, y_all = np.asarray(E_keV, dtype=float), np.asarray(counts, dtype=float)
+    m = (e_all >= lo) & (e_all <= hi)
+    e, y = e_all[m], y_all[m]
+    if e.size < n + 3:
+        raise ValueError("too few channels in the window")
+    w = float(np.median(np.diff(e)))
+    g = w * np.exp(-0.5 * ((e[:, None] - c0) / sig) ** 2) / (sig * np.sqrt(2 * np.pi))
+    design = np.column_stack([np.ones_like(e), e - e[0], g])
+    var = np.maximum(y, 1.0)
+    for _ in range(4):  # Neyman, then 3 Pearson passes
+        mat = design.T @ (design / var[:, None])
+        p = np.linalg.solve(mat, design.T @ (y / var))
+        var = np.maximum(design @ p, 0.5)
+    cov = np.linalg.inv(mat)  # of the last pass, whose weights came from the pass before
+    ia = np.arange(2, 2 + n)
+    chi2 = float(np.sum((y - design @ p) ** 2 / var) / max(e.size - len(p), 1))
+    return LineFit(
+        p[ia], np.sqrt(np.diag(cov)[ia]), cov[np.ix_(ia, ia)], c0.copy(), sig.copy(), 0.0,
+        chi2, w, (float(p[0]), float(p[1]), float(e[0])),
     )  # fmt: skip
 
 

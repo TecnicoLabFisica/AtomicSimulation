@@ -5,6 +5,8 @@ import { Apparatus, ENERGY_SENSOR, SAFE_S, OK_S, type Key } from '../src/apparat
 import { Mca } from '../src/apparatus/mca'
 import { kevPerChannel, mulberry32 } from '../src/physics/detector'
 import { mcaSpectrum } from '../src/physics/fluorescence'
+import { mcaCsv } from '../src/pedagogy/csv'
+import { usable } from '../src/pedagogy/tasks/xrf-common'
 import { loadXrfSample } from '../src/physics/tables'
 
 beforeAll(() => loadXrfSample('Cu'))
@@ -224,5 +226,162 @@ describe('energy detector on the apparatus', () => {
     a.mca.start()
     a.tick(5)
     expect(a.mca.counts.every((c) => c === 0)).toBe(true)
+  })
+})
+
+describe('MCA run log and CSV', () => {
+  const bench = (scan = false) => {
+    const a = new Apparatus(mulberry32(5))
+    a.press('SENSOR')
+    a.adjust(ENERGY_SENSOR)
+    a.setDoors(false)
+    expect(a.mount({ holder: 'sample', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null, detector: 'energy', sample: 'Cu' })).toBe(true)
+    a.setDoors(true)
+    a.press('U')
+    a.adjust(350 - a.u)
+    a.press('I')
+    a.adjust(100)
+    if (scan) {
+      a.press('DT')
+      a.adjust(2 - a.dt) // exposure timer: dBeta = 0, dt = 2 s
+      a.dBeta = 0
+      a.press('SCAN')
+    } else {
+      a.press('HV')
+      a.tick(SAFE_S + OK_S + 0.1)
+    }
+    a.mca.set({ presetS: 10 })
+    return a
+  }
+
+  test('one record per run reaching its preset, with the start values; a stopped run is not logged', () => {
+    const a = bench()
+    a.mca.start()
+    a.tick(4)
+    a.mca.stop()
+    a.tick(20)
+    expect(a.mcaLog).toHaveLength(0)
+    a.mca.start()
+    a.tick(20)
+    a.tick(20)
+    expect(a.mcaLog).toHaveLength(1)
+    expect(a.mcaLog[0]).toMatchObject({ sample: 'Cu', u: 350, i: 100, target: 0, nChannels: 512, gain: -2.5, presetS: 10, realS: 10, changed: false })
+    a.clearMcaLog()
+    expect(a.mcaLog).toHaveLength(0)
+  })
+
+  test('changed after a U or a target change mid-run; the record keeps the start values; RESET keeps the log', () => {
+    const a = bench()
+    a.mca.start()
+    a.tick(3)
+    a.press('U')
+    a.adjust(-100)
+    a.tick(20)
+    expect(a.mcaLog[0]).toMatchObject({ u: 350, changed: true })
+    a.mca.clear()
+    a.mca.start()
+    a.tick(3)
+    a.press('TARGET')
+    a.adjust(450)
+    a.tick(20)
+    expect(a.mcaLog).toHaveLength(2)
+    expect(a.mcaLog[1].changed).toBe(true)
+    a.press('RESET')
+    expect(a.mcaLog).toHaveLength(2)
+  })
+
+  test('mcaCsv: null without counts; energy column only from the student calibration', () => {
+    const a = bench()
+    expect(mcaCsv(a)).toBeNull()
+    a.mca.start()
+    a.tick(20)
+    let lines = mcaCsv(a)!.split('\n')
+    expect(lines[0]).toContain('XRF spectrum')
+    expect(lines).toContain('channel,energy_keV,counts')
+    expect(lines.find((l) => l.startsWith('0,'))).toMatch(/^0,,\d+$/)
+    a.mca.calibration = { kevPerChannel: 0.08, offsetKeV: 0.5 }
+    lines = mcaCsv(a)!.split('\n')
+    expect(lines.find((l) => l.startsWith('10,'))).toMatch(/^10,1\.3000,\d+$/)
+  })
+
+  test('applyInitial with keepDetector keeps the energy mount and raises no alert', () => {
+    const a = bench()
+    applyInitial(a, {}, 'NaCl', undefined, true, false, true)
+    expect(a.setup.detector).toBe('energy')
+    expect(a.alert).toBeNull()
+  })
+
+  test('HV off mid-run: changed; MCA started with HV off: seen false', () => {
+    const a = bench()
+    a.mca.start()
+    a.tick(3)
+    a.press('HV')
+    a.tick(20)
+    expect(a.mcaLog[0]).toMatchObject({ changed: true, seen: true })
+    const b = bench()
+    b.press('HV')
+    b.mca.start()
+    b.tick(20)
+    expect(b.mcaLog[0].seen).toBe(false)
+  })
+
+  test('clear() mid-run starts a fresh record; RESET mid-run marks changed without a new snapshot', () => {
+    const a = bench()
+    a.mca.start()
+    a.tick(3)
+    a.press('U')
+    a.adjust(-100)
+    a.tick(1)
+    a.mca.clear()
+    a.tick(20)
+    expect(a.mcaLog[0]).toMatchObject({ changed: false, u: 250 })
+    const b = bench()
+    b.mca.start()
+    b.tick(3)
+    b.press('RESET')
+    b.tick(20)
+    expect(b.mcaLog[0]).toMatchObject({ changed: true, u: 350 })
+  })
+
+  test('a lengthened preset logs again; a preset shortened below realS logs once', () => {
+    const a = bench()
+    a.mca.start()
+    a.tick(20)
+    a.mca.set({ presetS: 15 })
+    a.mca.start()
+    a.tick(20)
+    expect(a.mcaLog.map((r) => r.realS)).toEqual([10, 15])
+    const b = bench()
+    b.mca.start()
+    b.tick(4)
+    b.mca.set({ presetS: 3 })
+    b.tick(1)
+    b.tick(1)
+    expect(b.mcaLog).toHaveLength(1)
+    expect(b.mcaLog[0].realS).toBeCloseTo(4)
+  })
+
+  test('Instant mode with the exposure timer: the run is not usable', () => {
+    const a = bench(true)
+    a.timeScale = Infinity
+    a.mca.start()
+    a.tick(SAFE_S + OK_S + 1)
+    expect(a.mcaLog).toHaveLength(1)
+    expect(usable(a.mcaLog[0])).toBe(false)
+  })
+
+  test('the CSV describes the run after RESET; applyInitial keepDetector stops the MCA and keeps its counts', () => {
+    const a = bench()
+    a.mca.start()
+    a.tick(3)
+    a.press('RESET')
+    a.tick(1)
+    expect(mcaCsv(a)!).toContain('U = 35.0 kV, I = 1.00 mA, target 0.0 deg')
+    expect(mcaCsv(a)!).toContain('# conditions changed during the run')
+    expect(mcaCsv(a)!).toContain('# stopped before the preset')
+    const n = a.mca.counts.reduce((s, c) => s + c, 0)
+    applyInitial(a, {}, 'NaCl', undefined, true, false, true)
+    expect(a.mca.running).toBe(false)
+    expect(a.mca.counts.reduce((s, c) => s + c, 0)).toBe(n)
   })
 })

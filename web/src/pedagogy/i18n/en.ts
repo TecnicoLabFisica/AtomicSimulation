@@ -13,6 +13,7 @@ export const en: PedagogyDict = {
   loadFailed: 'Could not load the crystal data. Check your connection and open the task again.',
   busyConfirm: 'A measurement is running. Stop it and prepare the task?',
   earlierExposures: (n: number) => `${n} earlier ${n === 1 ? 'exposure is' : 'exposures are'} logged; the task counts only new ones (the CSV includes them all).`,
+  earlierRuns: (n: number) => `${n} earlier MCA ${n === 1 ? 'run is' : 'runs are'} logged; the task needs at least one new one (the CSV includes them all).`,
   waiting: 'The task completes by itself once you get there.',
   done: 'Done',
   explainNext: 'Show the explanation',
@@ -21,7 +22,7 @@ export const en: PedagogyDict = {
   restart: 'Start over',
   teacher: 'Note for teachers',
   modeNote: { explore: 'Explore mode', lab: 'Lab mode' },
-  progressLabels: { open: 'open', polystyrene: 'polystyrene' },
+  progressLabels: { open: 'open', polystyrene: 'polystyrene', xrfCu: 'Cu', xrfZn: 'Zn', xrfPb: 'Pb', xrfBrass: 'brass', xrfCal: 'calibration' },
   task: {
     background: {
       title: 'The counter with the tube off',
@@ -121,6 +122,45 @@ export const en: PedagogyDict = {
         'Below θ_K (λ < λ_K) a photon has the energy to eject a K electron and is absorbed; above θ_K it does not, so the transmission rises. Compute λ_K = 2d sin θ_K with your crystal’s d (NaCl: 282.01 pm; LiF: 201.35 pm). The higher Z is, the more strongly the nucleus pulls on the K electrons: the binding energy rises, λ_K gets shorter and, by Bragg’s law, the Ag edge lies at a smaller θ than the Zr edge. Moseley’s law holds for the edges too: √(1/λ_K) = √R (Z − σ_K), with R the Rydberg constant (the squared slope) and σ_K the screening constant, how much the other electrons reduce the charge the K electron feels (−intercept / slope). With NaCl your R will come out a few % below R∞ = 1.097 × 10⁷ m⁻¹, from physics and from the counter’s finite angular resolution; with LiF, which spreads the angles further, the gap is smaller.',
       teacher:
         'Answer: the first option; the Ag edge falls at θ ≈ 4.94° and the Zr edge at ≈ 7.02° (higher Z → shorter λ_K → smaller θ). Typical mistakes: “more Z or more energy, larger angle”; keeping the ¾ factor of the Kα line (an edge has none: R would come out 33 % high); taking the tube’s Kα/Kβ peaks for edges. The fit should give R ≈ 1.06 × 10⁷ m⁻¹ and σ_K ≈ 2.9, R ≈ 3.5 % below R∞ (±1 % noise): ≈ 1.3 % is physics (relativity and screening that grows with Z) and ≈ 2.3 % is the counter’s resolution bias. LiF variant (d = 201.35 pm): the edges fall at ≈ 6.3° (In), 6.9° (Ag), 8.9° (Mo) and 9.8° (Zr), so the window becomes ≈ 6.0°–10.2° (worked out from the crystal’s d; all scans of a group must be on the same crystal, and NaCl and LiF are not mixed). NaCl’s window translated to LiF is 5.2°–10.5°. On LiF the noise-free model gives R ≈ 1.09 × 10⁷ m⁻¹ (≈ 1 % below R∞) and σ_K ≈ 3.4–3.6, depending on the window: with a larger dispersion dθ/dλ, the same angular resolution shifts λ_K less. The Zr edge sits 0.3° from Kα, so its value depends on how far the scan goes. To discuss: why does LiF give an R closer to R∞? To discuss: why does the transmission rise with λ at the edge instead of falling? See docs/teacher-key.md (Moseley).',
+    },
+    'xrf-calibration': {
+      title: 'First fluorescence spectrum',
+      concept: 'Energy calibration of the MCA',
+      predict: 'With channels and gain fixed, every channel covers the same energy interval. Suppose channel 0 is 0 keV and the Cu Kα (8.04 keV) falls in channel 100. In which channel would the Pb Lα (10.56 keV) fall?',
+      options: [] as string[],
+      act: 'Follow the guide’s order: SENSOR mode, ADJUST the sensor arm to 90°; open the door and, in Setup, mount the energy detector and the XRF sample Cu; TARGET mode, target to 45.0°; close the door and switch HV on. In the MCA: 512 channels, gain −2.5, 180 s, Start. When it ends, mark the Cu Kα with the cursor and press “Use cursor” in Point 1 (8.04 keV). Swap to Pb (HV off, door, Setup), Clear and Start; mark the Pb Lα in Point 2 (10.56 keV) and press Calibrate.',
+      actHelp: 'The MCA holds one spectrum at a time; Clear keeps the calibration and the points already entered. If it gets no ✓: target at 45.0°, HV on, the full 180 s and nothing changed while it counted. Changing channels or gain wipes the spectrum and the calibration.',
+      observe: 'Each element leaves its peaks in channels of its own, and the Pb one sits to the right of Cu. After calibrating, the axis changes to keV and the lines fall at their reference energies. Near 17 keV every spectrum shows the tube’s Mo Kα and Kβ, scattered by the sample.',
+      explain:
+        'The MCA only counts pulses per channel; the gain and the number of channels set the keV per channel (here ≈ 0.078 keV). A real MCA also has an offset b, so it is calibrated with two known lines, E = m · N + b, and redone after changing channels or gain. In this simulator b = 0 (a simplification).',
+      teacher:
+        'Answer: ≈ 131 (10.56 / 8.04 · 100). In the model’s spectrum Cu Kα falls near channel 103 and Pb Lα near 135 (channel width 0.0781 keV at 512 channels, gain −2.5; the model’s Pb Lα centroid is 10.54 keV). Typical mistakes: taking Pb Lβ (12.6 keV) for Lα (the check fails); taking the Mo peaks near 17 keV (tube, scattered) for sample lines; reading a channel number as an energy. The task is met by a Cu and a Pb spectrum measured after the act step opened, at 45.0°, HV on, unchanged while counting and at the current channels and gain, where Cu Kα and Pb Lα stand out by at least 5 σ in the app’s fit (at 35 kV, 1 mA and 180 s: ≳ 49 σ in the model; the absolute scale is uncertain), and by a calibration that sends those two channels to their reference energies within at most one channel width (the guide’s, 8.04 and 10.56 keV, does). The 45° target is checked only by the task: the model fixes ψ₁ = ψ₂ = 45°. To discuss: why does the guide use two lines and not one?',
+    },
+    'xrf-brass': {
+      title: 'Composition of brass',
+      concept: 'Overlapping lines',
+      predict: 'In the spectrum of brass (Cu, Zn and a little Pb), what do you expect between 7.5 and 10 keV?',
+      options: ['One isolated peak per element', 'Four separate peaks: Kα and Kβ of Cu and Zn', 'Peaks that overlap and cannot be told apart by eye'],
+      act: 'Set the target (β) to 45.0° (the task reset it). Measure Cu, Zn, Pb and the CuZn39Pb3 brass, all at 35 kV, 1 mA, 512 channels, gain −2.5 and 180 s. With the calibrated MCA, fit the lines in the Line fit panel or download the CSV. Divide each area by its live time and compute w = A / A_pure, normalised to 100 %.',
+      actHelp: 'To swap samples: HV off, open the door, Setup, close, HV on, Clear and Start. If the energy detector is not mounted, set it up as in “First fluorescence spectrum”. You can speed up time. If it gets no ✓: target at 45.0°, the full 180 s and the same U, I, channels and gain for every sample. Standards from before this task count; the brass must be measured now.',
+      observe: 'Zn Kα (8.63 keV) and Cu Kβ (8.91 keV) merge into one broad peak, and Pb barely shows. The fixed-centre fit gives each line its area.',
+      explain:
+        'Each element emits several lines and the detector has a finite resolution (FWHM ≈ 0.4 keV near 8 keV): Zn Kα and Cu Kβ are only 0.27 keV apart, less than one FWHM, so they must be fitted together. A line area is proportional to the amount of the element: compared with the pure standard (per live time) it gives the fraction. The result is first-order; matrix absorption and secondary fluorescence shift it by a few percentage points.',
+      teacher:
+        'Analysis outside the app (~20 min; 4 × 180 s of counting: use time acceleration). The task’s recipe: divide each area by the live time and compute w = A / A_pure, normalised. The fixed-centre fit on noiseless spectra gives Cu 56.4 / Zn 41.0 / Pb 2.7 %; nominal 58 / 39 / 3 %. LD also weights by density (61.1 / 35.2 / 3.7 % in the model; LD publishes 61.6 / 35.6 / 2.9 %); in a thick sample the density cancels to first order (I ∝ w / χ), so that weighting has no first-order basis. The bias is the method’s (matrix absorption and secondary fluorescence), not the data’s. Answer: the third (Cu Kβ 8.91 keV on Zn Kα 8.63 keV: 0.27 keV, less than one FWHM ≈ 0.41 keV at 8 keV). Typical mistake: one element, one isolated peak. The task is met by the three standards (they may predate the act step) and a brass measured after it, all on one beam (same U, I, channels and gain), at 45.0° with HV on and unchanged, where each standard’s main line and Cu Kα, Zn Kα and Pb Lα of the brass stand out by at least 5 σ; the student’s composition is not checked. At 35 kV, 1 mA, 180 s: Cu Kα ≈ 73 σ, Zn Kα ≈ 58 σ, Pb Lα ≈ 7.4 σ (with 60 s only 4.1 σ: not met); all in the model, whose absolute scale is uncertain.',
+    },
+    'xrf-coin': {
+      title: 'The one-centavo coin',
+      concept: 'Which part of the sample is measured?',
+      predict: 'The 1 centavo coin (2003) is copper-coloured, but a magnet attracts it. What will its spectrum show?',
+      options: ['Strong Fe lines and weak Cu lines', 'Strong Cu lines and weak Fe lines', 'Fe and Cu about equal', 'Only Cu lines'],
+      act: 'The task reset the target to 0°: TARGET mode and ADJUST to 45.0°. With HV off and the door open, in Setup put the 1 centavo (2003) coin on the holder; close the door, switch HV on and, in the MCA, Clear and Start (35 kV, 1 mA, 512 channels, gain −2.5, 180 s). With the calibrated MCA, identify the lines.',
+      actHelp: 'If the energy detector is not mounted, set it up as in “First fluorescence spectrum”. If it gets no ✓: target at 45.0°, HV on, the full 180 s and nothing changed while it counted. A weak line needs time.',
+      observe: 'Cu dominates, but Fe clearly shows: the copper is a thin layer on steel.',
+      explain:
+        'The fluorescence that reaches the detector comes from the top tens of µm: deeper, it is absorbed before it escapes. The attenuation length of Cu Kα in Cu is ≈ 21 µm, so the plating gives a Cu signal almost like bulk Cu. Fe Kα crosses the plating with ≈ 12 µm attenuation length and the incident beam is attenuated too, so the Fe of the core looks weak. A first-order calculation would say “almost pure copper”, yet the coin is only a few % Cu by mass: fluorescence sees the surface, not the bulk.',
+      teacher:
+        'Answer: the second. Ecuador 1 centavo 2003, copper-plated steel (magnetic); Cu plating ≈ 18 µm (an estimate, no mint publishes it), comparable to the attenuation length of Cu Kα in Cu (≈ 21 µm). The model gives Cu Kα ≈ 30 × Fe Kα; at 35 kV, 1 mA and 180 s: Cu Kα ≈ 100 σ, Fe Kα ≈ 16 σ (in the model; the absolute scale is uncertain). The real 559 938’s housing can show Fe, Cu, Zn and Au lines (instruction sheet): compare with the pure-Cu spectrum, where Fe is absent. Typical mistake: “XRF measures the bulk composition”. The task is met by a coin spectrum measured after the act step opened, at 45.0°, with HV and unchanged, where Cu Kα and Fe Kα stand out by at least 5 σ. To discuss: what would you expect with a 2 µm plating? And with a 100 µm one?',
     },
     'forge-kalpha-10deg': {
       title: 'Design a crystal for Kα at 10°',

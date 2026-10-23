@@ -116,12 +116,14 @@ type XrfFile = {
   compton_shift_pm: number
   air_in_mg_cm2: number
   pin_eff_mo_lines: Readonly<Record<string, number>>
+  /** Lines a student may pick for a fit (fluorescence.reference_lines_keV); the JSON is key-sorted, not in menu order. */
+  reference_lines_keV: Readonly<Record<string, number>>
   sample: XrfSample
 }
 /** XRF kernels (braggsim.fluorescence.kernels) by sample name, filled by loadXrfSample(); the shared constants
  * are 0 until the first sample loads. */
 export const XRF: Omit<XrfFile, 'sample'> & { samples: Record<string, XrfSample> } = {
-  scale_per_source_unit: 0, compton_shift_pm: 0, air_in_mg_cm2: 0, pin_eff_mo_lines: {}, samples: {},
+  scale_per_source_unit: 0, compton_shift_pm: 0, air_in_mg_cm2: 0, pin_eff_mo_lines: {}, reference_lines_keV: {}, samples: {},
 }
 const xrfFiles = import.meta.glob<XrfFile>('../../../artifacts/tables/xrf/*.json', { import: 'default' })
 const xrfPath = (name: string) => `../../../artifacts/tables/xrf/${name}.json`

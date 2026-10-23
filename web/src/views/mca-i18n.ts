@@ -40,6 +40,20 @@ const es = {
   emptyNoBeam: 'Enciende HV con U e I mayores que 0.',
   emptyReady: 'Presiona Iniciar para medir.',
   emptyWaiting: 'Midiendo…',
+  csv: 'CSV',
+  fitTitle: 'Ajuste de líneas',
+  fitHint: 'Elige las líneas que identificas en el espectro y ajústalas: el ajuste da el área de cada pico.',
+  fitLines: 'Líneas (centroide, keV)',
+  fit: 'Ajustar',
+  fitNeedCal: 'El ajuste necesita primero la calibración en energía.',
+  fitErrWindow: 'Hay muy pocos canales en esa ventana: elige otras líneas o cambia los canales.',
+  fitAt: (real: number, live: number) => `Ajuste de las cuentas a t = ${real.toFixed(0)} s (tiempo vivo ${live.toFixed(1)} s)`,
+  fitRunning: 'La medición sigue: ajusta de nuevo para actualizar.',
+  fitLine: 'Línea',
+  fitArea: 'Área (cuentas)',
+  fitLegend: 'barras: cuentas medidas · línea: modelo ajustado',
+  fitDone: (n: number, chi2: string) => `Ajuste listo: ${n} líneas, χ²/ν = ${chi2}`,
+  fullSpectrum: 'Todo el espectro',
 }
 
 const en: typeof es = {
@@ -81,6 +95,20 @@ const en: typeof es = {
   emptyNoBeam: 'Switch HV on with U and I above 0.',
   emptyReady: 'Press Start to measure.',
   emptyWaiting: 'Measuring…',
+  csv: 'CSV',
+  fitTitle: 'Line fit',
+  fitHint: 'Pick the lines you identify in the spectrum and fit them: the fit gives the area of each peak.',
+  fitLines: 'Lines (centroid, keV)',
+  fit: 'Fit',
+  fitNeedCal: 'The fit needs the energy calibration first.',
+  fitErrWindow: 'Too few channels in that window: pick other lines or change the channels.',
+  fitAt: (real, live) => `Fit of the counts at t = ${real.toFixed(0)} s (live time ${live.toFixed(1)} s)`,
+  fitRunning: 'The measurement goes on: fit again to update.',
+  fitLine: 'Line',
+  fitArea: 'Area (counts)',
+  fitLegend: 'bars: measured counts · line: fitted model',
+  fitDone: (n, chi2) => `Fit done: ${n} lines, χ²/ν = ${chi2}`,
+  fullSpectrum: 'Full spectrum',
 }
 
 export const MCA_I18N = { es, en }

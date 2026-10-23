@@ -1,6 +1,6 @@
 // Guided tasks: their success conditions on real apparatus runs, the CSV export, and the lab-mode leak guard.
 import { beforeAll, describe, expect, test } from 'vitest'
-import { Apparatus, OK_S, SAFE_S } from '../src/apparatus/apparatus'
+import { Apparatus, ENERGY_SENSOR, OK_S, SAFE_S } from '../src/apparatus/apparatus'
 import { clearExports, exportedScans, exposureCsv, markExported, replayCsv } from '../src/pedagogy/csv'
 import { en } from '../src/pedagogy/i18n/en'
 import { es } from '../src/pedagogy/i18n/es'
@@ -15,7 +15,11 @@ import { task as lambda3 } from '../src/pedagogy/tasks/lambda-three-orders'
 import { task as threshold } from '../src/pedagogy/tasks/line-threshold'
 import { task as moseley } from '../src/pedagogy/tasks/moseley-k-edges'
 import { mulberry32 } from '../src/physics/detector'
-import { loadAbsorbers, loadCrystals } from '../src/physics/tables'
+import { loadAbsorbers, loadCrystals, loadXrfSample } from '../src/physics/tables'
+import { task as xrfBrass } from '../src/pedagogy/tasks/xrf-brass'
+import { task as xrfCalibration } from '../src/pedagogy/tasks/xrf-calibration'
+import { task as xrfCoin } from '../src/pedagogy/tasks/xrf-coin'
+import { kevPerChannel } from '../src/physics/detector'
 
 const SAFETY_S = SAFE_S + OK_S
 
@@ -538,6 +542,13 @@ test('lab tasks never state an expected angle or wavelength (teacher notes aside
     // student text names the crystal and its d (201.35 pm), never an angle of LiF.
     for (const leak of ['6.9', '8.9', '9.8', '10.2', '6.0°', '5.2', '10.5'])
       expect(text, `${moseley.id}: "${leak}"`).not.toContain(leak)
+    // XRF: the calibration channels and channel width stay in the teacher note; the coin task never names Fe before the observation.
+    for (const t of [xrfCalibration, xrfBrass, xrfCoin]) {
+      const { teacher: _x, explain: _y, ...st } = dict.task[t.id as keyof typeof dict.task]
+      const txt = JSON.stringify(st)
+      for (const leak of ['103', '135', '0.078']) expect(txt, `${t.id}: "${leak}"`).not.toContain(leak)
+    }
+    expect((dict.task['xrf-coin'] as { actHelp: string }).actHelp).not.toContain('Fe')
     // Attenuation: T, μ/ρ and rates are in the teacher notes only; the observation does not give the answer.
     for (const t of [attThickness, attMaterial, background]) {
       const { teacher: _t, explain: _e, ...student } = dict.task[t.id as keyof typeof dict.task]
@@ -601,5 +612,164 @@ describe('exposureCsv', () => {
     expect(lines[5]).toMatch(/^0\.0,0\.0,,alWheel,,0,none,0,,,21\.0,/)
     expect(lines[6]).toMatch(/^7\.2,14\.4,COUPLED,crystal,NaCl,,,,,,21\.0,0\.05,4,0,/)
     expect(lines.join('\n')).not.toContain('# crystal:')
+  })
+})
+
+describe('XRF tasks (EPN Práctica 6)', { timeout: 30_000 }, () => {
+  beforeAll(async () => {
+    for (const n of ['Cu', 'Zn', 'Pb', 'CuZn39Pb3', 'centavo2003']) await loadXrfSample(n)
+  })
+
+  type Run = { target?: number; hv?: boolean; preset?: number; u?: number; midChange?: boolean }
+  /** The guide's bench (sensor to 90°, energy detector, target) and one finished MCA run of `sample`. */
+  const bench = () => {
+    const a = new Apparatus(mulberry32(7))
+    a.press('SENSOR')
+    a.adjust(ENERGY_SENSOR)
+    return a
+  }
+  function measure(a: Apparatus, sample: string, { target = 450, hv = true, preset = 180, u = 350, midChange = false }: Run = {}) {
+    if (a.hvOn) a.press('HV')
+    a.setDoors(false)
+    expect(a.mount({ holder: 'sample', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null, detector: 'energy', sample })).toBe(true)
+    a.setDoors(true)
+    a.press('TARGET')
+    a.adjust(target - a.target)
+    a.press('U')
+    a.adjust(u - a.u)
+    a.press('I')
+    a.adjust(100 - a.i)
+    if (hv) {
+      a.press('HV')
+      a.tick(SAFETY_S + 0.1)
+    }
+    a.mca.set({ presetS: preset })
+    a.mca.clear()
+    a.mca.start()
+    if (midChange) {
+      a.tick(3)
+      a.press('U')
+      a.adjust(-10)
+    }
+    a.timeScale = Infinity
+    a.tick(1)
+    a.timeScale = 1
+    expect(a.mca.running).toBe(false)
+  }
+  /** The two-point calibration of the guide (or `Pb` energy off by `dE` keV). */
+  const calibrate = (a: Apparatus, ePb = 10.56, e1 = 8.04) => {
+    const w = kevPerChannel(a.mca.settings.nChannels, a.mca.settings.gain)
+    const [c1, c2] = [8.041 / w, 10.541 / w]
+    const m = (ePb - e1) / (c2 - c1)
+    a.mca.calibration = { kevPerChannel: m, offsetKeV: e1 - m * c1 }
+  }
+
+  test('the XRF tasks are in the list, in lab mode, and keep the detector where the bench is prepared', () => {
+    expect(TASKS.map((t) => t.id).slice(-7, -4)).toEqual(['xrf-calibration', 'xrf-brass', 'xrf-coin'])
+    expect([xrfCalibration.keepDetector, xrfBrass.keepDetector, xrfCoin.keepDetector]).toEqual([undefined, true, true])
+    for (const t of [xrfCalibration, xrfBrass, xrfCoin]) expect(t.mode).toBe('lab')
+  })
+
+  test('xrf-calibration: Cu and Pb runs at 45° and a calibration within one channel', () => {
+    const a = bench()
+    expect(xrfCalibration.success(a)).toBe(false)
+    measure(a, 'Cu')
+    expect(xrfCalibration.progress!(a).map((p) => p.done)).toEqual([true, false, false])
+    measure(a, 'Pb')
+    expect(xrfCalibration.success(a)).toBe(false) // no calibration yet
+    calibrate(a, 10.56)
+    expect(xrfCalibration.success(a)).toBe(true)
+    expect(xrfCalibration.progress!(a).every((p) => p.done)).toBe(true)
+    calibrate(a, 10.56 + 0.2) // Pb Lα off by more than a 0.078 keV channel
+    expect(xrfCalibration.success(a)).toBe(false)
+  })
+
+  test('xrf-calibration: fails with target off 45°, a changed run, HV off or a missing Pb', () => {
+    for (const bad of [{ target: 440 }, { midChange: true }, { hv: false }] as Run[]) {
+      const a = bench()
+      measure(a, 'Cu')
+      measure(a, 'Pb', bad)
+      calibrate(a)
+      expect(xrfCalibration.success(a), JSON.stringify(bad)).toBe(false)
+    }
+    const a = bench()
+    measure(a, 'Cu')
+    calibrate(a)
+    expect(xrfCalibration.success(a)).toBe(false)
+  })
+
+  test('xrf-calibration and xrf-coin: runs before `from` do not count', () => {
+    const a = bench()
+    measure(a, 'Cu')
+    measure(a, 'Pb')
+    calibrate(a)
+    expect(xrfCalibration.success(a, 0)).toBe(true)
+    expect(xrfCalibration.success(a, a.mcaLog.length)).toBe(false)
+    measure(a, 'centavo2003')
+    expect(xrfCoin.success(a, 2)).toBe(true)
+    expect(xrfCoin.success(a, 3)).toBe(false)
+  })
+
+  test('xrf-brass: earlier standards count, an earlier brass does not', () => {
+    const a = bench()
+    for (const s of ['Cu', 'Zn', 'Pb']) measure(a, s)
+    const from = a.mcaLog.length
+    measure(a, 'CuZn39Pb3')
+    expect(xrfBrass.success(a, from)).toBe(true)
+    expect(xrfBrass.success(a, from + 1)).toBe(false)
+    expect(xrfBrass.progress!(a, from + 1).map((p) => p.done)).toEqual([true, true, true, false])
+    const b = bench()
+    measure(b, 'CuZn39Pb3')
+    const f = b.mcaLog.length
+    for (const s of ['Cu', 'Zn', 'Pb']) measure(b, s)
+    expect(xrfBrass.success(b, f)).toBe(false)
+  })
+
+  test('xrf-calibration: changing channels or gain wipes the calibration and the old runs stop counting', () => {
+    const a = bench()
+    measure(a, 'Cu')
+    measure(a, 'Pb')
+    calibrate(a)
+    a.mca.set({ gain: -3 })
+    expect(xrfCalibration.success(a)).toBe(false)
+  })
+
+  test('xrf-brass: three standards and the brass at one beam', () => {
+    const a = bench()
+    for (const s of ['Cu', 'Zn', 'Pb']) measure(a, s)
+    expect(xrfBrass.success(a)).toBe(false)
+    measure(a, 'CuZn39Pb3')
+    expect(xrfBrass.success(a)).toBe(true)
+    expect(xrfBrass.progress!(a).every((p) => p.done)).toBe(true)
+  })
+
+  test('xrf-brass: fails with a missing standard, a 60 s brass, target off 45°, a changed run, HV off or another beam', () => {
+    const cases: [string, (a: Apparatus) => void][] = [
+      ['missing Zn', (a) => { for (const s of ['Cu', 'Pb', 'CuZn39Pb3']) measure(a, s) }],
+      ['brass 60 s', (a) => { for (const s of ['Cu', 'Zn', 'Pb']) measure(a, s); measure(a, 'CuZn39Pb3', { preset: 60 }) }],
+      ['Zn at 44°', (a) => { measure(a, 'Cu'); measure(a, 'Zn', { target: 440 }); measure(a, 'Pb'); measure(a, 'CuZn39Pb3') }],
+      ['changed Pb', (a) => { measure(a, 'Cu'); measure(a, 'Zn'); measure(a, 'Pb', { midChange: true }); measure(a, 'CuZn39Pb3') }],
+      ['Cu without HV', (a) => { measure(a, 'Cu', { hv: false }); measure(a, 'Zn'); measure(a, 'Pb'); measure(a, 'CuZn39Pb3') }],
+      ['brass at 30 kV', (a) => { for (const s of ['Cu', 'Zn', 'Pb']) measure(a, s); measure(a, 'CuZn39Pb3', { u: 300 }) }],
+    ]
+    for (const [name, run] of cases) {
+      const a = bench()
+      run(a)
+      expect(xrfBrass.success(a), name).toBe(false)
+    }
+  })
+
+  test('xrf-coin: the coin at 45° shows Cu and Fe; fails off 45°, changed, HV off or another sample', () => {
+    const a = bench()
+    measure(a, 'centavo2003')
+    expect(xrfCoin.success(a)).toBe(true)
+    for (const [name, run] of [['target', { target: 440 }], ['changed', { midChange: true }], ['no HV', { hv: false }]] as [string, Run][]) {
+      const b = bench()
+      measure(b, 'centavo2003', run)
+      expect(xrfCoin.success(b), name).toBe(false)
+    }
+    const c = bench()
+    measure(c, 'Cu')
+    expect(xrfCoin.success(c)).toBe(false)
   })
 })

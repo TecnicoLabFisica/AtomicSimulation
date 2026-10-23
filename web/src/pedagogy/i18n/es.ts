@@ -12,6 +12,7 @@ export const es = {
   loadFailed: 'No se pudieron cargar los datos del cristal. Revisa la conexión y vuelve a abrir la tarea.',
   busyConfirm: 'Hay una medición en curso. ¿Detenerla y preparar la tarea?',
   earlierExposures: (n: number) => `Hay ${n} ${n === 1 ? 'exposición anterior' : 'exposiciones anteriores'}; la tarea cuenta solo las nuevas (el CSV las incluye todas).`,
+  earlierRuns: (n: number) => `Hay ${n} ${n === 1 ? 'medición anterior' : 'mediciones anteriores'} del MCA; la tarea exige al menos una nueva (el CSV las incluye todas).`,
   waiting: 'La tarea se completa sola cuando lo logres.',
   done: 'Logrado',
   explainNext: 'Ver la explicación',
@@ -20,7 +21,7 @@ export const es = {
   restart: 'Empezar de nuevo',
   teacher: 'Nota para docentes',
   modeNote: { explore: 'Modo Explorar', lab: 'Modo Laboratorio' },
-  progressLabels: { open: 'abierto', polystyrene: 'poliestireno' },
+  progressLabels: { open: 'abierto', polystyrene: 'poliestireno', xrfCu: 'Cu', xrfZn: 'Zn', xrfPb: 'Pb', xrfBrass: 'latón', xrfCal: 'calibración' },
   task: {
     background: {
       title: 'El contador con el tubo apagado',
@@ -120,6 +121,45 @@ export const es = {
         'Para θ < θ_K (λ < λ_K) el fotón tiene energía para arrancar un electrón K y se absorbe; por encima de θ_K ya no, y la transmisión sube. Calcula λ_K = 2d sen θ_K con la d de tu cristal (NaCl: 282.01 pm; LiF: 201.35 pm). Cuanto mayor es Z, más fuerte atrae el núcleo a los electrones K: la energía de enlace sube, λ_K se acorta y, por la ley de Bragg, el borde de la Ag cae a menor θ que el del Zr. La ley de Moseley vale también para los bordes: √(1/λ_K) = √R (Z − σ_K), con R la constante de Rydberg (pendiente al cuadrado) y σ_K la constante de apantallamiento, cuánto reducen los demás electrones la carga que siente el electrón K (−ordenada / pendiente). Con NaCl, tu R saldrá unos % por debajo de R∞ = 1.097 × 10⁷ m⁻¹, por física y por la resolución angular finita del contador; con LiF, que separa más los ángulos, la diferencia es menor.',
       teacher:
         'Respuesta: la primera opción; el borde de la Ag cae en θ ≈ 4.94° y el del Zr en ≈ 7.02° (Z mayor → λ_K menor → θ menor). Errores típicos: «más Z o más energía, mayor ángulo»; usar el factor ¾ de la línea Kα (para el borde no va: R saldría un 33 % alta); tomar los picos Kα/Kβ del tubo por bordes. Del ajuste se espera R ≈ 1.06 × 10⁷ m⁻¹ y σ_K ≈ 2.9, R ≈ 3.5 % por debajo de R∞ (±1 % por ruido): ≈ 1.3 % es física (relatividad y un apantallamiento que crece con Z) y ≈ 2.3 % es el sesgo de resolución del contador. Variante con LiF (d = 201.35 pm): los bordes caen en ≈ 6.3° (In), 6.9° (Ag), 8.9° (Mo) y 9.8° (Zr), así que la ventana pasa a ≈ 6.0°–10.2° (se calcula con la d del cristal; todos los barridos de un grupo deben ser sobre el mismo cristal, y no se mezclan NaCl y LiF). La ventana del NaCl traducida a LiF es 5.2°–10.5°. Con LiF, el modelo sin ruido da R ≈ 1.09 × 10⁷ m⁻¹ (≈ 1 % bajo R∞) y σ_K ≈ 3.4–3.6, según la ventana: con mayor dispersión dθ/dλ, la misma resolución angular desplaza menos λ_K. El borde del Zr queda a 0.3° de Kα, así que su valor depende de hasta dónde llegue el barrido. Para discutir: ¿por qué LiF da un R más cercano a R∞? Para discutir: ¿por qué la transmisión sube con λ en el borde, en vez de bajar? Ver docs/teacher-key.md (Moseley).',
+    },
+    'xrf-calibration': {
+      title: 'Primer espectro de fluorescencia',
+      concept: 'Calibración en energía del MCA',
+      predict: 'Con canales y ganancia fijos, cada canal cubre el mismo intervalo de energía. Supón que el canal 0 es 0 keV y que el Kα del Cu (8.04 keV) cae en el canal 100. ¿En qué canal caería el Lα del Pb (10.56 keV)?',
+      options: [] as string[],
+      act: 'Sigue el orden de la guía: modo SENSOR, ADJUST del brazo del sensor a 90°; abre la puerta y, en Montaje, pon el detector de energía y la muestra XRF de Cu; modo TARGET, objetivo a 45.0°; cierra la puerta y enciende HV. En el MCA: 512 canales, ganancia −2.5, 180 s, Iniciar. Al terminar, marca el Kα del Cu con el cursor y usa «Usar cursor» en el Punto 1 (8.04 keV). Cambia a Pb (HV apagado, puerta, Montaje), Borrar e Iniciar; marca el Lα del Pb en el Punto 2 (10.56 keV) y pulsa Calibrar.',
+      actHelp: 'El MCA guarda un solo espectro a la vez; Borrar no quita la calibración ni los puntos ya anotados. Si no se marca ✓: objetivo a 45.0°, HV encendido, los 180 s completos y nada cambia mientras cuenta. Si cambias canales o ganancia, se borran espectro y calibración.',
+      observe: 'Cada elemento deja sus picos en canales propios, y el del Pb queda a la derecha del Cu. Tras calibrar, el eje pasa a keV y las líneas caen en sus energías de referencia. Cerca de 17 keV todos los espectros muestran el Kα y el Kβ del Mo del tubo, dispersados por la muestra.',
+      explain:
+        'El MCA solo cuenta pulsos por canal; la ganancia y el número de canales fijan los keV por canal (aquí ≈ 0.078 keV). Un MCA real tiene además un desfase b, así que se calibra con dos líneas conocidas, E = m · N + b, y se rehace al cambiar canales o ganancia. En este simulador b = 0 (una simplificación).',
+      teacher:
+        'Respuesta: ≈ 131 (10.56 / 8.04 · 100). En el espectro del modelo el Cu Kα cae en ≈ canal 103 y el Pb Lα en ≈ 135 (ancho de canal 0.0781 keV a 512 canales y ganancia −2.5; el centroide del Pb Lα del modelo es 10.54 keV). Errores típicos: tomar el Pb Lβ (12.6 keV) por el Lα (la comprobación falla); tomar los picos del Mo a ≈ 17 keV (tubo, dispersados) por líneas de la muestra; leer el número de canal como energía. Se cumple con un espectro de Cu y otro de Pb medidos después de abrir el paso Actúa, a 45.0°, con HV encendido, sin cambios durante la medición y con los canales y la ganancia actuales, donde Cu Kα y Pb Lα sobresalen al menos 5 σ en el ajuste de la app (a 35 kV, 1 mA y 180 s: ≳ 49 σ en el modelo; la escala absoluta es incierta), y con una calibración que lleve esos dos canales a sus energías de referencia con un error de a lo sumo un ancho de canal (la de la guía, 8.04 y 10.56 keV, lo cumple). El objetivo a 45° solo lo comprueba la tarea: el modelo fija ψ₁ = ψ₂ = 45°. Para discutir: ¿por qué la guía usa dos líneas y no una?',
+    },
+    'xrf-brass': {
+      title: 'Composición del latón',
+      concept: 'Líneas que se solapan',
+      predict: 'En el espectro del latón (Cu, Zn y algo de Pb), ¿qué esperas ver entre 7.5 y 10 keV?',
+      options: ['Un pico aislado por elemento', 'Cuatro picos separados: Kα y Kβ del Cu y del Zn', 'Picos que se solapan y no se separan a simple vista'],
+      act: 'Pon el objetivo (β) a 45.0° (la tarea lo repuso). Mide Cu, Zn, Pb y el latón CuZn39Pb3, todos con 35 kV, 1 mA, 512 canales, ganancia −2.5 y 180 s. Con el MCA calibrado, ajusta las líneas en el panel Ajuste de líneas o descarga el CSV. Divide cada área por su tiempo vivo y calcula w = A / A_puro, normalizada al 100 %.',
+      actHelp: 'Para cambiar de muestra: HV apagado, abre la puerta, Montaje, cierra, enciende HV, Borrar e Iniciar. Si el detector de energía no está montado, prepáralo como en «Primer espectro de fluorescencia». Puedes acelerar el tiempo. Si no se marca ✓: objetivo a 45.0°, los 180 s completos y los mismos U, I, canales y ganancia en todas las muestras. Los patrones anteriores a esta tarea valen; el latón debe medirse ahora.',
+      observe: 'El Kα del Zn (8.63 keV) y el Kβ del Cu (8.91 keV) se funden en un solo pico ancho, y el Pb apenas asoma. Al ajustar con centros fijos sale el área de cada línea.',
+      explain:
+        'Cada elemento emite varias líneas y el detector tiene una resolución finita (FWHM ≈ 0.4 keV cerca de 8 keV): el Zn Kα y el Cu Kβ distan solo 0.27 keV, menos que un FWHM, y hay que ajustarlos juntos. El área de la línea es proporcional a la cantidad del elemento: comparada con la del patrón puro (por tiempo vivo) da su fracción. El resultado es de primer orden; la absorción en la matriz y la fluorescencia secundaria lo desvían unos puntos porcentuales.',
+      teacher:
+        'Análisis fuera de la app (~20 min; 4 × 180 s de medición: usa la aceleración del tiempo). Receta de la tarea: divide cada área por el tiempo vivo y calcula w = A / A_puro, normalizada. Con el ajuste de centros fijos sobre espectros sin ruido sale Cu 56.4 / Zn 41.0 / Pb 2.7 %; nominal 58 / 39 / 3 %. LD pondera además por la densidad (61.1 / 35.2 / 3.7 % en el modelo; LD publica 61.6 / 35.6 / 2.9 %); en una muestra gruesa la densidad se cancela en primer orden (I ∝ w / χ), así que esa ponderación no tiene base de primer orden. El sesgo es del método (absorción de la matriz y fluorescencia secundaria), no de los datos. Respuesta: la tercera (Cu Kβ 8.91 keV sobre Zn Kα 8.63 keV: 0.27 keV, menos que un FWHM ≈ 0.41 keV a 8 keV). Error típico: un elemento, un pico aislado. Se cumple con los tres patrones (pueden ser anteriores) y un latón medido después de abrir el paso Actúa, todos en un mismo haz (U, I, canales y ganancia iguales), a 45.0° con HV encendido y sin cambios, en los que sobresalen al menos 5 σ la línea principal de cada patrón y Cu Kα, Zn Kα y Pb Lα del latón; no se revisa la composición del estudiante. A 35 kV, 1 mA, 180 s: Cu Kα ≈ 73 σ, Zn Kα ≈ 58 σ, Pb Lα ≈ 7.4 σ (con 60 s solo 4.1 σ: no pasa); todo en el modelo, cuya escala absoluta es incierta.',
+    },
+    'xrf-coin': {
+      title: 'La moneda de un centavo',
+      concept: '¿Qué parte de la muestra se mide?',
+      predict: 'La moneda de 1 centavo (2003) tiene color de cobre, pero un imán la atrae. ¿Qué mostrará su espectro?',
+      options: ['Líneas fuertes de Fe y débiles de Cu', 'Líneas fuertes de Cu y débiles de Fe', 'Fe y Cu casi iguales', 'Solo líneas del Cu'],
+      act: 'La tarea repuso el objetivo a 0°: modo TARGET y ADJUST a 45.0°. Con HV apagado y la puerta abierta, en Montaje pon la moneda de 1 centavo (2003); cierra la puerta, enciende HV y, en el MCA, Borrar e Iniciar (35 kV, 1 mA, 512 canales, ganancia −2.5, 180 s). Con el MCA calibrado, identifica las líneas.',
+      actHelp: 'Si el detector de energía no está montado, prepáralo como en «Primer espectro de fluorescencia». Si no se marca ✓: objetivo a 45.0°, HV encendido, los 180 s completos y nada cambia mientras cuenta. Una línea débil necesita tiempo.',
+      observe: 'Domina el Cu, pero el Fe asoma con claridad: el cobre es una capa fina sobre el acero.',
+      explain:
+        'La fluorescencia que llega al detector sale de las primeras decenas de µm: más profundo se absorbe antes de salir. La longitud de atenuación del Cu Kα en Cu es ≈ 21 µm, así que el recubrimiento da una señal de Cu casi como la del Cu macizo. El Fe Kα cruza el recubrimiento con ≈ 12 µm de longitud de atenuación y el haz incidente también se atenúa, así que el Fe del núcleo se ve débil. Un cálculo de primer orden diría «casi cobre puro», aunque la moneda es solo unos % de Cu en masa: la fluorescencia ve la superficie, no el volumen.',
+      teacher:
+        'Respuesta: la segunda. Moneda de 1 centavo de Ecuador 2003, acero cobreado (magnética); recubrimiento de Cu ≈ 18 µm (estimación, ninguna ceca la publica), comparable a la longitud de atenuación del Cu Kα en Cu (≈ 21 µm). El modelo da Cu Kα ≈ 30 × Fe Kα; a 35 kV, 1 mA y 180 s: Cu Kα ≈ 100 σ, Fe Kα ≈ 16 σ (en el modelo; la escala absoluta es incierta). El alojamiento del 559 938 real puede mostrar líneas de Fe, Cu, Zn y Au (hoja de instrucciones): compara con el espectro del Cu puro, donde no hay Fe. Error típico: «XRF mide la composición del volumen». Se cumple con un espectro de la moneda medido después de abrir el paso Actúa, a 45.0°, con HV y sin cambios, donde Cu Kα y Fe Kα sobresalen al menos 5 σ. Para discutir: ¿qué esperarías con un recubrimiento de 2 µm? ¿Y con uno de 100 µm?',
     },
     'forge-kalpha-10deg': {
       title: 'Diseña un cristal para Kα a 10°',

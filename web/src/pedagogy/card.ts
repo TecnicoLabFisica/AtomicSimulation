@@ -20,8 +20,11 @@ import { task as lambdaThreeOrders } from './tasks/lambda-three-orders'
 import { task as lifKalphaAngle } from './tasks/lif-kalpha-angle'
 import { task as lineThreshold } from './tasks/line-threshold'
 import { task as moseleyKEdges } from './tasks/moseley-k-edges'
+import { task as xrfBrass } from './tasks/xrf-brass'
+import { task as xrfCalibration } from './tasks/xrf-calibration'
+import { task as xrfCoin } from './tasks/xrf-coin'
 
-export const TASKS: GuidedTask[] = [kalphaThirdOrder, lifKalphaAngle, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial, forgeKalpha10, forgeSi222, forgeKcl111, forgeDoublet]
+export const TASKS: GuidedTask[] = [kalphaThirdOrder, lifKalphaAngle, lineThreshold, lambdaThreeOrders, moseleyKEdges, background, attenuationThickness, attenuationMaterial, xrfCalibration, xrfBrass, xrfCoin, forgeKalpha10, forgeSi222, forgeKcl111, forgeDoublet]
 const MODES: AppMode[] = ['explore', 'lab']
 
 /** Guided-task strings in the current language. */
@@ -36,7 +39,8 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   let prediction: string | null = null // the number as typed, or the chosen option's index
   let loading = false // the task's crystal table is on its way
   let notice = '' // a load failure, shown on the list
-  let actFrom = 0 // exposure-log length when the act step opened: the exposure tasks count only newer records
+  let actFrom = 0 // exposure-log (or MCA-log) length when the act step opened: such tasks count only newer records
+  const logLen = (k: GuidedTask | null) => (k?.countsMcaRuns ? a.mcaLog.length : a.exposureLog.length)
   const teacher = new URLSearchParams(location.search).has('teacher')
 
   const listHtml = () => {
@@ -87,7 +91,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     if (step === 1) {
       const line = k.progress ? `<ul class="progress" data-progress>${progressHtml(progressItems(k))}</ul>` : ''
       const help = (x as { actHelp?: string }).actHelp
-      const earlier = k.countsExposures && actFrom > 0 ? `<p class="hint">${p.earlierExposures(actFrom)}</p>` : ''
+      const earlier = actFrom > 0 && (k.countsExposures || k.countsMcaRuns) ? `<p class="hint">${(k.countsMcaRuns ? p.earlierRuns : p.earlierExposures)(actFrom)}</p>` : ''
       return `<p>${x.act}</p>${line}${earlier}${help ? `<p class="hint">${help}</p>` : ''}<p class="hint">${p.waiting}</p>`
     }
     if (step === 2) {
@@ -125,7 +129,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   }
   const go = (next: number) => {
     step = next
-    if (next === 1) actFrom = a.exposureLog.length
+    if (next === 1) actFrom = logLen(task)
     setHints(next >= 2) // the expected angles would give the answer away before it is found
     if (task) lock(next < 2)
     build()
@@ -146,7 +150,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
     const begin = () => {
       if (task !== k) return // the student went back while the crystal table loaded
       loading = false
-      applyInitial(a, k.initial, k.crystal, k.holder, k.crystalLocked !== false || !restart, k.keepCrystal)
+      applyInitial(a, k.initial, k.crystal, k.holder, k.crystalLocked !== false || !restart, k.keepCrystal, k.keepDetector)
       clearExports(a) // a restart begins fresh; the exposure log stays (the attenuation tasks read it)
       void loadAbsorbers().catch(() => {}) // the foils the task mounts; retried when the tray opens
       go(0)
@@ -203,7 +207,7 @@ export function mountLearn(root: HTMLElement, a: Apparatus, { onMode, onFocus, o
   /** Per frame: the act step waits for the task's success condition. True when it was just met (the
    * caller brings the sheet back, since the student is at the instrument then). */
   const render = (): boolean => {
-    if (a.exposureLog.length < actFrom) actFrom = 0 // the log was cleared meanwhile
+    if (logLen(task) < actFrom) actFrom = 0 // the log was cleared meanwhile
     if (task?.progress && step === 1) {
       const el = root.querySelector<HTMLElement>('[data-progress]')
       const items = progressItems(task)

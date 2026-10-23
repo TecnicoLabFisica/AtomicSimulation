@@ -789,3 +789,122 @@ def test_brass_ld_rho_weighted_method_reads_cu_high():
     assert brass.area[0] == approx(T["CuZn39Pb3"]["Cu Kα"], rel=0.01)
     assert brass.area[1] == approx(T["CuZn39Pb3"]["Zn Kα"], rel=0.01)
     assert a_alloy["Pb"] == approx(pb_true, rel=0.05)
+
+
+# --- L3.8: fixed-centre, fixed-σ line fit (linear) ---
+_FWHM = 2 * np.sqrt(2 * np.log(2))
+
+
+def _fixed_fit(spec, labels, window=None):
+    from braggsim import fluorescence
+
+    ref = fluorescence.reference_lines_keV()
+    c = [ref[lb] for lb in labels]
+    s = [float(detector.pin_fwhm_keV(x)) / _FWHM for x in c]
+    return analysis.gauss_fit_fixed(spec[2], spec[0], c, s, window)
+
+
+def test_gauss_fit_fixed_agrees_with_free_fit_on_noiseless_brass():
+    """Common-σ free-centre fit vs fixed per-line σ and centres: both read the same spectrum, so
+    the Cu/Zn areas agree to a few percent (the free fit's shared σ and ±0.1 keV centres absorb
+    the difference); the tolerance is 5 % of the larger area."""
+    from braggsim import fluorescence
+
+    spec = fluorescence.mca_spectrum("CuZn39Pb3", 35, 1, 180)
+    labels = ["Cu Kα", "Zn Kα", "Cu Kβ", "Zn Kβ"]
+    fixed = _fixed_fit(spec, labels, (7.5, 10.0))
+    free = analysis.gauss_fit_lines(spec[2], spec[0], [8.04, 8.64, 8.91, 9.57], (7.5, 10.0))
+    dev = np.abs(fixed.area - free.area) / np.maximum(fixed.area, free.area)
+    print("max rel deviation fixed vs free:", dev.max())
+    assert dev.max() < 0.05
+
+
+def test_gauss_fit_fixed_brass_composition_keeps_ld_bias():
+    from braggsim import fluorescence
+
+    def spec(n):
+        return fluorescence.mca_spectrum(n, 35, 1, 180)
+
+    a_alloy = _fixed_fit(spec("CuZn39Pb3"), ["Cu Kα", "Zn Kα", "Cu Kβ", "Zn Kβ"], (7.5, 10.0)).area
+    pb_alloy = _fixed_fit(spec("CuZn39Pb3"), ["Pb Lα"]).area[0]
+    alloy = {"Cu": a_alloy[0], "Zn": a_alloy[1], "Pb": pb_alloy}
+    pure = {
+        "Cu": _fixed_fit(spec("Cu"), ["Cu Kα", "Cu Kβ"]).area[0],
+        "Zn": _fixed_fit(spec("Zn"), ["Zn Kα", "Zn Kβ"]).area[0],
+        "Pb": _fixed_fit(spec("Pb"), ["Pb Lα"]).area[0],
+    }
+    rho = {"Cu": 8.96, "Zn": 7.10, "Pb": 11.34}
+    w = {k: v[0] for k, v in analysis.composition(alloy, pure, rho).items()}
+    plain = {k: v[0] for k, v in analysis.composition(alloy, pure).items()}
+    # the numbers documented in PARAMETERS.md (model output, not tuned)
+    for got, want in ((w, (61.1, 35.2, 3.7)), (plain, (56.4, 41.0, 2.7))):
+        assert [got[k] for k in ("Cu", "Zn", "Pb")] == approx(want, abs=0.3)
+
+
+def test_gauss_fit_fixed_areas_match_true_line_counts():
+    """Noiseless 35 kV / 1 mA / 180 s spectra: the fixed fit returns the detected line counts of
+    ``fluorescence.detected_line_counts`` (exact by construction where all lines are fitted)."""
+    from braggsim import fluorescence
+
+    def run(name, labels, window=None):
+        spec = fluorescence.mca_spectrum(name, 35, 1, 180)
+        t = fluorescence.detected_line_counts(name, 35, 1, 180)
+        return _fixed_fit(spec, labels, window).area, t
+
+    a, t = run("Cu", ["Cu Kα", "Cu Kβ"])
+    assert a == approx([t["Cu Kα"], t["Cu Kβ"]], rel=1e-3)
+    a, t = run("Zn", ["Zn Kα", "Zn Kβ"])  # Zn Kα alone is 0.5 % high: the unfitted Kβ tail
+    assert a[0] == approx(t["Zn Kα"], rel=1e-3)
+    a, t = run("CuZn39Pb3", ["Cu Kα", "Zn Kα", "Cu Kβ", "Zn Kβ"], (7.5, 10.0))
+    assert a[0] == approx(t["Cu Kα"], rel=0.01)
+    assert a[1] == approx(t["Zn Kα"], rel=0.01)
+    # Pb Lα: one Gaussian for Lα1 + Lα2, 0.10 keV apart = 0.57σ, a blend a single Gaussian cannot
+    # follow exactly (0.989 in pure Pb; the band is 1 % either side of that)
+    a, t = run("Pb", ["Pb Lα"])
+    assert 0.98 < a[0] / (t["Pb Lα1"] + t["Pb Lα2"]) < 1.0
+
+
+def test_gauss_fit_fixed_area_err_is_the_sampling_scatter():
+    """The fit of the *expected* counts gives area_err; the scatter of fits of 300 seeded Poisson
+    draws must match it within 10 % (std of 300 draws has ~4 % error; the weights add a little)."""
+    from braggsim import fluorescence
+
+    rng = np.random.default_rng(20261022)
+    spec = fluorescence.mca_spectrum("CuZn39Pb3", 35, 1, 180)
+    for labels, window in ((["Cu Kα", "Zn Kα", "Cu Kβ", "Zn Kβ"], (7.5, 10.0)), (["Pb Lα"], None)):
+        expected = _fixed_fit(spec, labels, window)
+        areas = [
+            _fixed_fit(
+                (detector.sample_counts(spec[0], 1.0, rng), spec[1], spec[2]), labels, window
+            ).area[0]
+            for _ in range(300)
+        ]
+        assert np.std(areas, ddof=1) == approx(expected.area_err[0], rel=0.10)
+
+
+def test_gauss_fit_fixed_is_linear_in_counts():
+    """For fixed weights the solution is linear in y, and the Neyman/Pearson weights follow y, so
+    on counts well above 1 the areas scale with k up to the max(·, 1) / max(·, 0.5) floors."""
+    from braggsim import fluorescence
+
+    spec = fluorescence.mca_spectrum("CuZn39Pb3", 35, 1, 180)
+    a1 = _fixed_fit(spec, ["Cu Kα", "Zn Kα"], (7.5, 9.2)).area
+    spec3 = (spec[0] * 3.0, spec[1], spec[2])
+    a3 = _fixed_fit(spec3, ["Cu Kα", "Zn Kα"], (7.5, 9.2)).area
+    assert a3 == approx(3 * a1, rel=1e-3)
+
+
+def test_gauss_fit_fixed_rejects_bad_inputs():
+    e, y = np.arange(20.0), np.ones(20)
+    for args in (
+        (e, y, [10.0], [0.5], (9.0, 10.5)),
+        (e, y, [10.0], [0.5, 0.5]),
+        (e, y, [10.0], [0.0]),
+        (e, y, [], []),
+        (e, y, [10.0], [np.nan]),
+        (e, y, [np.inf], [0.5]),
+        (e, y, [10.0, 10.1], [0.5, 0.5]),
+        (e, y, [10.0], [0.5], (2.0, 8.0)),
+    ):
+        with pytest.raises(ValueError):
+            analysis.gauss_fit_fixed(*args)

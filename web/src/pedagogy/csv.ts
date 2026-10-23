@@ -1,5 +1,5 @@
 // Lab mode: the stored scan points as CSV, for the student's own analysis (LD P6.3.3.1 Tables 3–5).
-import { type Apparatus, type Mode, type ReplayPoint, type Setup } from '../apparatus/apparatus'
+import { type Apparatus, type Mode, type ReplayPoint, type Setup, wrapTarget } from '../apparatus/apparatus'
 import { crystalLabel, isForgeKey } from '../i18n'
 import { CRYSTALS, WHEELS_MG_CM2 } from '../physics/tables'
 
@@ -83,6 +83,38 @@ export function exposureCsv(a: Apparatus, date = new Date()): string | null {
     'target_deg,sensor_deg,mode,holder,crystal,slot,absorber,areal_density_mg_cm2,collimator_filter,sensor_filter,U_kV,I_mA,dt_s,changed,counts,rate_per_s',
     ...rows,
   ].join('\n') + '\n'
+}
+
+/** The MCA spectrum on show as CSV text; null if it holds no counts. energy_keV comes only from the student's own
+ * calibration (empty while uncalibrated: the true channel map is never written). Sample, U, I and the target are those of the run. */
+export function mcaCsv(a: Apparatus, date = new Date()): string | null {
+  const { mca } = a
+  if (!mca.counts.some((c) => c > 0)) return null
+  const { nChannels, gain, presetS } = mca.settings
+  const cal = mca.calibration
+  const r = a.mcaRunInfo ?? { sample: a.setup.sample ?? '', u: a.u, i: a.i, target: wrapTarget(a.target), changed: false }
+  return [
+    '# XRF spectrum, simulated LD 559 938 energy detector + MCA on the 554 800 (not measured data)',
+    `# ${date.toISOString()}`,
+    `# sample ${r.sample.replace(/[\r\n]+/g, ' ')}; U = ${(r.u / 10).toFixed(1)} kV, I = ${(r.i / 100).toFixed(2)} mA, target ${(r.target / 10).toFixed(1)} deg`,
+    ...(r.changed ? ['# conditions changed during the run'] : []),
+    ...(mca.realS < presetS ? ['# stopped before the preset'] : []),
+    `# ${nChannels} channels, gain ${gain}, preset ${presetS} s, real time ${mca.realS.toFixed(1)} s, live time ${mca.liveS.toFixed(1)} s`,
+    cal ? `# energy calibration (student's): ${cal.kevPerChannel} keV/channel, offset ${cal.offsetKeV} keV` : '# uncalibrated: energy_keV is empty',
+    'channel,energy_keV,counts',
+    ...Array.from(mca.counts, (n, ch) => `${ch},${cal ? (cal.kevPerChannel * ch + cal.offsetKeV).toFixed(4) : ''},${n}`),
+  ].join('\n') + '\n'
+}
+
+/** Save the MCA spectrum as a file download. */
+export function downloadMcaCsv(a: Apparatus): void {
+  const csv = mcaCsv(a)
+  if (csv === null) return
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+  link.download = `xrf-mca-${fileSafe(a.mcaRunInfo?.sample ?? a.setup.sample ?? '', 'sample')}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
 }
 
 /** Save the exposure series as a file download. */

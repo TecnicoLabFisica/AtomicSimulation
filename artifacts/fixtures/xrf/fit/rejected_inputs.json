@@ -1,0 +1,493 @@
+{
+ "cases": [
+  {
+   "description": "window with too few channels",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     10.0
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     0.5
+    ],
+    "window_keV": [
+     9.0,
+     10.5
+    ]
+   }
+  },
+  {
+   "description": "centres and sigmas of different length",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     10.0
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     0.5,
+     0.5
+    ],
+    "window_keV": null
+   }
+  },
+  {
+   "description": "non-positive sigma",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     10.0
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     0.0
+    ],
+    "window_keV": null
+   }
+  },
+  {
+   "description": "no lines",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [],
+    "window_keV": null
+   }
+  },
+  {
+   "description": "non-finite sigma",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     10.0
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     null
+    ],
+    "window_keV": null
+   }
+  },
+  {
+   "description": "non-finite centre",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     null
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     0.5
+    ],
+    "window_keV": null
+   }
+  },
+  {
+   "description": "centres too close",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     10.0,
+     10.1
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     0.5,
+     0.5
+    ],
+    "window_keV": null
+   }
+  },
+  {
+   "description": "centre outside the window",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.gauss_fit_fixed",
+   "inputs": {
+    "centers_keV": [
+     10.0
+    ],
+    "channel_energy_keV": [
+     0.0,
+     1.0,
+     2.0,
+     3.0,
+     4.0,
+     5.0,
+     6.0,
+     7.0,
+     8.0,
+     9.0,
+     10.0,
+     11.0,
+     12.0,
+     13.0,
+     14.0,
+     15.0,
+     16.0,
+     17.0,
+     18.0,
+     19.0
+    ],
+    "counts": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "sigma_keV": [
+     0.5
+    ],
+    "window_keV": [
+     2.0,
+     8.0
+    ]
+   }
+  }
+ ],
+ "description": "Line-fit inputs the model refuses",
+ "function": "rejected",
+ "model_version": "0.4.0",
+ "name": "fit_rejected_inputs"
+}

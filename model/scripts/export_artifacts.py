@@ -286,6 +286,76 @@ def _xrf_rejected_case():
     return {"function": "rejected", "description": "XRF inputs the model refuses", "cases": out}
 
 
+_FIT_SIGMA = 2 * np.sqrt(2 * np.log(2))
+
+
+def _fit_fixed_fixtures():
+    """gauss_fit_fixed on seeded Poisson spectra (input counts stored; fit of counts, not of R̄),
+    in fixtures/xrf/fit/ (apart from the MCA cases, which fluorescence.test.ts iterates)."""
+    ref = fluorescence.reference_lines_keV()
+    runs = [
+        ("fit_fixed_brass", "CuZn39Pb3", ["Cu Kα", "Zn Kα", "Cu Kβ", "Zn Kβ"], 1),
+        ("fit_fixed_pb_brass", "CuZn39Pb3", ["Pb Lα"], 1),
+        ("fit_fixed_cu", "Cu", ["Cu Kα", "Cu Kβ"], 2),
+    ]
+    out = {}
+    for name, sample, labels, seed in runs:
+        exp, _, e_ch = fluorescence.mca_spectrum(sample, 35.0, 1.0, 180.0, 512, -2.5)
+        counts = detector.sample_counts(exp, 1.0, np.random.default_rng(seed))
+        centers = [ref[lb] for lb in labels]
+        sigma = [float(detector.pin_fwhm_keV(c)) / _FIT_SIGMA for c in centers]
+        fit = analysis.gauss_fit_fixed(e_ch, counts, centers, sigma)
+        out[name] = {
+            "function": "analysis.gauss_fit_fixed",
+            "description": f"Fixed-centre, fixed-σ line fit of a Poisson sample (seed {seed}) of "
+            f"{sample} at 35 kV, 1 mA, 180 s: {', '.join(labels)}",
+            "inputs": {
+                "channel_energy_keV": _floats(e_ch), "counts": [int(c) for c in counts],
+                "centers_keV": centers, "sigma_keV": sigma, "window_keV": None,
+            },
+            "expected": {
+                "area": _floats(fit.area), "area_err": _floats(fit.area_err),
+                "area_cov": _floats(fit.area_cov), "chi2_dof": fit.chi2_dof,
+                "channel_keV": fit.channel_keV, "background": _floats(fit.background),
+                "evaluate_sum": _floats(fit.evaluate(e_ch).sum(axis=0)),
+            },
+        }  # fmt: skip
+    return out
+
+
+def _fit_fixed_rejected_case():
+    e, y = np.arange(20.0), np.ones(20)
+    ok = {"channel_energy_keV": _floats(e), "counts": _floats(y), "centers_keV": [10.0],
+          "sigma_keV": [0.5], "window_keV": None}  # fmt: skip
+    cases = [
+        ("window with too few channels", {**ok, "window_keV": [9.0, 10.5]}),
+        ("centres and sigmas of different length", {**ok, "sigma_keV": [0.5, 0.5]}),
+        ("non-positive sigma", {**ok, "sigma_keV": [0.0]}),
+        ("no lines", {**ok, "centers_keV": [], "sigma_keV": []}),
+        # JSON has no NaN: null stands for a non-finite value (NaN in numpy, null in JS)
+        ("non-finite sigma", {**ok, "sigma_keV": [None]}),
+        ("non-finite centre", {**ok, "centers_keV": [None]}),
+        ("centres too close", {**ok, "centers_keV": [10.0, 10.1], "sigma_keV": [0.5, 0.5]}),
+        ("centre outside the window", {**ok, "window_keV": [2.0, 8.0]}),
+    ]
+    out = []
+    for description, inputs in cases:
+        x = {k: v for k, v in inputs.items()}
+        try:
+            analysis.gauss_fit_fixed(x["channel_energy_keV"], x["counts"], x["centers_keV"],
+                                     x["sigma_keV"], x["window_keV"])  # fmt: skip
+        except ValueError as err:
+            out.append({"function": "analysis.gauss_fit_fixed", "description": description,
+                        "inputs": inputs, "expected": {"error": type(err).__name__}})  # fmt: skip
+        else:
+            raise AssertionError(f"gauss_fit_fixed accepted {description}")
+    return {
+        "function": "rejected",
+        "description": "Line-fit inputs the model refuses",
+        "cases": out,
+    }
+
+
 def _crystal_tables():
     """Everything the port needs for ``expected_rate(..., crystal=X)`` without xraylib.
 
@@ -955,6 +1025,7 @@ def build():
                 "compton_shift_pm": fluorescence.COMPTON_SHIFT_PM,
                 "air_in_mg_cm2": fluorescence._MG_CM2_PER_CM_AIR * fluorescence.AIR_IN_CM,
                 "pin_eff_mo_lines": mo_pin_eff,
+                "reference_lines_keV": fluorescence.reference_lines_keV(),
                 "sample": sample_table,
             },
             compact=True,
@@ -963,6 +1034,11 @@ def build():
         files[f"fixtures/xrf/{name}.json"] = _dump({"name": name, **case})
     files["fixtures/xrf/rejected_inputs.json"] = _dump(
         {"name": "rejected_inputs", **_xrf_rejected_case()}
+    )
+    for name, case in _fit_fixed_fixtures().items():
+        files[f"fixtures/xrf/fit/{name}.json"] = _dump({"name": name, **case})
+    files["fixtures/xrf/fit/rejected_inputs.json"] = _dump(
+        {"name": "fit_rejected_inputs", **_fit_fixed_rejected_case()}
     )
     for name, case in _forge_fixtures().items():
         files[f"fixtures/forge/{name}.json"] = _dump({"name": name, **case})
