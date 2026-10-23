@@ -458,7 +458,7 @@ describe('setup (G1.7)', () => {
     a.setDoors(false)
     expect(a.mount(setup)).toBe(true)
     a.press('RESET')
-    expect(a.setup).toEqual(setup)
+    expect(a.setup).toMatchObject(setup)
     expect(() => a.mount({ ...setup, sensorFilter: 'Pb' })).toThrow(RangeError)
   })
 

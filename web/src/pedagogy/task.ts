@@ -36,7 +36,8 @@ export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal 
   // the HV off and the arms idle) and put back as they were. A non-NaCl preset must be loaded first (loadCrystals()).
   // The holder is left alone unless the task names one (the attenuation tasks have a plate wheel there); a task
   // that lets the student pick the crystal keeps the one mounted; no task starts with a foil left over.
-  const want = { holder: holder ?? a.setup.holder, crystal: crystalLocked && !keepCrystal ? crystal : a.setup.crystal, collimatorFilter: null, sensorFilter: null }
+  const want = { holder: holder ?? a.setup.holder, crystal: crystalLocked && !keepCrystal ? crystal : a.setup.crystal, collimatorFilter: null, sensorFilter: null, detector: 'gm' as const }
+  const energy = a.setup.detector === 'energy'
   if ((Object.keys(want) as (keyof typeof want)[]).some((k) => a.setup[k] !== want[k])) {
     const closed = a.doorsClosed
     if (!a.setDoors(false)) throw new Error('bench not safe to prepare')
@@ -45,6 +46,7 @@ export function applyInitial(a: Apparatus, init: GuidedTask['initial'], crystal 
     } finally {
       a.setDoors(closed)
     }
+    if (energy) a.press('RESET') // the sensor arm was locked at 90° for the energy detector: drive it home
   }
   if (init.U_kV !== undefined) a.u = Math.round(init.U_kV * 10)
   if (init.I_mA !== undefined) a.i = Math.round(init.I_mA * 100)

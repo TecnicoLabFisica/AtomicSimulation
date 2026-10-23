@@ -1,7 +1,7 @@
 // Every golden case in artifacts/fixtures/ must be reproduced by the port: relative 1e-9 with a
 // 1e-12/s absolute floor (web-physics-port rule). A failure means the port is wrong or the artifacts are stale.
 import { beforeAll, describe, expect, test } from 'vitest'
-import { lineProminenceSigma, strongestLineRatePerS } from '../src/physics/analysis'
+import { lineProminenceSigma, strongestLineRatePerS, twoPointCalibration } from '../src/physics/analysis'
 import { deadTime } from '../src/physics/detector'
 import { ABSORBERS, transmission } from '../src/physics/filters'
 import { DEFAULT, coupledBetas, directRate, expectedRate, modelParams, type ModelParams } from '../src/physics/scan'
@@ -63,6 +63,10 @@ function run(fn: string, c: Case) {
       expectClose([lineProminenceSigma(...args, x.dt_s, x.filters, crystal, params)], [c.expected.sigma])
       expectClose([strongestLineRatePerS(...args, x.filters, crystal, params)], [c.expected.strongest_rate_per_s])
       return
+    }
+    case 'analysis.two_point_calibration': {
+      const r = twoPointCalibration(x.ch1, x.E1_keV, x.ch2, x.E2_keV)
+      return expectClose([r.kevPerChannel, r.offsetKeV], [c.expected.kev_per_channel, c.expected.offset_keV])
     }
     case 'rejected': // Python raised ValueError: the port must throw too
       return expect(() => run(c.function!, { ...c, expected: {} }), c.description).toThrow(RangeError)

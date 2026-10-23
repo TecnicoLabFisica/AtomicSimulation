@@ -57,6 +57,7 @@ app.innerHTML = `
     <section class="focus-card monitor-card" data-focus="monitor" role="dialog" tabindex="-1" inert>
       <button class="tool close" data-back></button>
       <div class="spectrum" data-spectrum></div>
+      <div data-mca hidden></div>
     </section>
     <section class="focus-card chamber-card" data-focus="chamber" role="dialog" tabindex="-1" aria-labelledby="chamber-title" inert>
       <h2 class="card-title" id="chamber-title" data-chamber-title></h2><button class="tool close" data-back></button>
@@ -98,6 +99,11 @@ const apparatus = new Apparatus()
 const sound = mountSound(apparatus)
 const gonio = mountGoniometer(q<HTMLCanvasElement>('[data-gonio]'), apparatus)
 const spectrum = mountSpectrum(q('[data-spectrum]'), apparatus)
+// The MCA view (own lazy chunk) takes the monitor's place while the 559 938 energy detector is mounted.
+let mca: ReturnType<typeof import('./views/mca').mountMca> | null = null
+let mcaLoading = false
+const energyOn = () => apparatus.setup.detector === 'energy'
+const monitorView = () => (energyOn() && mca ? mca : spectrum)
 const huygens = mountHuygens(q('[data-huygens-body]'), apparatus)
 const panel = mountPanel(q('[data-panel]'), apparatus, sound.detent)
 const explore = mountExplore(q('[data-explore]'), apparatus)
@@ -156,7 +162,6 @@ function labels() {
   q('[data-go="chamber"]').title = s.chamberLabel
   q('[data-panel-title]').textContent = s.panel
   q('[data-chamber-title]').textContent = s.chamberLabel
-  q('[data-focus="monitor"]').setAttribute('aria-label', s.spectrum)
   q('[data-dock]').setAttribute('aria-label', s.dock)
   q('[data-rate-led]').setAttribute('aria-label', s.topDisplay)
   doorLabel()
@@ -217,7 +222,7 @@ function showToast(text: string) {
 }
 import('./views/bench')
   .then(({ mountBench }) => {
-    bench = mountBench(q<HTMLCanvasElement>('[data-bench]'), apparatus, { spectrum, dialDeg: panel.dialDeg }, onPick)
+    bench = mountBench(q<HTMLCanvasElement>('[data-bench]'), apparatus, { monitor: monitorView, dialDeg: panel.dialDeg }, onPick)
     if (focus !== 'room') bench.fly(focus) // a card opened before the chunk arrived
   })
   .catch(() => {
@@ -304,6 +309,7 @@ app.addEventListener('click', (e) => {
     labels()
     panel.build()
     spectrum.build()
+    mca?.build()
     huygens.build()
     explore.build()
     setup.build()
@@ -346,7 +352,18 @@ function frame(now: number) {
   last = now
   apparatus.tick(dtS)
   gonio(dtS)
-  spectrum.render() // before the bench: the monitor copies it
+  if (energyOn() && !mca && !mcaLoading) {
+    mcaLoading = true
+    import('./views/mca')
+      .then((m) => (mca = m.mountMca(q('[data-mca]'), apparatus)))
+      .catch(() => (mcaLoading = false)) // offline: tried again on the next frame
+  }
+  const shown = monitorView()
+  for (const [view, el] of [[spectrum, '[data-spectrum]'], [mca, '[data-mca]']] as const) q(el).hidden = view !== shown
+  const name = mca && shown === mca ? mca.title() : t().spectrum // the card is named after the view it shows
+  const card = q('[data-focus="monitor"]')
+  if (card.getAttribute('aria-label') !== name) card.setAttribute('aria-label', name)
+  shown.render() // before the bench: the monitor copies it
   bench?.render(dtS)
   doorLabel()
   if (focus === 'chamber') {

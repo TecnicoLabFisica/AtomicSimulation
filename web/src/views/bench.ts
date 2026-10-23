@@ -43,7 +43,7 @@ const TAP_PX = 6 // a pointer moving further is an orbit drag, not a tap
 export function mountBench(
   canvas: HTMLCanvasElement,
   a: Apparatus,
-  views: { spectrum: { canvas(): HTMLCanvasElement; version(): number; empty(): boolean; emptyText(): string }; dialDeg(): number },
+  views: { monitor(): { canvas(): HTMLCanvasElement; version(): number; empty(): boolean; emptyText(): string; title?(): string }; dialDeg(): number },
   onPick: (p: Pick | null) => void,
 ) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
@@ -377,7 +377,9 @@ export function mountBench(
   const mc = monitorCanvas.getContext('2d')!
   let monitorSig = ''
   const drawMonitor = (): boolean => {
-    const sig = `${views.spectrum.version()}|${views.spectrum.emptyText()}|${paletteVersion}|${getLang()}`
+    const mon = views.monitor() // the spectrum, or the MCA while the energy detector is mounted
+    const title = mon.title?.() ?? t().spectrum
+    const sig = `${title}|${mon.version()}|${mon.emptyText()}|${paletteVersion}|${getLang()}`
     if (sig === monitorSig) return false
     monitorSig = sig
     const P = palette
@@ -388,16 +390,16 @@ export function mountBench(
     mc.textAlign = 'left'
     mc.textBaseline = 'top'
     mc.font = `600 44px ${P.font}`
-    mc.fillText(t().spectrum, 40, 32)
-    const src = views.spectrum.canvas()
-    if (!views.spectrum.empty() && src.width > 0 && src.height > 0) {
+    mc.fillText(title, 40, 32)
+    const src = mon.canvas()
+    if (!mon.empty() && src.width > 0 && src.height > 0) {
       const f = Math.min((w - 80) / src.width, (h - 120) / src.height)
       mc.drawImage(src, (w - src.width * f) / 2, 100 + (h - 120 - src.height * f) / 2, src.width * f, src.height * f)
     } else {
       mc.fillStyle = P['label-2']
       mc.textAlign = 'center'
       mc.font = `36px ${P.font}`
-      mc.fillText(views.spectrum.emptyText(), w / 2, h / 2, w - 80)
+      mc.fillText(mon.emptyText(), w / 2, h / 2, w - 80)
     }
     monitorTex.needsUpdate = true
     return true

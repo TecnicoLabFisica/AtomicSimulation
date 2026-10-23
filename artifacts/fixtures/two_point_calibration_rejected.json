@@ -1,0 +1,21 @@
+{
+ "cases": [
+  {
+   "description": "equal channels",
+   "expected": {
+    "error": "ValueError"
+   },
+   "function": "analysis.two_point_calibration",
+   "inputs": {
+    "E1_keV": 8.04,
+    "E2_keV": 10.56,
+    "ch1": 100.0,
+    "ch2": 100.0
+   }
+  }
+ ],
+ "description": "Calibration inputs the model refuses",
+ "function": "rejected",
+ "model_version": "0.4.0",
+ "name": "two_point_calibration_rejected"
+}

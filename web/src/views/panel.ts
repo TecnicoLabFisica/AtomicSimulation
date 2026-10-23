@@ -164,7 +164,7 @@ export function mountPanel(root: HTMLElement, a: Apparatus, onDetent: () => void
     setText(q('[data-sym]'), d.symbol === 'lower' ? '▼' : d.symbol === 'upper' ? '▲' : d.symbol === 'exposure' ? '⧗' : '')
     setAttr(q('[data-sym]'), 'title', d.symbol ? s[({ lower: 'symLower', upper: 'symUpper', exposure: 'symExposure' } as const)[d.symbol]] : null)
     q('[data-top]').parentElement!.classList.toggle('blink', d.blinkTop)
-    setText(q('[data-alert]'), d.alert ? s[({ mode: 'alertMode', limits: 'alertLimits', doors: 'alertDoors' } as const)[d.alert]] : '')
+    setText(q('[data-alert]'), d.alert ? s[({ mode: 'alertMode', limits: 'alertLimits', doors: 'alertDoors', detector: 'alertDetector', detectorReset: 'alertDetectorReset' } as const)[d.alert]] : '')
     setText(q('[data-saturated]'), a.saturated ? s.saturated : '')
     q('[data-group="groupMode"]').classList.toggle('alert', d.alert === 'mode') // the keys that are missing
     q('[data-bottom]').parentElement!.classList.toggle('blink', d.flashBottom)

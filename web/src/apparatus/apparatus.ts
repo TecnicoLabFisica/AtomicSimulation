@@ -6,7 +6,9 @@
 import { mulberry32, poisson, type Rng } from '../physics/detector'
 import { BETA_MAX_DEG, BETA_MIN_DEG, DEFAULT, directRate, expectedRate, type ModelParams } from '../physics/scan'
 import { crystalByName, type Crystal } from '../physics/crystal'
-import { FOILS_MG_CM2, WHEELS_MG_CM2, absorbersLoaded } from '../physics/tables'
+import { mcaSpectrum } from '../physics/fluorescence'
+import { FOILS_MG_CM2, WHEELS_MG_CM2, XRF, absorbersLoaded } from '../physics/tables'
+import { Mca } from './mca'
 
 export type Key =
   | 'U' | 'I' | 'DT' | 'DBETA' | 'LIMITS' // parameter keys (§7 b3)
@@ -14,11 +16,15 @@ export type Key =
   | 'RESET' | 'REPLAY' | 'SCAN' | 'HV' | 'SPEAKER' // operational keys (§7 b5)
 export type Mode = 'SENSOR' | 'TARGET' | 'COUPLED'
 type Param = 'U' | 'I' | 'DT' | 'DBETA' | 'LIMIT_LO' | 'LIMIT_HI'
-/** What sits in the beam path: the crystal, one of the two 554 834 absorber plates, or nothing. */
-export type Holder = 'crystal' | 'alWheel' | 'materialWheel' | 'empty'
+/** What sits in the beam path: the crystal, one of the two 554 834 absorber plates, an XRF sample, or nothing. */
+export type Holder = 'crystal' | 'alWheel' | 'materialWheel' | 'sample' | 'empty'
 /** Accessories mounted with the door open; filter values are FOILS_MG_CM2 names (e.g. 'Zr'). `crystal`: CRYSTALS
- * preset name, only meaningful when the holder is the crystal ('NaCl' needs no table; the others need loadCrystals()). */
-export type Setup = Readonly<{ holder: Holder; crystal: string; collimatorFilter: string | null; sensorFilter: string | null }>
+ * preset name, only meaningful when the holder is the crystal ('NaCl' needs no table; the others need loadCrystals()).
+ * `detector`: the 559 01 GM counter or the 559 938 energy detector (MCA); `sample`: an XRF_SAMPLE_NAMES entry, only
+ * meaningful when the holder is the sample (needs loadXrfSample()). Both default (gm, Cu) when mount() gets them omitted. */
+export type Setup = Readonly<{ holder: Holder; crystal: string; collimatorFilter: string | null; sensorFilter: string | null; detector?: 'gm' | 'energy'; sample?: string }>
+/** The sensor arm angle (0.1°) the energy detector must be mounted at (guide: sensor arm to 90°, in SENSOR mode, first). */
+export const ENERGY_SENSOR = 900
 
 /** The crystal preset a setup names (throws if unknown or not loaded; NaCl never needs the table). */
 export const crystalOf = (setup: Pick<Setup, 'crystal'>): Crystal => crystalByName(setup.crystal)
@@ -102,7 +108,8 @@ export type Display = {
   hvLamp: boolean // flashes while HV is on (§7 b6)
   alert: Alert | null // why the last SCAN/HV was refused; the view explains it (simulation aid)
 }
-export type Alert = 'mode' | 'limits' | 'doors'
+/** `detector`: the energy detector is on the sensor arm, which is locked at 90° (and must be there to mount it). */
+export type Alert = 'mode' | 'limits' | 'doors' | 'detector' | 'detectorReset'
 
 type Program = {
   steps: number[] // scan-arm angles in 0.1° (one entry for the exposure timer)
@@ -133,7 +140,11 @@ export class Apparatus {
   exposureDone = false // "0 s" stays on show after an exposure until the next key or turn
   speaker = false
   doorsClosed = true
-  private _setup: Setup = { holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null }
+  private _setup: Setup = { holder: 'crystal', crystal: 'NaCl', collimatorFilter: null, sensorFilter: null, detector: 'gm', sample: 'Cu' }
+  /** The 559 938's analyser; counts only with the energy detector, a sample on the holder and the tube emitting. */
+  mca = new Mca()
+  private mcaKey = ''
+  private mcaCache: { counts: ArrayLike<number>; live: number } | null = null
   private _exposures: ExposureRecord[] = []
   private exposureStart: { u: number; i: number; changed: boolean } | null = null
   hvOn = false
@@ -177,6 +188,10 @@ export class Apparatus {
     return this.path.length > 0
   }
 
+  private get energy(): boolean {
+    return this._setup.detector === 'energy'
+  }
+
   /** The tube is emitting: HV on with voltage and emission current set. */
   get emitting(): boolean {
     return this.hvOn && this.u > 0 && this.i > 0
@@ -213,8 +228,10 @@ export class Apparatus {
    * natural GM background. */
   expectedRate(): number {
     const { u, i, sensor, target, params } = this
+    if (this._setup.detector === 'energy') return 0 // no GM plugged in: the rate display idles
     if (!this.hvOn) return directRate(0, 0, [], params)
     if (this._setup.holder === 'crystal') return expectedRate([target / 10], u / 10, i / 100, params, [sensor / 10], this.foils(), this.crystal)[0]
+    // ponytail: the GM with a sample on the holder sees background only (fluorescence into the GM is not modelled); Python first if a task needs it
     return this.direct(sensor / 10) ?? directRate(0, 0, [], params)
   }
 
@@ -249,11 +266,19 @@ export class Apparatus {
 
   /** Change the accessories; only with the door open and the HV off (§6). Refused (false) otherwise. */
   mount(setup: Setup): boolean {
+    if (this.alert === 'detector' || this.alert === 'detectorReset') this.alert = null // a refusal here is reported fresh
     if (this.doorsClosed || this.hvOn || this.busy) return false
+    setup = { detector: 'gm', sample: this._setup.sample, ...setup } // a task's remount keeps the (loaded) sample
+    if (setup.detector === 'energy' && this._setup.detector !== 'energy' && (this.moving || this.sensor !== ENERGY_SENSOR)) {
+      this.alert = 'detector'
+      return false
+    }
+    if (setup.holder === 'sample' && !Object.hasOwn(XRF.samples, setup.sample!)) throw new RangeError(`XRF sample ${setup.sample} not loaded`)
     const names = [setup.collimatorFilter, setup.sensorFilter].filter((n) => n !== null)
     if ((setup.holder.endsWith('Wheel') || names.length > 0) && !absorbersLoaded()) throw new RangeError('absorber tables not loaded')
     for (const n of names) if (!Object.hasOwn(FOILS_MG_CM2, n)) throw new RangeError(`unknown filter ${n}`)
     crystalOf(setup) // unknown or unloaded preset throws
+    if (this.energy && setup.detector !== 'energy') this.mca.stop() // its view is hidden now
     this._setup = Object.freeze({ ...setup })
     return true
   }
@@ -276,6 +301,10 @@ export class Apparatus {
     this.edit = null // any key ends a parameter edit (§7 b2)
     // During a program only these keys act.
     if (this.busy && !['U', 'I', 'COUPLED', 'SCAN', 'HV', 'RESET', 'SPEAKER'].includes(key)) return
+    if (this.energy && (key === 'SENSOR' || key === 'COUPLED' || key === 'ZERO')) {
+      this.alert = 'detector' // the detector sits on the sensor arm
+      return
+    }
     switch (key) {
       case 'U':
       case 'I':
@@ -314,8 +343,10 @@ export class Apparatus {
           sensor: this.sensor,
           _setup: this._setup,
           _exposures: this._exposures,
-          path: [{ target: 0, sensor: 0 }],
+          mca: this.mca, // a separate device: the panel's RESET does not touch it
+          path: [{ target: 0, sensor: this.energy ? ENERGY_SENSOR : 0 }],
         })
+        if (this.energy) this.alert = 'detectorReset' // the real RESET would drive the detector into the collimator
         return
       case 'REPLAY':
         if (this.replay.length > 0) this.replayIndex = 0
@@ -337,6 +368,10 @@ export class Apparatus {
         if (this.limitHi < this.limitLo) {
           this.alert = 'limits'
           this.edit = this.bottomShows = 'LIMIT_HI' // show the flashing limit, ready to correct
+          return
+        }
+        if (this.energy) {
+          this.alert = 'detector' // every auto-scan first drives both arms to 0°: the detector would hit the collimator
           return
         }
         return this.startSafety('scan')
@@ -371,6 +406,10 @@ export class Apparatus {
    * keeping the 2:1 coupling in COUPLED mode. Ignored while a program runs or the motor drives. */
   moveArm(detents: number): void {
     if (this.busy || this.mode === null || this.moving) return
+    if (this.energy && this.mode !== 'TARGET') {
+      this.alert = 'detector'
+      return
+    }
     this.edit = this.replayIndex = null // a hand on the arm ends an edit, as a key would
     this.bottomShows = this.mode // the display shows the arm being moved
     if (this.mode === 'TARGET') this.target += detents
@@ -399,6 +438,7 @@ export class Apparatus {
    * The self-test always runs in real time: time acceleration is a simulation feature, not a device one. */
   tick(realS: number): void {
     if (this.phase === 'safety') {
+      this.driveMca(Math.min(realS, this.safetyLeftS) * this.timeScale) // the analyser is a separate device: its clock runs through the self-test
       this.safetyLeftS -= realS
       if (this.safetyLeftS > 0) return
       realS = -this.safetyLeftS // only the time after the self-test counts
@@ -406,6 +446,7 @@ export class Apparatus {
     }
     // Instant: finish the program now; the rate meter keeps counting in real time.
     let simS = realS * this.timeScale
+    this.driveMca(simS) // Infinity runs the analyser to its preset
     if (this.timeScale === Infinity) {
       this.finish()
       simS = realS
@@ -469,6 +510,27 @@ export class Apparatus {
       default: // TARGET, COUPLED
         return { ...d, bottom: fmtAngle(wrapTarget(this.target)), bottomUnit: '°' }
     }
+  }
+
+  /** Feed the analyser `dtS` of simulated time: the expected spectrum when the energy detector sees the sample (cached
+   * per sample, U, I, channels, gain: the kernel sum is too slow per frame), else only its clocks run. */
+  private driveMca(dtS: number): void {
+    const { mca } = this
+    if (!mca.running || !(dtS > 0)) return // 0 · Infinity is NaN
+    const { detector, holder, sample } = this._setup
+    let live = 1
+    let counts: ArrayLike<number> | null = null
+    if (detector === 'energy' && holder === 'sample' && this.emitting) {
+      const { nChannels, gain } = mca.settings
+      const key = `${sample} ${this.u} ${this.i} ${nChannels} ${gain}`
+      if (key !== this.mcaKey) {
+        const r = mcaSpectrum(sample!, this.u / 10, this.i / 100, 1, nChannels, gain)
+        this.mcaCache = { counts: r.counts, live: r.liveTimeS }
+        this.mcaKey = key
+      }
+      ;({ counts, live } = this.mcaCache!)
+    }
+    mca.tick(dtS, counts, live, this.rng)
   }
 
   private startSafety(next: 'hv' | 'scan' | 'exposure'): void {

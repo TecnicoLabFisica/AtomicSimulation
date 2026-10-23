@@ -1,0 +1,44 @@
+{
+ "cases": [
+  {
+   "expected": {
+    "kev_per_channel": 0.08689655172413797,
+    "offset_keV": -0.9103448275862114
+   },
+   "inputs": {
+    "E1_keV": 8.04,
+    "E2_keV": 10.56,
+    "ch1": 103.0,
+    "ch2": 132.0
+   }
+  },
+  {
+   "expected": {
+    "kev_per_channel": 0.00848484848484849,
+    "offset_keV": 7.166060606060604
+   },
+   "inputs": {
+    "E1_keV": 10.56,
+    "E2_keV": 8.04,
+    "ch1": 400.0,
+    "ch2": 103.0
+   }
+  },
+  {
+   "expected": {
+    "kev_per_channel": 0.04,
+    "offset_keV": 0.0
+   },
+   "inputs": {
+    "E1_keV": 0.0,
+    "E2_keV": 20.48,
+    "ch1": 0.0,
+    "ch2": 512.0
+   }
+  }
+ ],
+ "description": "E = slope·ch + offset",
+ "function": "analysis.two_point_calibration",
+ "model_version": "0.4.0",
+ "name": "two_point_calibration"
+}

@@ -211,6 +211,9 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
       }
       ctx.globalAlpha = 0.5
       ctx.stroke()
+    } else if (a.setup.holder === 'sample') {
+      ctx.fillStyle = P['label-2'] // XRF sample: a small plate on the holder
+      ctx.fillRect(-0.6 * u, 0, 1.2 * u, 0.2 * u)
     } else if (a.setup.holder !== 'empty') {
       const tiles = WHEELS_MG_CM2[a.setup.holder === 'alWheel' ? 'al' : 'material']
       const sector = (from: number, to: number) => {
@@ -261,14 +264,15 @@ export function mountGoniometer(canvas: HTMLCanvasElement, a: Apparatus): (dtS: 
     ctx.lineWidth = k
     ctx.stroke()
     ctx.beginPath()
-    ctx.roundRect(S2_CM * u, -0.35 * u, 1.8 * u, 0.7 * u, 0.35 * u)
+    if (a.setup.detector === 'energy') ctx.rect(S2_CM * u, -0.45 * u, 1.4 * u, 0.9 * u) // 559 938: a flat box, window face toward the crystal
+    else ctx.roundRect(S2_CM * u, -0.35 * u, 1.8 * u, 0.7 * u, 0.35 * u)
     ctx.fillStyle = P['surface-2']
     ctx.fill()
     ctx.strokeStyle = P['label-2']
     ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(S2_CM * u, -0.25 * u)
-    ctx.lineTo(S2_CM * u, 0.25 * u)
+    ctx.moveTo(S2_CM * u, a.setup.detector === 'energy' ? -0.35 * u : -0.25 * u)
+    ctx.lineTo(S2_CM * u, a.setup.detector === 'energy' ? 0.35 * u : 0.25 * u)
     ctx.strokeStyle = P.label
     ctx.lineWidth = 2 * k
     ctx.stroke()

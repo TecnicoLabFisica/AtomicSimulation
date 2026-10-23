@@ -675,6 +675,30 @@ def _prominence_case():
     }
 
 
+def _calibration_fixtures():
+    """MCA two-point calibration: the guide's Cu Kα / Pb Lα pair, a reversed pair, a unit map."""
+    rows = [(103.0, 8.04, 132.0, 10.56), (400.0, 10.56, 103.0, 8.04), (0.0, 0.0, 512.0, 20.48)]
+    cases = []
+    for ch1, e1, ch2, e2 in rows:
+        slope, off = analysis.two_point_calibration(ch1, e1, ch2, e2)
+        cases.append({"inputs": {"ch1": ch1, "E1_keV": e1, "ch2": ch2, "E2_keV": e2},
+                      "expected": {"kev_per_channel": slope, "offset_keV": off}})  # fmt: skip
+    bad = {"ch1": 100.0, "E1_keV": 8.04, "ch2": 100.0, "E2_keV": 10.56}
+    try:
+        analysis.two_point_calibration(**bad)
+    except ValueError as e:
+        rej = {"function": "analysis.two_point_calibration", "description": "equal channels",
+               "inputs": bad, "expected": {"error": type(e).__name__}}  # fmt: skip
+    else:
+        raise AssertionError("two_point_calibration accepted equal channels")
+    return (
+        {"function": "analysis.two_point_calibration", "description": "E = slope·ch + offset",
+         "cases": cases},
+        {"function": "rejected", "description": "Calibration inputs the model refuses",
+         "cases": [rej]},
+    )  # fmt: skip
+
+
 def _fixtures():
     duane_hunt_deg = float(theta_from_lambda(lambda_min_pm(35.0)))
     ka_deg = float(theta_from_lambda(MO_KA_PM))
@@ -812,6 +836,8 @@ def _fixtures():
         },  # fmt: skip
         "rejected_inputs": _rejected_case(),
         "line_prominence": _prominence_case(),
+        "two_point_calibration": _calibration_fixtures()[0],
+        "two_point_calibration_rejected": _calibration_fixtures()[1],
     }
 
 

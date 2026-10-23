@@ -76,3 +76,10 @@ export function strongestLineRatePerS(
   for (const r of lineProminences(betaLoDeg, betaHiDeg, UkV, ImA, 1, filters, crystal, params)) if (!best || r[2] > best[2]) best = r
   return best ? best[1] : 0
 }
+
+/** port of braggsim.analysis.two_point_calibration: E = kevPerChannel · ch + offsetKeV from two known lines. */
+export function twoPointCalibration(ch1: number, E1KeV: number, ch2: number, E2KeV: number): { kevPerChannel: number; offsetKeV: number } {
+  if (ch1 === ch2) throw new RangeError('the two channels must differ')
+  const kevPerChannel = (E2KeV - E1KeV) / (ch2 - ch1)
+  return { kevPerChannel, offsetKeV: E1KeV - kevPerChannel * ch1 }
+}
