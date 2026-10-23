@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** L3 is done (L3.6–L3.9 on 2026-10-22, local and unpushed; L3.1–L3.5 pushed as 3cd4f88..56fc7c6). Every planned phase is now closed: agree the next step with the user. Open: Q10 (lab), Q12 (GM ε(λ) consistency; the XRF tasks quote no absolute counts, so they don't wait on it). Lab check wanted: one Cu-sheet XRF spectrum, which sets the XRF flux scale.
+> **Next:** L3 is done (L3.1–L3.9 pushed and deployed; L3.6–L3.9 as 8d38759..bd512e9 on 2026-10-22, CI test + deploy green). Every planned phase is now closed: agree the next step with the user. Open: Q10 (lab), Q12 (GM ε(λ) consistency; the XRF tasks quote no absolute counts, so they don't wait on it). Lab check wanted: one Cu-sheet XRF spectrum, which sets the XRF flux scale.
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -458,7 +458,7 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 - [x] **L3.7** Apparatus: with `detector = energy`, the 554 800 rate display is idle and the MCA counts. The sensor arm must be set
       to 90° *before* mounting (the guide's warning), so refuse the mount otherwise.
 
-> [!note] As built (2026-10-22), L3.6–L3.7 (local, unpushed)
+> [!note] As built (2026-10-22), L3.6–L3.7
 > - **Apparatus:** `Setup.detector` ('gm' | 'energy') and `Setup.sample`, with holder `'sample'`. The energy mount is refused unless the sensor rests at 90.0° (and not while the motor drives).
 >   - **Refused with alert `detector` while it is mounted (user, 2026-10-22):** SENSOR/COUPLED, ZERO, sensor ADJUST and *every* auto-scan. On the real device every auto-scan drives both arms to zero first. The exposure timer stays allowed.
 >   - **RESET** keeps the sensor at 90° and warns (`detectorReset`): the real one would crash the detector.
@@ -481,7 +481,7 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
       data taken, never on the student's %), `xrf-coin`.
 - [x] **L3.9** Reviews: physics, apparatus, design, pedagogy.
 
-> [!note] As built (2026-10-22), L3.8–L3.9 (local, unpushed)
+> [!note] As built (2026-10-22), L3.8–L3.9
 > - **Scope added (user, 2026-10-22):** students fit in the app *and/or* from a CSV, so they can analyse on site or afterwards. `xrf-calibration` starts from the GM bench and the student mounts the detector in the guide's order. The brass and coin tasks keep a mounted energy detector (`GuidedTask.keepDetector`). No text quotes absolute counts (Q12 stays open).
 > - **Fit:** `analysis.gauss_fit_fixed` (Python first; TS `gaussFitFixed`, `evaluateLineFit`).
 >   - Fixed centres at `fluorescence.reference_lines_keV` (exported in every XRF table) and per-line σ = pin FWHM/2.3548, with a linear background over a default ±3σ window. Neyman, then 3 Pearson passes, with explicit normal equations.
@@ -872,7 +872,7 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 Newest first. One entry per session. This is what the next session reads to know what happened.
 
 ### 2026-10-22 · L3 · tasks L3.8, L3.9 (L3 closed)
-- Done: in-app Gaussian fit (Python → fixtures → TS), MCA run log and CSV, fit panel, and three XRF Lab tasks. Built in 4 Sonnet work packages plus 4 Sonnet fixers after the physics, apparatus, pedagogy and design reviews. Local, unpushed (user: commit only).
+- Done: in-app Gaussian fit (Python → fixtures → TS), MCA run log and CSV, fit panel, and three XRF Lab tasks. Built in 4 Sonnet work packages plus 4 Sonnet fixers after the physics, apparatus, pedagogy and design reviews. Pushed with L3.6–L3.7 (8d38759..bd512e9); CI test + deploy green, live bundle matches the local build.
 - Verify: pytest 343 → 349, Vitest 338 → 362, ruff clean, build OK (index 74.48 kB gz, +0.8 kB for the tasks and the fit; mca chunk 5.2 → 7.0 kB gz). Export byte-identical. Browser-checked in headless Firefox (Explore brass fit; Lab uncalibrated state).
 - Surprises / decisions:
   - Significance = area/err of the students' own fit on the expected counts, so the tasks need no new criterion.
@@ -881,7 +881,7 @@ Newest first. One entry per session. This is what the next session reads to know
 - Next: no planned task left. Ask the user (push L3.6–L3.9? Q10/Q12? Cu-sheet lab check?).
 
 ### 2026-10-22 · L3 · tasks L3.6, L3.7 (S4)
-- Done: MCA view, energy-detector mode, two-point calibration port (Sonnet builder, then a Sonnet fixer after the apparatus and design reviews; small CSS and i18n fixes by Opus). Local, unpushed.
+- Done: MCA view, energy-detector mode, two-point calibration port (Sonnet builder, then a Sonnet fixer after the apparatus and design reviews; small CSS and i18n fixes by Opus). Pushed later with L3.8–L3.9 (8d38759..bd512e9).
 - Verify: pytest 343, Vitest 324 → 338, build OK (index 65.15 kB gz; i18n/canvas split into their own eager chunks, eager total ≈ +3 kB; mca 5.2 kB lazy). Export byte-identical. Browser walkthrough of the guide's setup order in headless Firefox (scratchpad script).
 - Surprises / decisions:
   - User decided the monitor switches to the MCA, and sensor motion is refused with an alert.
