@@ -11,7 +11,7 @@ status: planning
 created: 2026-10-14
 updated: 2026-10-22
 current_phase: L3
-next_task: L3.8
+next_task: none (L3 done; pick the next phase with the user)
 last_session: 2026-10-22
 parent: "[[Bragg-Simulation-Plan]]"
 sources:
@@ -54,7 +54,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 ## Status board
 
 > [!todo] Resume here
-> **Next:** `L3.8` (XRF tasks; use `write-guided-task`; the success checks must test the 45° target step). L3.6–L3.7 done 2026-10-22, local and unpushed. L3.1–L3.5 pushed (3cd4f88..56fc7c6). Open: Q10 (lab), Q12 (GM ε(λ) consistency, decide before L3.8 quotes absolute counts); lab check wanted: one Cu-sheet XRF spectrum (sets the XRF flux scale).
+> **Next:** L3 is done (L3.6–L3.9 on 2026-10-22, local and unpushed; L3.1–L3.5 pushed as 3cd4f88..56fc7c6). Every planned phase is now closed: agree the next step with the user. Open: Q10 (lab), Q12 (GM ε(λ) consistency; the XRF tasks quote no absolute counts, so they don't wait on it). Lab check wanted: one Cu-sheet XRF spectrum, which sets the XRF flux scale.
 > Settled 2026-10-21 (user): forged crystals reflect physically (Darwin–Prins or mosaic η, like the presets).
 > (Mirror of the frontmatter `next_task`. Update both at the end of every session.)
 
@@ -64,7 +64,7 @@ Task IDs are `<phase>.<n>` (e.g. `L1.3`). Commits, log entries and `/remember` n
 | G1 | Accessories and shared physics | ✅ done | 3 | G0 |
 | L1 | Práctica 5: Moseley's law | ✅ done | 2 | G1 |
 | L2 | Práctica 1: attenuation | ✅ done | 1 | G1 |
-| L3 | Práctica 6: X-ray fluorescence | 🟨 in progress (S1–S4 done) | 5–6 | G1 |
+| L3 | Práctica 6: X-ray fluorescence | ✅ done | 6 | G1 |
 | C1 | Crystal engine and presets (Python) | ✅ done | 1 | G0 |
 | C2 | Crystal selector (port and UI) | ✅ done | 1 | C1 |
 | Q1 | Stray sweep after L2/C1/C2 | ✅ done | 1 | L2, C2 |
@@ -477,9 +477,38 @@ S_U(E) and sums, so U and I stay live and the browser needs no xraylib.
 >   - No x-zoom on the MCA plot yet (the GM spectrum has drag-zoom).
 
 #### S5 — Tasks
-- [ ] **L3.8** `xrf-calibration` (Cu, Pb → calibrate), `xrf-brass` (identify the lines, fit, composition; the check is on the
+- [x] **L3.8** `xrf-calibration` (Cu, Pb → calibrate), `xrf-brass` (identify the lines, fit, composition; the check is on the
       data taken, never on the student's %), `xrf-coin`.
-- [ ] **L3.9** Reviews: physics, apparatus, design, pedagogy.
+- [x] **L3.9** Reviews: physics, apparatus, design, pedagogy.
+
+> [!note] As built (2026-10-22), L3.8–L3.9 (local, unpushed)
+> - **Scope added (user, 2026-10-22):** students fit in the app *and/or* from a CSV, so they can analyse on site or afterwards. `xrf-calibration` starts from the GM bench and the student mounts the detector in the guide's order. The brass and coin tasks keep a mounted energy detector (`GuidedTask.keepDetector`). No text quotes absolute counts (Q12 stays open).
+> - **Fit:** `analysis.gauss_fit_fixed` (Python first; TS `gaussFitFixed`, `evaluateLineFit`).
+>   - Fixed centres at `fluorescence.reference_lines_keV` (exported in every XRF table) and per-line σ = pin FWHM/2.3548, with a linear background over a default ±3σ window. Neyman, then 3 Pearson passes, with explicit normal equations.
+>   - Guards: coincident or out-of-window centres and non-finite inputs are rejected, and a singular matrix throws in TS.
+>   - On noiseless model spectra it reproduces `detected_line_counts` (pure Cu/Zn 1e-3, brass Kα 1 %; Pb Lα 0.989 pure, 0.956 in brass). A Monte Carlo shows area_err matches the scatter (ratio 1.00–1.03).
+>   - Brass composition: plain A/A_pure gives 56.4 / 41.0 / 2.7, ρ-weighted 61.1 / 35.2 / 3.7 (LD 61.6 / 35.6 / 2.9). Documented in `PARAMETERS.md`.
+> - **Apparatus:** `mcaLog` keeps one `McaRecord` per run that reached its preset, with `seen`, `changed`, the start U/I/target and the settings. The MCA is fed per time slice, so the exposure timer and the self-test are seen. A preset shortened below the elapsed time is logged too.
+> - **CSV:** `mcaCsv` describes the run (not the bench). The energy column comes only from the student's calibration.
+> - **MCA view:** a «Ajuste de líneas» panel and a CSV button.
+>   - Line chips (centroid, keV). The fit needs an energy map, so in Lab it waits for the student's calibration.
+>   - Table of area ± err and χ²/ν, with the time and live time at the click.
+>   - The data becomes a filled histogram under a thin model line, and the x axis auto-zooms to the fit window («Todo el espectro» resets it). At ≥ 1024 px the settings and fit sit in a side column.
+> - **Tasks** (`web/src/pedagogy/tasks/xrf-*.ts`):
+>   - Runs count if `seen && !changed && target = 45.0°`. That is the only place the 45° step is enforced, because the model fixes ψ1 = ψ2 = 45°.
+>   - A line "stands" if area/area_err ≥ `MIN_PROMINENCE_SIGMA` from `gaussFitFixed` on the run's *expected* counts (the median significance). At 35 kV / 1 mA / 180 s brass Pb Lα is 7.4σ; at 60 s it is 4.1σ and fails.
+>   - Only runs after the act step opens count (`countsMcaRuns`). The brass task reuses earlier standards but needs a new brass run.
+>   - `xrf-calibration`: Cu and Pb runs, and a calibration within one channel width at both lines. `xrf-brass`: same-beam Cu, Zn, Pb and CuZn39Pb3, never the %. `xrf-coin`: Cu Kα and Fe Kα both stand.
+> - **Reviews:** physics, apparatus, pedagogy and design; all findings applied (fixers on Sonnet). Main catches:
+>   - Instant mode with the exposure timer logged a usable run with the tube off.
+>   - The coin task gave its answer away, and its explanation used the wrong attenuation length (Fe Kα in Cu ≈ 12 µm).
+>   - FWHM was given as 0.2 keV (the true value is 0.41).
+>   - The overlay could not be told apart from the data.
+> - **Deferred:**
+>   - The per-slice MCA Poisson pass (≈ 100 per frame at 100×) has a `ponytail:` note: merge slices if phones jank.
+>   - The MCA record does not carry the filters.
+>   - Residuals plot.
+>   - Free-centre fit (a common offset scan) if students' calibrations prove too rough.
 
 **Done when:** the brass key composition, using the same first-order method as the students, shows the same bias as LD's
 published example (Cu high, Zn low, Pb about right), and the
@@ -841,6 +870,15 @@ micromamba run -n atom-sim npm --prefix web run build             # tsc + bundle
 ## Session log
 
 Newest first. One entry per session. This is what the next session reads to know what happened.
+
+### 2026-10-22 · L3 · tasks L3.8, L3.9 (L3 closed)
+- Done: in-app Gaussian fit (Python → fixtures → TS), MCA run log and CSV, fit panel, and three XRF Lab tasks. Built in 4 Sonnet work packages plus 4 Sonnet fixers after the physics, apparatus, pedagogy and design reviews. Local, unpushed (user: commit only).
+- Verify: pytest 343 → 349, Vitest 338 → 362, ruff clean, build OK (index 74.48 kB gz, +0.8 kB for the tasks and the fit; mca chunk 5.2 → 7.0 kB gz). Export byte-identical. Browser-checked in headless Firefox (Explore brass fit; Lab uncalibrated state).
+- Surprises / decisions:
+  - Significance = area/err of the students' own fit on the expected counts, so the tasks need no new criterion.
+  - The guide's 180 s really is needed: at 60 s Pb Lα is 4.1σ.
+  - Student text keeps the guide's Pb Lα 10.56 keV for calibration; the chips show the model centroid 10.54 (inside the one-channel tolerance).
+- Next: no planned task left. Ask the user (push L3.6–L3.9? Q10/Q12? Cu-sheet lab check?).
 
 ### 2026-10-22 · L3 · tasks L3.6, L3.7 (S4)
 - Done: MCA view, energy-detector mode, two-point calibration port (Sonnet builder, then a Sonnet fixer after the apparatus and design reviews; small CSS and i18n fixes by Opus). Local, unpushed.
