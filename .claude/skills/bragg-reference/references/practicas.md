@@ -54,14 +54,9 @@ constant and screening constant with errors against literature values.
 
 ## Práctica 6: brass composition by X-ray fluorescence
 
-**Setup (order matters).**
-1. Collimator in place. In SENSOR mode, drive the sensor arm to **90° before** mounting the energy detector. The
-   detector is bulky: moving the arm afterwards strains the goniometer, and the detector can hit the collimator or walls.
-2. Mount the energy detector in the sensor seat. Detector signal out → apparatus signal in. Route the power cable
-   through the empty duct to the detector's Mini-DIN socket.
-3. s₁ = s₂ = 6 cm. In TARGET mode, set the target to 45°. Close the door.
-4. Apparatus signal out → MCA box input. MCA box on Sensor-CASSY. Switch everything on and wait for the detector LED
-   to turn green.
+**Setup (summary).** Collimator; sensor arm parked at 90° before the energy detector is mounted (never move the arm
+with it fitted); detector in the sensor seat, signal to the MCA box on Sensor-CASSY; s₁ = s₂ = 6 cm; target at 45°;
+doors closed.
 
 | MCA setting | Value |
 |---|---|
@@ -88,9 +83,8 @@ composition from Gaussian fits or deconvolution, compared with literature; the s
 | X-ray energy detector 559 938 | Si-PIN photodiode, Peltier-cooled; active area 0.8 mm dia.; Si ≈ 150 µm; plastic entrance window ≈ 40 µm graphite equivalent; range ≈ 2–60 keV | LD instruction sheet 559 938 §5 |
 | 559 938 resolution | FWHM(E) = 2√(2 ln 2) · √(σ_el² + F·ε·E), σ_el ≈ 160 eV, F ≈ 0.15 (Fano), ε = 3.8 eV per e–h pair; 0.40 keV at Fe Kα 6.40 keV | LD instruction sheet 559 938 §5–6 |
 | 559 938 other | non-linearity < 1 % (3–35 keV, incl. MCA box); drift < 3 % after 4 h; rise ≈ 0.5 µs, fall ≈ 5 µs; **dead time ≈ 250 µs per pulse**; output BNC → MCA box 524 058 | LD instruction sheet 559 938 §5 |
-| 559 938 housing lines | radiation that passes the Si can excite the housing (iron alloy, gold-plated), so Fe, Co, Ni, Cu, Zn, Au or Ag lines may appear; Au L lines most often | LD instruction sheet 559 938 §9 |
+| 559 938 housing lines | Fe, Co, Ni, Cu, Zn, Au or Ag lines can appear (Au L most often) | LD instruction sheet 559 938 §9 |
 | Target-alloy set 554 848 | CuZn39Pb3 = 58 Cu / 39 Zn / 3 Pb (leaded brass); CuZn36 = 64 Cu / 36 Zn; X5CrNi18-10 = 72 Fe / 18 Cr / 10 Ni (wt %) | LD CASSY Lab help, experiments P7.5.1.1 / P7.5.1.2 |
-| LD brass method | peak height ∝ number of atoms, referenced to pure-element spectra: first order only. Matrix effects (Zn K exciting Cu, absorption) bias it | LD P7.5.1.2 help page; Amptek tutorial "Understanding characteristic X-rays" |
 | US cent, 1982 on (considered, not used) | zinc core (Zinc Alloy 190, 0.7–0.9 % Cu) plated with ≈ 8 µm pure Cu (≈ 7.5 µm centre, about twice at the rim); overall ≈ 97.5 Zn / 2.5 Cu; 2.5 g, 19.05 mm dia., 1.52 mm | Wikipedia "Penny (United States coin)"; CONECA (citing Concurrent Technologies Corp.); Stack's Bowers |
 | Ecuador 1 centavo (**the 2003 issue is the project's coin**, user 2026-10-14) | 2000 issue: brass-plated steel (sources disagree, some say solid brass), 2.5 g, 19 mm; 2003 issue (KM# 104a): Cu-plated steel, magnetic, 2.35 g, 19 mm, 1.45 mm, struck in Mexico. Plating not published: estimate ≈ 18 µm Cu (range 10–25), from the RCM copper-plated steel cent of the same size and mass (4.5 % Cu by mass) | Wikipedia "Ecuadorian centavo coins"; Numista 3003 |
 
@@ -107,5 +101,5 @@ d ≈ 313.6 pm; calcite (104) d ≈ 303.5 pm; muscovite 2M1 (002) d ≈ 995 pm (
 |---|---|---|
 | GM end-window counter 559 01 background | ≤ 7 pulses/min (≈ 0.12 /s) with 50 mm Pb + 3 mm Al shielding | LD instruction sheet 559 01 |
 | GM 559 01 dead time | ≤ 90 µs | LD instruction sheet 559 01 |
-| Moseley, LD example | R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7 from the Zr, Mo, Ag, In edges (lit. 1.0974 × 10⁷ m⁻¹, 3.6). Evaluation: T = R/R₀, x axis → nλ, λ_K from the edge, fit 1/√λ_K = √R (Z − σ_K) | LD CASSY Lab help, Moseley's law and the Rydberg constant |
-| Brass XRF, LD example | CuZn39Pb3 found 61.6 Cu / 35.6 Zn / 2.9 Pb (nominal 58/39/3). Cu comes out high because of secondary fluorescence: Zn Kβ (9.57 keV) is above the Cu K edge (8.98 keV). Fit of 7.5–9.1 keV with three equal-width Gaussians (Cu Kα 8.04, Zn Kα 8.64, Cu Kβ 8.91 keV). Densities Cu 8.96, Zn 7.10, Pb 11.34 g/cm³ | LD CASSY Lab help P7.5.1.2 |
+| Moseley, LD example | R = 1.056 × 10⁷ m⁻¹, σ_K = 2.7 from the Zr, Mo, Ag, In edges (lit. 1.0974 × 10⁷ m⁻¹, 3.6) | LD CASSY Lab help, Moseley's law and the Rydberg constant |
+| Brass XRF, LD example | CuZn39Pb3 found 61.6 Cu / 35.6 Zn / 2.9 Pb (nominal 58/39/3); fit window 7.5–9.1 keV, three equal-width Gaussians (Cu Kα 8.04, Zn Kα 8.64, Cu Kβ 8.91 keV); densities Cu 8.96, Zn 7.10, Pb 11.34 g/cm³ | LD CASSY Lab help P7.5.1.2 |

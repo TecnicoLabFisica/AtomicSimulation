@@ -13,3 +13,8 @@
 - Prefer few, small, well-maintained dependencies. Every web dependency ships to students' phones.
 - Write for strangers: clear README, reproducible setup (`environment.yml`, `package-lock.json`),
   and commit messages that explain *why*.
+- Facts only: no step-by-step reproduction of LD procedures and no wholesale tables with narrative. Paraphrase values,
+  ranges and semantics in our own structure and cite them.
+- No LD logos, photos, renders or trade dress.
+- Every public surface (README, the in-app About dialog) keeps the non-affiliation, trademark and safety notice.
+- After any history rewrite, verify the old SHAs are gone on GitHub (remote API), not just locally.

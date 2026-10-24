@@ -476,13 +476,13 @@ Deviations and emulator assumptions (the manual gives no number; each is a named
 - The rate display is Poisson(R̄ · 1 s) per simulated second (clock quantized to whole seconds); a scan point is
   the mean over Δt. Instant mode draws one Poisson(R̄ · Δt) per step, which has the same statistics.
 - The speaker key toggles GM clicks and the ADJUST detent tick (sound added in Phase 8).
-- §11 a, b, c, e, f, h are scripted key by key in `web/tests/apparatus.test.ts`.
+- The sheet's operating procedures (switch-on, parameters, manual positioning, exposure timer, auto-scan, Bragg run) are scripted key by key in `web/tests/apparatus.test.ts`.
 
 > [!example] Why time acceleration matters
 > The leaflet scan (2° → 25°, $\Delta\beta = 0.1°$, $\Delta t = 10$ s) has 231 steps → $231 \times 10\ \text{s} \approx 38.5$ min of real time.
 
 > [!success] Done when
-> The full procedure of manual section 11 (a, b, f, h) can be performed step by step in the browser.
+> The sheet's operating procedures can be performed step by step in the browser.
 
 ### Phase 8 — Views
 

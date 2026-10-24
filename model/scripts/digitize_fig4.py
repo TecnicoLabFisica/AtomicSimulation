@@ -111,6 +111,8 @@ def main():
             "# touches the axis bottom (linear R ≲ 30 /s; log R ≈ 0.6 near β = 2.8°) and the\n"
             "# linear segment β < 2.8°, which the tracer sees as detached. The log panel covers\n"
             "# all of them and is the one to fit.\n"
+            "# Data points digitized for comparison only; the figure itself is (c) LD DIDACTIC GmbH"
+            " and is not reproduced.\n"
         )
         f.write("beta_deg,rate_per_s,panel\n")
         for b, r, panel in rows:

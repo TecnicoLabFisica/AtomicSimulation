@@ -1,6 +1,6 @@
 ---
 name: bragg-reference
-description: Authoritative reference values and apparatus behaviour for the Bragg simulation — NaCl/Mo constants, leaflet P6.3.3.1 tables and Fig. 4 features, and the LD X-ray apparatus 554 800 control panel (keys, ranges, state machine, operating procedure), plus the EPN lab practices on the same apparatus (attenuation, Moseley, XRF of brass) and their accessories. Use whenever writing or reviewing physics code, tests, fixtures, the apparatus emulator, or educational text, instead of reading the copyrighted PDFs in refs/.
+description: Authoritative reference values and apparatus behaviour for the Bragg simulation — NaCl/Mo constants, leaflet P6.3.3.1 values and Fig. 4 features, and the LD X-ray apparatus 554 800 control panel (keys, ranges, displays, interlock, state machine), plus the EPN lab practices on the same apparatus (attenuation, Moseley, XRF of brass) and their accessories. Use whenever writing or reviewing physics code, tests, fixtures, the apparatus emulator, or educational text, instead of reading the copyrighted PDFs in refs/.
 ---
 
 # Bragg reference
@@ -20,12 +20,12 @@ Load only the file you need:
 | Need | File |
 |---|---|
 | Physical constants, Mo lines, edges, Bragg angles, derived formulas | `references/constants.md` |
-| Leaflet: setup, measurement settings, Tables 1–5, what Fig. 4 looks like | `references/leaflet.md` |
-| 554 800: keys, ranges, displays, interlock, modes, §11 procedures | `references/apparatus-554800.md` |
-| EPN practices P1/P5/P6: settings, steps, analysis; accessories, detector 559 938, samples, coins | `references/practicas.md` |
+| Leaflet: settings, Fig. 4 features, Table 3/5 values used by tests | `references/leaflet.md` |
+| 554 800: keys, ranges, displays, interlock, modes, emulated procedure | `references/apparatus-554800.md` |
+| EPN practices P1/P5/P6: settings, analysis asked; accessories, detector 559 938, samples, coins | `references/practicas.md` |
 
 Rules when using these facts:
-- Cite them in code as `LD P6.3.3.1 Table 2`, `LD 554 800 §7 b3` or `EPN Práctica 5`.
+- Cite them in code as `LD P6.3.3.1 Table 2`, `LD 554 800 (parameter keys)` or `EPN Práctica 5`.
 - Anything marked **(verify)** is a literature value that is not in the LD docs. Confirm it with xraylib
   before hard-coding it, and record the source.
 - If you need the original wording or a figure, open the PDF from `refs/` locally

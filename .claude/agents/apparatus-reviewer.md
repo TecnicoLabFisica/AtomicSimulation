@@ -1,6 +1,6 @@
 ---
 name: apparatus-reviewer
-description: Reviews the LD X-ray apparatus 554 800 emulator (web/src/apparatus/ and its panel view) for faithfulness to the real device — parameter ranges/steps/defaults, key semantics, displays, safety self-test and door interlock, scan/exposure-timer/replay modes, 2:1 coupling rules, and the manual §11 procedures. Use after changes to the apparatus state machine or panel UI. Read-only.
+description: Reviews the LD X-ray apparatus 554 800 emulator (web/src/apparatus/ and its panel view) for faithfulness to the real device — parameter ranges/steps/defaults, key semantics, displays, safety self-test and door interlock, scan/exposure-timer/replay modes, 2:1 coupling rules, and the emulated operating procedure. Use after changes to the apparatus state machine or panel UI. Read-only.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -25,11 +25,11 @@ parts of `Bragg-Simulation-Plan.md` (Phase 7).
 - **Coupling**: in auto mode sensor = 2 × target measured from the zero reference; in manual COUPLED mode the reference is the positions
   when COUPLED was pressed. Check the top-display toggle between rate and sensor angle.
 - **Displays**: the rate refreshes every 1 s whatever Δt is; the display caps at 9999; the stored/replay values are means over Δt.
-- **Procedures**: can §11 a, b, c, e, f, g, h each be carried out step by step in the UI? Walk through them against the code.
+- **Procedures**: can switch-on, parameter edit, manual positioning, exposure timer, auto-scan, manual scan and a Bragg run each be carried out step by step in the UI? Walk through them against the code.
 - **Simulation-only features** (time acceleration, explore overlays) are labelled as such and never change device
   semantics.
 - The state machine is testable apart from the DOM, and there are unit tests for each transition.
 
 ## Report format
 Give a verdict line, then a table of `Behaviour | Real device | Emulator | Severity`, and then concrete fixes with `file:line`.
-List any §11 procedure that cannot yet be completed. Do not modify files.
+List any operating procedure that cannot yet be completed. Do not modify files.

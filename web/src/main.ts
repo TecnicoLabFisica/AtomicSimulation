@@ -11,6 +11,7 @@ import type { Focus, mountBench, Pick } from './views/bench'
 import type { mountForge } from './views/forge'
 import { readPalette } from './views/canvas'
 import { mountGoniometer } from './views/goniometer'
+import { mountAbout } from './views/about'
 import { mountHuygens } from './views/huygens'
 import { mountPanel } from './views/panel'
 import { mountSetup } from './views/setup'
@@ -37,6 +38,7 @@ app.innerHTML = `
       <button class="tool explore" data-forge aria-controls="forge" aria-pressed="false"></button>
       <button class="tool" data-theme></button>
       <button class="tool" data-lang></button>
+      <button class="tool about-btn" data-about></button>
     </div>
   </header>
   <main class="stage" data-view="room">
@@ -69,6 +71,7 @@ app.innerHTML = `
     <aside class="sheet inspector" id="learn" data-open="false">
       <button class="tool close" data-close aria-label="">×</button>
       <div class="learn" data-learn-body></div>
+      <button class="about-link" data-about-open></button>
     </aside>
     <aside class="sheet inspector" id="huygens" data-open="false">
       <button class="tool close" data-close aria-label="">×</button>
@@ -104,6 +107,8 @@ let mca: ReturnType<typeof import('./views/mca').mountMca> | null = null
 let mcaLoading = false
 const energyOn = () => apparatus.setup.detector === 'energy'
 const monitorView = () => (energyOn() && mca ? mca : spectrum)
+const about = mountAbout(q('[data-about]'))
+q('[data-about-open]').addEventListener('click', about.open)
 const huygens = mountHuygens(q('[data-huygens-body]'), apparatus)
 const panel = mountPanel(q('[data-panel]'), apparatus, sound.detent)
 const explore = mountExplore(q('[data-explore]'), apparatus)
@@ -151,6 +156,8 @@ function labels() {
   q('[data-theme]').textContent = { auto: '◐', light: '○', dark: '●' }[theme]
   q('[data-lang]').textContent = getLang() === 'es' ? 'EN' : 'ES'
   q('[data-lang]').setAttribute('aria-label', s.language)
+  about.build()
+  q('[data-about-open]').textContent = t().aboutTitle
   q('[data-gonio]').setAttribute('aria-label', getMode() === 'explore' ? `${s.gonioLabel}. ${s.dragCrystal}` : s.gonioLabel)
   for (const b of app.querySelectorAll('[data-close]')) b.setAttribute('aria-label', s.close)
   for (const b of app.querySelectorAll('.focus-card > [data-back]')) (b.setAttribute('aria-label', s.back), (b.textContent = '×'))

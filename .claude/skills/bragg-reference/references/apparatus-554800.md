@@ -1,102 +1,59 @@
-# LD X-ray apparatus 554 800: behaviour to emulate (paraphrased)
+# LD X-ray apparatus 554 800: fact sheet for the emulator
 
-## Hardware limits (manual §4)
-- Tube high voltage 0.0–35.0 kV DC. Emission current 0.0–1.0 mA. The hard safety maximum is 37 kV / 1.2 mA,
-  which the user cannot reach.
-- Rate meter: at most 65 535 /s internally and **9999 /s shown on the display**. The GM supply is fixed at 500 V.
-- Two 4-digit LED displays, 25 mm tall, with units shown in an LED dot-matrix.
-- Goniometer 554 831 with stepper motors: target arm unlimited (0–360°), **sensor arm −10° … +170°**,
-  step 0.1°. Scan modes are sensor, target, or 2:1 coupled.
-- Exposure-timer gate time 0.5–9999 s. A loudspeaker gives acoustic count clicks and can be toggled.
-- Accessories: collimator and a **Zr filter** (it plugs onto the collimator).
+Source: LD instruction sheet 554 800 (paraphrased facts only). Code comments cite "§n" of that sheet in places
+(e.g. `web/src/apparatus/apparatus.ts`, `web/src/views/bench.ts`); those tags are not reproduced here.
 
-## Housing and layout (manual §1, §4, §7 d–g)
-- Outer size 67 cm (W) × 48 cm (H) × 35 cm (D). Weight 41 kg. Carrying handles on the sides, and feet.
-- Front, from left to right: a column holding the **control panel** (top) and the **connection panel** (below,
-  with GM TUBE input, HV OUT, and BNC in/out), then the **tube chamber** (the Mo tube inside a lead-glass tube,
-  plus a ventilator and heat sink), then the **experiment chamber**, which is the largest and holds the goniometer on
-  mounting sockets and guide rails.
-- Each chamber has its own **lead-glass sliding door** on the front, and the experiment chamber has a
-  lead-glass window above its door. Both doors are part of the interlock. The **fluorescent screen**
-  (D = 15 cm) closes the experiment chamber on the side facing away from the tube. A labyrinth **free channel**
-  (60 mm × 20 mm) leads into the experiment chamber. The mains power panel is on the side.
-- The collimator plugs into the tube-side wall of the experiment chamber, in the beam axis.
+## Limits
+- Tube: 0.0-35.0 kV, emission current 0.0-1.0 mA (hard maximum 37 kV / 1.2 mA, unreachable by the user).
+- Rate meter: internal maximum 65 535 /s, display shows at most 9999 /s. Without a counter tube it reads 0.
+- Sensor arm -10 ... +170 degrees, target arm unlimited, 0.1 degree steps. Scan modes: sensor, target, 2:1 coupled.
+- Exposure-timer gate 0.5-9999 s (panel Δt entry: 1-9999 s). Optional speaker click per pulse.
+- Accessories: collimator, Zr filter (plugs onto the collimator).
+- Housing 67 x 48 x 35 cm; panel column on the left, tube chamber, experiment chamber, each with a lead-glass sliding
+  door (used by `web/src/views/bench.ts`); fluorescent screen D = 15 cm closes the far side of the experiment chamber.
 
-## Displays (§7 b1)
-- **Top** display: the current counting rate, refreshed every 1 s regardless of Δt.
-- **Bottom** display: the quantity selected by the last parameter key.
-- In COUPLED mode the bottom display shows the target angle. Pressing COUPLED again toggles the top display
-  between the rate and the sensor angle.
-- The HV indicator lamp **flashes** while high voltage is on.
-
-## ADJUST knob (§7 b2)
-An incremental encoder that turns both ways. Its response is **dynamic**: turning faster makes bigger steps.
-A value is accepted when any key is pressed.
-
-## Parameter keys (§7 b3)
+## Parameter keys
 | Key | Range | Step | Default | Notes |
 |---|---|---|---|---|
-| U | 0.0–35.0 kV | 0.1 kV | 5.0 kV | Shows the set value even with HV off |
-| I | 0.00–1.00 mA | 0.01 mA | 0.00 mA | Shows the set value even with no current |
-| Δt | 1–9999 s | 1 s | 1 s | Measuring time per angular step |
-| Δβ | 0.0–20.0° | 0.1° | 0.1° | Needs the goniometer. **0.0° switches to exposure-timer mode** and turns auto-scan off. The display shows a special symbol |
-| β LIMITS | — | 0.1° | — | 1st press sets the lower limit (with a "lower" symbol), 2nd press sets the upper limit (with an "upper" symbol). **If upper < lower, no scan can start and the display flashes until it is fixed** |
+| U | 0.0-35.0 kV | 0.1 kV | 5.0 kV | shows the set value even with HV off |
+| I | 0.00-1.00 mA | 0.01 mA | 0.00 mA | shows the set value even with no current |
+| Δt | 1-9999 s | 1 s | 1 s | measuring time per angular step |
+| Δβ | 0.0-20.0° | 0.1° | 0.1° | 0.0° selects exposure-timer mode (auto-scan off) |
+| β LIMITS | arm range | 0.1° | n/a | 1st press: lower limit, 2nd press: upper limit; upper < lower blocks scans and flashes the display |
 
-## Scan-mode keys (§7 b4)
-- **SENSOR / TARGET**: select that arm for manual or auto scan. The limits apply to that arm, and the bottom
-  display shows its angle.
-- **COUPLED**: 2:1 coupling, with limits set on the **target** arm. In manual moves the coupling reference is the
-  arm positions at the moment COUPLED was pressed. In auto-scan the reference is the zero of the
-  measuring system. So sensor = 2 × target holds only after ZERO or in auto-scan.
-- **ZERO**: move both arms to the zero position of the measuring system.
+ADJUST is an incremental encoder with a dynamic response (faster turn, bigger increment). Any key ends an edit.
 
-## Operational keys (§7 b5)
-- **RESET**: arms go to zero, **all parameters return to their defaults, and HV switches off**.
-- **REPLAY**: read back stored values. The ADJUST knob steps through the scanned angles, and the display shows the angle and
-  the rate averaged over Δt. The arms do not move. Data stays available until RESET, a new SCAN, or power-off.
-- **SCAN ON/OFF**: runs the safety self-test, and if it passes switches HV on and starts the program. With Δβ > 0 it
-  needs a scan mode (SENSOR/TARGET/COUPLED). With Δβ = 0 it runs the exposure timer. In auto-scan the arms go
-  **first to zero, then to the lower limit**, then HV comes on. Stepping starts once HV and emission current are
-  present and runs from the lower to the upper limit. During the scan every (angle, mean rate) pair is stored.
-- **Speaker**: toggles the acoustic pulse indicator.
-- **HV ON/OFF**: runs the safety self-test, and if it passes switches HV on (doors must be closed).
+## Scan-mode keys
+- SENSOR / TARGET select the arm moved by ADJUST and scanned; limits apply to it.
+- COUPLED: limits are set on the target arm, sensor follows at twice the angle. In manual moves the reference is the
+  arm positions when COUPLED was pressed; in auto-scan it is the measuring-system zero. Pressing COUPLED again toggles
+  the top display between rate and sensor angle.
+- ZERO moves both arms to zero.
 
-## Safety self-test and interlock (§6, §7 h)
-Before HV turns on through SCAN or HV ON/OFF, with the doors closed, the display shows **"SAFE"** and then adds **"OK"**
-when the test passes. If a door is open the test fails, HV stays off, and the **upper display line blinks**.
-The doors are locked while X-rays can be produced and unlock only when none can be.
+## Operational keys
+- RESET: arms to zero, defaults restored, HV off.
+- HV ON/OFF: safety self-test, then HV on (doors must be closed).
+- SCAN: self-test, then HV on and program start. Δβ > 0 needs a scan mode; Δβ = 0 runs the exposure timer. Auto-scan
+  drives the arms to zero, then to the lower limit; stepping starts once HV and emission current are present and runs
+  to the upper limit, storing (angle, mean rate over Δt) per step.
+- REPLAY: ADJUST browses the stored angles and their mean rates; arms stay put. Data lasts until RESET, new SCAN or power-off.
+- Speaker toggles the click.
 
-## Data output (§8)
-The rate is counted continuously and displayed every second. During a scan the angle display updates at each
-new position and the rate every second. The analogue ANGLE/RATE outputs (and USB) change once per
-elapsed Δt and carry the **mean rate over Δt**. Without a counter tube the display reads 0.
+## Displays
+- Top: current rate, refreshed every 1 s regardless of Δt. Bottom: quantity of the last parameter key (target angle in COUPLED).
+- HV lamp flashes while HV is on. Analogue/USB outputs update once per Δt with the mean rate.
 
-## Procedures (§11). The emulator must allow each of these step by step
-**a) Switch on**: press U and set e.g. 20 kV. Press I and set e.g. 1.00 mA. Close the doors and press HV ON/OFF.
-The HV lamp flashes and the cathode glows. Changing I changes the cathode brightness.
+## Safety and interlock
+Before HV on (HV key or SCAN) the display shows "SAFE", then "SAFE OK" if both doors are closed. With a door open the
+test fails, HV stays off and the top display blinks. Doors stay locked while X-rays can be produced.
 
-**b) Set parameters**: press U, I, Δt, or LIMITS, then turn ADJUST. Any key ends the edit.
+## Procedure as the emulator implements it
+Set U and I, close the doors and press HV (or SCAN, which also self-tests). Move arms with ADJUST in SENSOR, TARGET
+or COUPLED. For an exposure at fixed angle use Δβ = 0 with Δt and read the mean with REPLAY. For an auto-scan pick a
+mode, set both limits, Δβ and Δt, then SCAN and browse the result with REPLAY. The Bragg run uses 35.0 kV, 1.0 mA,
+Δt = 10 s, Δβ = 0.1°, COUPLED, target limits 2.5-30° (sheet example) or 2-25° (leaflet).
 
-**c) Manual positioning**: press SENSOR or TARGET and turn ADJUST, and the arm follows. Alternatively press COUPLED and turn
-ADJUST, and the target follows while the sensor moves at twice the step.
-
-**e) Exposure timer**: position the arms manually, set U and I, set Δβ = 0.0° and Δt, then press SCAN. The remaining
-time counts down while the arms stay put. When it reaches zero, press REPLAY to see the mean rate over Δt.
-
-**f) Auto-scan**: choose TARGET, SENSOR, or COUPLED. Press LIMITS to set the lower limit and LIMITS again to set the upper limit. Set I, U, Δβ, and Δt, then
-press SCAN. The display shows the rate and the target angle (or the sensor and target angles in coupled mode). Values are stored,
-and afterwards REPLAY with ADJUST browses them.
-
-**g) Manual scan**: choose a scan mode, set I and U with Δt = 1, and move the arm with ADJUST. Wait ~2 s for the rate to
-settle, then note it. At low rates, use an exposure timer at each angle and press REPLAY each time. This works but is slow.
-
-**h) Bragg at NaCl**: collimator, goniometer, end-window counter as the sensor, NaCl as the target. Go to zero. Set
-U = 35.0 kV, I = 1.0 mA, Δt = 10 s, Δβ = 0.1°, press COUPLED, set the target limits (the manual's example is 2.5°–30°,
-the leaflet uses 2°–25°), then press SCAN.
-
-## Emulator state machine (from the project plan)
-Idle → ParamEdit (U/I/Δt/Δβ/LIMITS), and any key returns to Idle.
-Idle → SafetyTest (SCAN or HV) → back to Idle if a door is open (display blinks), or → Scanning if SAFE OK and Δβ > 0,
-or → ExposureTimer if SAFE OK and Δβ = 0.
-Scanning or ExposureTimer → Replay when finished (via REPLAY). Replay → Idle on RESET or SCAN.
-Simulation-only addition: **time acceleration** (1×, 10×, 100×, instant). This is not a real device feature, so label it as such.
+## State machine
+Idle -> ParamEdit (any key returns to Idle). Idle -> SafetyTest (SCAN/HV) -> Idle if a door is open, Scanning if
+SAFE OK and Δβ > 0, ExposureTimer if SAFE OK and Δβ = 0. Scanning/ExposureTimer -> Replay (REPLAY) -> Idle on RESET or SCAN.
+Simulation-only addition: time acceleration (1x, 10x, 100x, instant); label it as not a device feature.

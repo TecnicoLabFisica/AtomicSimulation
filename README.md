@@ -78,7 +78,39 @@ Empirical model parameters and how they were fitted: [`model/PARAMETERS.md`](mod
 The LD documents are copyrighted and are not included in this repository. We use only
 paraphrased facts and numerical values from them, and we cite them wherever they are used.
 
+## Authors
+
+- Juan Naranjo, physicist, Departamento de Física, Escuela Politécnica Nacional (EPN).
+- David Herrería, physicist, Departamento de Física, EPN (review).
+
+Copyright © 2026 Escuela Politécnica Nacional (EPN), Departamento de Física. To cite this project, see
+[CITATION.cff](CITATION.cff).
+
 ## License
 
 - Code: [MIT](LICENSE).
 - Educational content we create (texts, guided tasks, figures): [CC BY 4.0](LICENSE-CONTENT).
+  CC BY applies only to that original content. It excludes LD DIDACTIC GmbH documents, names and trademarks,
+  third-party facts, data and literature values (cited where used), and summaries of EPN internal lab guides,
+  which keep their own rights. See [LICENSE-CONTENT](LICENSE-CONTENT).
+- Third-party components (xraylib, three.js, uPlot) and the digitized Fig. 4 data: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+## Legal notice
+
+This is an independent educational simulation. It is not affiliated with, endorsed or sponsored by LD DIDACTIC GmbH.
+"LD DIDACTIC" and "CASSY" are names of LD DIDACTIC GmbH; "LEYBOLD" is a trademark of Leybold GmbH. Product names and
+catalogue numbers are used only to identify the hardware being simulated.
+
+It is not a substitute for the manufacturer's instructions, your institution's radiation-protection rules or
+supervised training. Never operate the real 554 800 based on this simulation. Values come from an empirical model and
+can differ from a real device.
+
+## Aviso legal
+
+Esta es una simulación educativa independiente. No está afiliada, respaldada ni patrocinada por LD DIDACTIC GmbH.
+"LD DIDACTIC" y "CASSY" son nombres de LD DIDACTIC GmbH; "LEYBOLD" es una marca de Leybold GmbH. Los nombres de
+producto y números de catálogo se usan solo para identificar el equipo simulado.
+
+No sustituye las instrucciones del fabricante, las normas de protección radiológica de su institución ni la
+capacitación supervisada. Nunca opere el equipo 554 800 real basándose en esta simulación. Los valores provienen de un
+modelo empírico y pueden diferir de un equipo real.

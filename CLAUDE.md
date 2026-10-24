@@ -73,11 +73,15 @@ briefing an agent would cost more than the edit. The read-only reviewers above s
 
 ## Public-repo hygiene (checklist)
 
-- [ ] LD PDFs (once committed under `start/`) purged from local history on 2026-09-24, but GitHub still
-      serves the orphaned commits 5c1ceb8, 66e2a74, 8aacb70 by SHA (checked 2026-09-26; the repo is public
-      and its event feed lists them). Needs a GitHub Support purge or a delete-and-recreate of the repo.
-      Re-check: `git log --all --stat -- '*.pdf'` is empty and
+- [x] LD PDFs (once committed under `start/`) purged from local history on 2026-09-24; the GitHub repo was deleted
+      and recreated from the clean history on 2026-10-24, and the orphaned commits 5c1ceb8, 66e2a74, 8aacb70 now
+      return 422. Re-check: `git log --all --stat -- '*.pdf'` is empty and
       `curl -so /dev/null -w '%{http_code}' https://api.github.com/repos/TecnicoLabFisica/AtomicSimulation/commits/5c1ceb8` is 404/422.
+- [x] Legal pass 2026-10-24: non-affiliation, trademark and safety notice in the README and the in-app About dialog;
+      CC BY scope limited to our own content; `THIRD-PARTY-NOTICES.md`; bundled licences shipped (`build.license`);
+      LD-derived references trimmed to cited facts; copyright EPN, Departamento de Física (authors in `CITATION.cff`).
+- [ ] EPN written authorisation for the MIT / CC BY release and the EPN name (COESCCI arts. 114/116, 165). Letter drafted 2026-10-24, to send
+      to the Departamento de Física (cc Vicerrectorado de Investigación, Procuraduría); the UI names no institution until it arrives.
 - [x] LICENSE files: MIT (code) + CC BY 4.0 (educational content/docs); README cites LD sources.
 - [x] No absolute local paths, tokens or `settings.local.json` in history: audited all refs on 2026-09-26.
       Re-check: `git grep -nIE '/home/|/Users/|ghp_|github_pat_|sk-|PRIVATE KEY' $(git rev-list --all)`.

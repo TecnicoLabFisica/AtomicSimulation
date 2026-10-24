@@ -15,7 +15,7 @@ button, select { font: inherit; color: inherit; }
 }
 
 /* ── Shell ─────────────────────────────────────────────────────────────── */
-#app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+#app { height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .topbar {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
@@ -555,3 +555,24 @@ button, select { font: inherit; color: inherit; }
   .mca .plot { grid-column: 1; grid-row: 2 / -1; }
   .mca-setup, .mca-fit { grid-column: 2; }
 }
+
+/* ── About · Legal: a quiet ⓘ in the topbar, a native dialog ── */
+.about-btn { color: var(--label-2); }
+.about-link { font: var(--text-footnote); color: var(--label-2); min-height: var(--touch); margin: 0 var(--space-4) var(--space-3); padding: 0; background: none; border: none; cursor: pointer; }
+@media (max-width: 599px) { .about-btn { display: none; } }
+.about {
+  width: min(32rem, calc(100vw - 2 * var(--space-4))); max-height: 85dvh; padding: 0;
+  border: none; border-radius: var(--radius-l); background: var(--surface); color: var(--label);
+  box-shadow: var(--shadow-sheet); overscroll-behavior: contain;
+}
+.about-body { padding: var(--space-5) var(--space-5) var(--space-4); }
+.about::backdrop { background: color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.about h2 { font: var(--text-title); color: var(--label); letter-spacing: -0.01em; margin: 0 var(--touch) var(--space-3) 0; }
+.about h3 { font: var(--text-headline); margin: var(--space-4) 0 var(--space-1); }
+.about p { margin: var(--space-2) 0; font: var(--text-footnote); color: var(--label-2); }
+.about ul { list-style: none; padding: 0; margin: var(--space-2) 0 0; }
+.about li a { display: flex; align-items: center; min-height: var(--touch); font: var(--text-callout); }
+.about a { color: var(--accent); }
+.about .close { top: var(--space-4); right: var(--space-4); }
+.about[open] { animation: fade-in var(--dur-base) var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .about[open] { animation: none; } }

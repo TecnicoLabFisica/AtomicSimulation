@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software or its educational content, please cite it as below."
+title: "X-Ray Lab: a simulation of Bragg reflection, Moseley's law, attenuation and XRF on the X-ray apparatus 554 800"
+type: software
+authors:
+  - given-names: Juan
+    family-names: Naranjo
+    affiliation: "Escuela Politécnica Nacional (EPN), Departamento de Física"
+  - given-names: David
+    family-names: Herrería
+    affiliation: "Escuela Politécnica Nacional (EPN), Departamento de Física"
+version: "0.4.0"
+date-released: "2026-10-24"
+license: MIT
+repository-code: "https://github.com/TecnicoLabFisica/AtomicSimulation"
+url: "https://tecnicolabfisica.github.io/AtomicSimulation"

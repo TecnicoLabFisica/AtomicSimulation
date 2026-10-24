@@ -1,6 +1,8 @@
 # Copyrighted LD Didactic material (instruction sheet, leaflet) — never commit
 refs/
 *.pdf
+# Local-only legal drafts (letters to EPN etc.): never commit
+legal/
 
 # Local tooling / editors
 .obsidian/
